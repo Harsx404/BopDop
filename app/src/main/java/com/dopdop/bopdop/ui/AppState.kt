@@ -65,6 +65,8 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     /** 0 = mini player, 1 = full Now Playing. */
     val player = Animatable(0f)
     var nowPlayingPage by mutableStateOf(NowPlayingPage.ART)
+    /** Where the mini player's cover sits (root coords) — the player genies into it on close. */
+    var miniArt by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
 
     fun toast(msg: String) { toast = System.nanoTime() to msg }
 

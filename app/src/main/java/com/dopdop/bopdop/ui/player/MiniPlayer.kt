@@ -39,6 +39,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -113,7 +115,14 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
         // (Clipped: the glass layer doesn't clip its children, so an unclipped wash shows square corners.)
         Box(Modifier.matchParentSize().clip(shape).background(Brush.horizontalGradient(listOf(palette.wash.copy(alpha = 0.22f), Color.Transparent))))
         Row(Modifier.fillMaxHeight().padding(start = 9.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Artwork(t.artwork, Modifier.size(46.dp), corner = 14.dp, size = 226)
+            Artwork(
+                t.artwork,
+                Modifier.size(46.dp).onGloballyPositioned { c ->
+                    // Only at rest — while the player is open the chrome is faded/moved.
+                    if (app.player.value == 0f && dragX.value == 0f) app.miniArt = c.boundsInRoot()
+                },
+                corner = 14.dp, size = 226,
+            )
             Spacer(Modifier.width(12.dp))
             AnimatedContent(
                 targetState = t, modifier = Modifier.weight(1f),

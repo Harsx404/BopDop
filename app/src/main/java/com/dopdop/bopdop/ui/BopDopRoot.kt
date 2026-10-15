@@ -218,17 +218,18 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
     val away by androidx.compose.animation.core.animateFloatAsState(
         if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN) 1f else 0f, tween(260), label = "chromeAway",
     )
-    val p = maxOf(app.player.value, away)
     Column(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
-                // The mini player and tab bar rise back as the player settles into them.
-                translationY = p * 160.dp.toPx()
-                alpha = (1f - p * 1.8f).coerceIn(0f, 1f)
-                val sc = 1f - 0.06f * p
+                // Full-screen tools: the chrome sinks away.
+                translationY = away * 160.dp.toPx()
+                val sc = 1f - 0.06f * away
                 scaleX = sc; scaleY = sc
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                // The player: the chrome holds still (its cover is where the player genies into)
+                // and fades in only as the player arrives.
+                alpha = minOf(1f - away * 1.8f, 1f - app.player.value * 3f).coerceIn(0f, 1f)
             }
             .padding(bottom = navBottom + 10.dp),
         verticalArrangement = Arrangement.Bottom,
