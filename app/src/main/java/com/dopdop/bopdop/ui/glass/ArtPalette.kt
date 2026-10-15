@@ -21,22 +21,25 @@ import kotlinx.coroutines.withContext
 
 /**
  * Colours derived from artwork: deep wells (c0..c3), a bright [accent], a
- * mid-tone [wash] that the Now Playing art melts into, and two [pastel]s that
- * tint the liquid-metal backdrop.
+ * mid-tone [wash] that the Now Playing art melts into, and four vivid
+ * [aurora] glows that the Liquid Glass backdrop flows between.
  */
 @Immutable
 data class ArtPalette(
     val c0: Color, val c1: Color, val c2: Color, val c3: Color, val accent: Color,
-    val wash: Color, val washDeep: Color, val pastel: Color, val pastel2: Color,
+    val wash: Color, val washDeep: Color, val aurora: List<Color>,
 ) {
     companion object {
         val Default = ArtPalette(
             Color(0xFF2B1466), Color(0xFF4C0F3E), Color(0xFF0D1C52), Color(0xFF14081F), Color(0xFFFF5AA8),
             wash = Color(0xFF7D9A45), washDeep = Color(0xFF4F6527),
-            pastel = Color(0xFFD3E0F0), pastel2 = Color(0xFFA9B8CC),
+            aurora = DefaultAurora,
         )
     }
 }
+
+/** The reference's sky → royal blue → violet → rose sweep. */
+private val DefaultAurora = listOf(Color(0xFF58A6F2), Color(0xFF2443C4), Color(0xFF7A45CC), Color(0xFFE2678F))
 
 private val paletteCache = LruCache<String, ArtPalette>(64)
 
@@ -46,6 +49,20 @@ private fun tone(argb: Int, lMin: Float, lMax: Float, sBoost: Float = 1.1f): Col
     hsl[1] = (hsl[1] * sBoost).coerceIn(0f, 0.95f)
     hsl[2] = hsl[2].coerceIn(lMin, lMax)
     return Color(ColorUtils.HSLToColor(hsl))
+}
+
+/**
+ * A vivid aurora glow from an artwork colour. Greys and near-greys can't carry
+ * the backdrop, so they lean back toward the default hue in proportion to how
+ * washed-out they are.
+ */
+private fun glow(argb: Int, fallback: Color, lMin: Float, lMax: Float): Color {
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(argb, hsl)
+    val vivid = (hsl[1] / 0.45f).coerceIn(0f, 1f)
+    hsl[1] = (hsl[1] * 1.45f).coerceIn(0.35f, 0.92f)
+    hsl[2] = hsl[2].coerceIn(lMin, lMax)
+    return androidx.compose.ui.graphics.lerp(fallback, Color(ColorUtils.HSLToColor(hsl)), 0.85f * vivid)
 }
 
 suspend fun extractPalette(context: Context, url: String): ArtPalette? {
@@ -71,9 +88,13 @@ suspend fun extractPalette(context: Context, url: String): ArtPalette? {
             accent = tone(accentSrc, 0.62f, 0.78f, 1.2f),
             wash = tone(washSrc, 0.40f, 0.50f, 1.15f),
             washDeep = tone(washSrc, 0.22f, 0.30f, 1.1f),
-            // Metal tints: light crest tone + deeper trough tone, saturated enough to read as colour.
-            pastel = tone(accentSrc, 0.76f, 0.84f, 1.35f),
-            pastel2 = tone(washSrc, 0.66f, 0.74f, 1.3f),
+            // Aurora glows: one bright, one deep, two mid — mid-dark enough that white type always reads.
+            aurora = listOf(
+                glow(accentSrc, DefaultAurora[0], 0.52f, 0.64f),
+                glow(pick(0), DefaultAurora[1], 0.30f, 0.42f),
+                glow(pick(1), DefaultAurora[2], 0.38f, 0.50f),
+                glow(washSrc, DefaultAurora[3], 0.46f, 0.58f),
+            ),
         ).also { paletteCache.put(url, it) }
     }
 }

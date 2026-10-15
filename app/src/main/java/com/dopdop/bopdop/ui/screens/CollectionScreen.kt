@@ -119,7 +119,7 @@ fun CollectionLayout(
                     .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(70.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded) else Modifier),
                 corner = 0.dp, size = 300,
             )
-            Box(Modifier.fillMaxWidth().height(522.dp).background(Brush.verticalGradient(listOf(Bop.Pearl.copy(alpha = 0.10f), Bop.Pearl.copy(alpha = 0.45f), Color.Transparent))))
+            Box(Modifier.fillMaxWidth().height(522.dp).background(Brush.verticalGradient(listOf(Bop.Base.copy(alpha = 0.10f), Bop.Base.copy(alpha = 0.45f), Color.Transparent))))
         }
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
             item(key = "hero") {
@@ -223,13 +223,13 @@ fun LocalCollectionScreen(id: String) {
         "liked" -> CollectionLayout(
             title = "Liked Songs", subtitle = "", meta = songs(lib.liked.size), artUrl = lib.liked.firstOrNull()?.artwork,
             tracks = lib.liked, context = "Liked Songs", numbered = false,
-            art = { m -> GradientArt(m, Icons.Rounded.Favorite, listOf(Color(0xFFAFC4E0), Color(0xFF7E95C2))) },
+            art = { m -> GradientArt(m, Icons.Rounded.Favorite, listOf(Color(0xFF4F8DF5), Color(0xFF6A35B8))) },
             empty = "Songs you ♥ land here.",
         )
         "history" -> CollectionLayout(
             title = "Recently Played", subtitle = "", meta = songs(lib.history.size), artUrl = lib.history.firstOrNull()?.artwork,
             tracks = lib.history, context = "Recently Played", numbered = false,
-            art = { m -> GradientArt(m, Icons.Rounded.History, listOf(Color(0xFFADC27A), Color(0xFF6F8B3C))) },
+            art = { m -> GradientArt(m, Icons.Rounded.History, listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E))) },
             onMore = { LibraryStore.clearHistory(); app.toast("History cleared") },
             empty = "Start listening — your history shows up here.",
         )
@@ -265,7 +265,7 @@ fun GradientArt(modifier: Modifier, icon: ImageVector, colors: List<Color>) {
 @Composable
 fun Collage(arts: List<String>, modifier: Modifier, corner: androidx.compose.ui.unit.Dp = 18.dp) {
     if (arts.size < 4) {
-        if (arts.isEmpty()) GradientArt(modifier, Icons.Rounded.QueueMusic, listOf(Color(0xFF3A3550), Color(0xFF1A1A26)))
+        if (arts.isEmpty()) GradientArt(modifier, Icons.Rounded.QueueMusic, listOf(Color(0xFF5A4FB0), Color(0xFF2A2468)))
         else Artwork(arts.first(), modifier, corner = corner, size = 600)
         return
     }

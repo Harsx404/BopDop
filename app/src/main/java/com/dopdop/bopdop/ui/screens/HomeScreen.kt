@@ -265,15 +265,15 @@ private fun HeroCarousel(items: List<Featured>) {
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    val bg by animateColorAsState(if (selected) Color.White else Color.White.copy(alpha = 0.42f), label = "chip")
+    val bg by animateColorAsState(if (selected) Bop.Accent else Color.White.copy(alpha = 0.12f), label = "chip")
     Text(
         label,
         style = BopType.BodyStrong.copy(fontWeight = if (selected) FontWeight(650) else FontWeight(500)),
-        color = if (selected) Bop.Text else Bop.Text2,
+        color = if (selected) Color.White else Bop.Text2,
         modifier = Modifier
             .bounceClick(0.94f, onClick = onClick)
-            .softShadow(shape, if (selected) 14.dp else 8.dp, alpha = if (selected) 0.16f else 0.08f, dy = 4.dp)
-            .clip(shape).background(bg).glassEdges(shape, 1f, light = true)
+            .softShadow(shape, if (selected) 14.dp else 8.dp, alpha = if (selected) 0.28f else 0.12f, dy = 4.dp)
+            .clip(shape).background(bg).glassEdges(shape, if (selected) 0.7f else 1f)
             .padding(horizontal = 20.dp, vertical = 12.dp),
     )
 }
@@ -281,7 +281,7 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun CircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).glassLite(CircleShape, alpha = 0.6f, shadow = 12.dp),
+        Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).glassLite(CircleShape, alpha = 0.14f, shadow = 12.dp),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -302,7 +302,7 @@ private fun MenuGlyph() {
 private fun Avatar(art: String?, onClick: () -> Unit) {
     Box(
         Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).softShadow(CircleShape, 12.dp, dy = 4.dp)
-            .clip(CircleShape).background(Color.White).padding(3.dp),
+            .clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).glassEdges(CircleShape).padding(3.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (art != null) Artwork(art, Modifier.fillMaxSize(), circle = true, size = 160)
@@ -320,20 +320,20 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
     val mixes = buildList {
         add(Mix(
             "Liked Songs", if (liked.isEmpty()) "Tap ♥ on anything" else "${liked.size} songs · shuffle",
-            Icons.Rounded.Favorite, listOf(Color(0xFF9FB8D8), Color(0xFF7E95C2)), liked.firstOrNull()?.artwork,
+            Icons.Rounded.Favorite, listOf(Color(0xFF4F8DF5), Color(0xFF2B3FC2)), liked.firstOrNull()?.artwork,
         ) {
             if (liked.isEmpty()) app.openLocal("liked") else PlayerConnection.play(liked, context = "Liked Songs", shuffle = true)
         })
         history.firstOrNull()?.let { seed ->
             add(Mix("Discovery Station", "Endless, from ${seed.artist.split(",").first()}", Icons.Rounded.AutoAwesome,
-                listOf(Color(0xFF9DB56A), Color(0xFF6F8B3C)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
+                listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
         }
         if (history.size >= 5) add(Mix("Replay Mix", "Your recent rotation", Icons.Rounded.History,
-            listOf(Color(0xFFE4B48C), Color(0xFFC98A6A)), history.getOrNull(2)?.artwork) {
+            listOf(Color(0xFFF07A8E), Color(0xFFB2408A)), history.getOrNull(2)?.artwork) {
             PlayerConnection.play(history.take(60), context = "Replay Mix", shuffle = true)
         })
         if (liked.size >= 3) add(Mix("Deep Cuts", "Radio from your likes", Icons.Rounded.Shuffle,
-            listOf(Color(0xFF8FC7C1), Color(0xFF5E9E98)), liked.random().artwork) {
+            listOf(Color(0xFF3FB6D9), Color(0xFF2560B8)), liked.random().artwork) {
             PlayerConnection.startRadio(liked.random(), "Deep Cuts")
         })
     }
@@ -353,7 +353,7 @@ private fun MixCard(m: Mix) {
             .softShadow(shape, 16.dp, alpha = 0.18f, dy = 6.dp)
             .clip(shape)
             .background(Brush.linearGradient(m.colors))
-            .glassEdges(shape, 0.9f, light = true),
+            .glassEdges(shape, 0.9f),
     ) {
         if (m.art != null) {
             Artwork(

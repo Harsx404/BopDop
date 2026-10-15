@@ -67,8 +67,8 @@ import androidx.navigation.navArgument
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.components.bounceClick
-import com.dopdop.bopdop.ui.glass.LiquidMetalBackground
-import com.dopdop.bopdop.ui.glass.softShadow
+import com.dopdop.bopdop.ui.glass.LiquidAuroraBackground
+import com.dopdop.bopdop.ui.glass.glassEdges
 import com.dopdop.bopdop.ui.glass.LocalGlassLevel
 import com.dopdop.bopdop.ui.glass.LocalHaze
 import com.dopdop.bopdop.ui.glass.LocalReduceMotion
@@ -111,14 +111,13 @@ fun BopDopRoot(openPlayer: StateFlow<Int>) {
 
     LaunchedEffect(open) { if (open > 0 && PlayerConnection.current.value != null) app.expandPlayer() }
 
-    // Graphite status-bar icons on metal; white ones over the Now Playing artwork.
+    // White status-bar icons everywhere: the aurora and the Now Playing art are both dark-mid.
     val view = androidx.compose.ui.platform.LocalView.current
-    val overMedia = app.player.value > 0.5f
-    LaunchedEffect(overMedia) {
+    LaunchedEffect(Unit) {
         val window = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
         androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = !overMedia
-            isAppearanceLightNavigationBars = !overMedia
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
     }
 
@@ -134,7 +133,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>) {
     ) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                LiquidMetalBackground(palette, Modifier.fillMaxSize())
+                LiquidAuroraBackground(palette, Modifier.fillMaxSize())
                 AppNavHost(app)
             }
 
@@ -212,7 +211,7 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
 
 private data class Tab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
-/** Floating capsule; the selection "lens" glides on a spring and stretches while moving, like a liquid droplet. */
+/** Floating glass capsule; the selection is a brighter glass droplet that glides on a spring and stretches while moving. */
 @Composable
 private fun TabBar(app: AppState) {
     val tabs = remember {
@@ -243,9 +242,9 @@ private fun TabBar(app: AppState) {
                 .fillMaxHeight()
                 .padding(bottom = 10.dp)
                 .graphicsLayer { scaleX = stretch; scaleY = 1f / (1f + (stretch - 1f) * 0.5f) }
-                .softShadow(RoundedCornerShape(27.dp), 10.dp, alpha = 0.14f, dy = 3.dp)
                 .clip(RoundedCornerShape(27.dp))
-                .background(Color.White.copy(alpha = 0.92f)),
+                .background(Color.White.copy(alpha = 0.20f))
+                .glassEdges(RoundedCornerShape(27.dp), 0.9f),
         )
         Row(Modifier.fillMaxSize()) {
             tabs.forEachIndexed { i, t ->
@@ -260,9 +259,9 @@ private fun TabBar(app: AppState) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Icon(t.icon, t.label, tint = if (on) Bop.Ink else Bop.Text2, modifier = Modifier.size(24.dp))
+                    Icon(t.icon, t.label, tint = if (on) Bop.Text else Bop.Text2, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.height(2.dp))
-                    Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on) Bop.Ink else Bop.Text3)
+                    Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on) Bop.Text else Bop.Text3)
                 }
             }
         }

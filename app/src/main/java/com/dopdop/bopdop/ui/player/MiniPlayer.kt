@@ -108,7 +108,7 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
             .bounceClick(0.98f) { app.expandPlayer() },
     ) {
         // A whisper of the artwork's colour washing through the glass.
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(palette.wash.copy(alpha = 0.22f), Color.Transparent))))
+        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(palette.wash.copy(alpha = 0.30f), Color.Transparent))))
         Row(Modifier.fillMaxHeight().padding(start = 9.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Artwork(t.artwork, Modifier.size(46.dp), corner = 14.dp, size = 226)
             Spacer(Modifier.width(12.dp))
@@ -123,15 +123,15 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                 }
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.toggle() }, contentAlignment = Alignment.Center) {
-                PlayPauseGlyph(playing, Modifier.size(22.dp), color = Bop.Ink)
+                PlayPauseGlyph(playing, Modifier.size(22.dp), color = Bop.Text)
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.next() }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.FastForward, "Next", tint = Bop.Text, modifier = Modifier.size(28.dp))
             }
         }
         // Progress hairline
-        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.Black.copy(alpha = 0.07f))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(palette.wash, palette.washDeep))))
+        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White.copy(alpha = 0.14f))) {
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White))))
         }
     }
 }

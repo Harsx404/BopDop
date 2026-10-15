@@ -13,6 +13,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.addOutline
@@ -36,18 +38,33 @@ val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 val LocalGlassLevel = compositionLocalOf { GlassLevel.REGULAR }
 val LocalReduceMotion = compositionLocalOf { false }
 
-private data class GlassSpec(val blur: Dp, val tint: Float)
+private data class GlassSpec(val blur: Dp, val tint: Float, val vibrancy: Float)
 
 private fun spec(level: GlassLevel) = when (level) {
-    GlassLevel.CLEAR -> GlassSpec(14.dp, 0.22f)
-    GlassLevel.REGULAR -> GlassSpec(24.dp, 0.42f)
-    GlassLevel.FROSTED -> GlassSpec(36.dp, 0.62f)
+    GlassLevel.CLEAR -> GlassSpec(14.dp, 0.07f, 1.5f)
+    GlassLevel.REGULAR -> GlassSpec(26.dp, 0.13f, 1.7f)
+    GlassLevel.FROSTED -> GlassSpec(40.dp, 0.22f, 1.8f)
+}
+
+/** Opaque stand-in for glass when there is nothing to blur (or blur is unavailable). */
+private val GlassFallback = Color(0xFF302B66)
+
+/**
+ * Vibrancy: what shows through Liquid Glass comes out more saturated and a
+ * touch brighter than the backdrop itself, so colour glows through the pane.
+ */
+private fun vibrancy(saturation: Float, lift: Float): ColorFilter {
+    val m = ColorMatrix().apply { setToSaturation(saturation) }
+    val v = m.values
+    v[4] += lift; v[9] += lift; v[14] += lift
+    return ColorFilter.colorMatrix(m)
 }
 
 /**
- * Soft frosted glass for light backdrops: real backdrop blur (Haze; scrim on
- * API < 31), milky white tint, a bright top-left rim and an outer-only shadow
- * so the surface floats like the reference's pill chips.
+ * Liquid Glass: real backdrop blur (Haze; opaque scrim on API < 31) with a
+ * vibrancy boost, a whisper of white, and the refractive edge — a light band
+ * just inside the rim plus a specular hairline brightest at the top-left and
+ * bottom-right corners, as if lit through a thick rounded slab.
  */
 @Composable
 fun Modifier.glass(
@@ -60,72 +77,102 @@ fun Modifier.glass(
 ): Modifier {
     val level = LocalGlassLevel.current
     val s = spec(level)
-    val alpha = (s.tint * emphasis).coerceIn(0f, 1f)
+    val alpha = (s.tint * emphasis).coerceIn(0f, 0.9f)
     val style = remember(level, tint, emphasis) {
         HazeBlurStyle {
             blurRadius(s.blur)
-            noiseFactor(0.05f)
-            backgroundColor(Bop.Pearl)
-            colorEffects(listOf(HazeColorEffect.tint(tint.copy(alpha = alpha))))
-            fallbackColorEffect(HazeColorEffect.tint(tint.copy(alpha = 0.86f)))
+            noiseFactor(0.04f)
+            backgroundColor(Bop.Base)
+            colorEffects(listOf(
+                HazeColorEffect.colorFilter(vibrancy(s.vibrancy, 10f)),
+                HazeColorEffect.tint(tint.copy(alpha = alpha)),
+            ))
+            fallbackColorEffect(HazeColorEffect.tint(GlassFallback.copy(alpha = 0.9f)))
         }
     }
     var m = if (shadow > 0.dp) this.softShadow(shape, shadow) else this
     m = m.clip(shape)
-    m = if (state != null) m.hazeBlur(HazeInput.Sources(state), style) else m.background(tint.copy(alpha = (alpha + 0.3f).coerceAtMost(0.92f)))
-    return m.glassEdges(shape, if (rim) 1f else 0f, light = true)
+    m = if (state != null) m.hazeBlur(HazeInput.Sources(state), style)
+    else m.background(GlassFallback.copy(alpha = 0.9f)).background(tint.copy(alpha = alpha))
+    return m.glassEdges(shape, if (rim) 1f else 0.35f)
 }
 
-/** Glass for controls that sit on photos / colour washes: clearer, white rim, no shadow. */
+/** Glass for controls that sit on photos / colour washes: clearer, no shadow. */
 @Composable
 fun Modifier.mediaGlass(shape: Shape, state: HazeState?, emphasis: Float = 1f): Modifier {
     val style = remember(emphasis) {
         HazeBlurStyle {
             blurRadius(22.dp)
-            noiseFactor(0.06f)
-            colorEffects(listOf(HazeColorEffect.tint(Color.White.copy(alpha = 0.16f * emphasis))))
+            noiseFactor(0.05f)
+            colorEffects(listOf(
+                HazeColorEffect.colorFilter(vibrancy(1.4f, 8f)),
+                HazeColorEffect.tint(Color.White.copy(alpha = 0.14f * emphasis)),
+            ))
             fallbackColorEffect(HazeColorEffect.tint(Color.White.copy(alpha = 0.22f)))
         }
     }
     var m = this.clip(shape)
     m = if (state != null) m.hazeBlur(HazeInput.Sources(state), style) else m.background(Color.White.copy(alpha = 0.18f * emphasis))
-    return m.glassEdges(shape, 0.75f, light = false)
+    return m.glassEdges(shape, 0.85f)
 }
 
-/** Translucent glass without backdrop sampling — for chips inside scrolling content. */
+/**
+ * Translucent glass without backdrop sampling — for chips and cards inside
+ * scrolling content. [alpha] is the fill strength of [tint] (white ≈ 0.1–0.2
+ * reads as clear glass on the aurora).
+ */
 @Composable
-fun Modifier.glassLite(shape: Shape, tint: Color = Color.White, alpha: Float = 0.55f, shadow: Dp = 0.dp): Modifier =
+fun Modifier.glassLite(shape: Shape, tint: Color = Color.White, alpha: Float = 0.14f, shadow: Dp = 0.dp): Modifier =
     (if (shadow > 0.dp) this.softShadow(shape, shadow) else this)
-        .clip(shape).background(tint.copy(alpha = alpha)).glassEdges(shape, 1f, light = tint.luminanceIsLight())
-
-private fun Color.luminanceIsLight() = (0.299f * red + 0.587f * green + 0.114f * blue) > 0.5f
+        .clip(shape).background(tint.copy(alpha = alpha)).glassEdges(shape, 1f)
 
 /**
- * Rim + sheen. Light glass: brilliant top-left edge fading out, a faint dark
- * hairline at the bottom for thickness. Media glass: an even white rim.
+ * The liquid edge. Inside the shape a soft white band hugs the rim (the
+ * backdrop "bending" through the curved edge), strongest top-left; on the rim
+ * a specular hairline catches light at the top-left and, dimmer, the
+ * bottom-right, and nearly vanishes along the sides between.
  */
-fun Modifier.glassEdges(shape: Shape, strength: Float, light: Boolean = true): Modifier = drawWithCache {
+fun Modifier.glassEdges(shape: Shape, strength: Float = 1f): Modifier = drawWithCache {
     val outline = shape.createOutline(size, layoutDirection, this)
     val path = Path().apply { addOutline(outline) }
-    val stroke = 1.2.dp.toPx()
-    val rim = if (light) Brush.linearGradient(
+    val native = path.asAndroidPath()
+    val minDim = size.minDimension
+    val bevel = (minDim * 0.16f).coerceIn(3.dp.toPx(), 12.dp.toPx())
+    val band = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE
+        strokeWidth = bevel * 2f
+        maskFilter = BlurMaskFilter(bevel * 0.9f, BlurMaskFilter.Blur.NORMAL)
+        shader = android.graphics.LinearGradient(
+            0f, 0f, size.width, size.height,
+            intArrayOf(
+                Color.White.copy(alpha = 0.30f * strength).toArgb(),
+                Color.White.copy(alpha = 0.06f * strength).toArgb(),
+                Color.White.copy(alpha = 0.04f * strength).toArgb(),
+                Color.White.copy(alpha = 0.20f * strength).toArgb(),
+            ),
+            floatArrayOf(0f, 0.4f, 0.65f, 1f), android.graphics.Shader.TileMode.CLAMP,
+        )
+    }
+    // Diagonal light: start/end pushed past the corners so the hot spots sit on them.
+    val diag = Offset(size.width, size.height)
+    val rim = Brush.linearGradient(
         0f to Color.White.copy(alpha = 0.95f * strength),
-        0.45f to Color.White.copy(alpha = 0.35f * strength),
-        0.8f to Color.Black.copy(alpha = 0.03f * strength),
-        1f to Color.Black.copy(alpha = 0.07f * strength),
-        start = Offset.Zero, end = Offset(size.width * 0.6f, size.height),
-    ) else Brush.linearGradient(
-        0f to Color.White.copy(alpha = 0.55f * strength),
-        0.5f to Color.White.copy(alpha = 0.18f * strength),
-        1f to Color.White.copy(alpha = 0.38f * strength),
-        start = Offset.Zero, end = Offset(size.width, size.height),
+        0.22f to Color.White.copy(alpha = 0.45f * strength),
+        0.45f to Color.White.copy(alpha = 0.10f * strength),
+        0.62f to Color.White.copy(alpha = 0.10f * strength),
+        0.82f to Color.White.copy(alpha = 0.40f * strength),
+        1f to Color.White.copy(alpha = 0.75f * strength),
+        start = Offset.Zero - diag * 0.04f, end = diag * 1.04f,
     )
-    val sheen = Brush.verticalGradient(
-        0f to Color.White.copy(alpha = if (light) 0.35f else 0.14f),
-        0.5f to Color.White.copy(alpha = 0f),
-    )
+    val stroke = (1.1.dp.toPx() * strength).coerceAtLeast(0.6.dp.toPx())
     onDrawWithContent {
-        drawPath(path, sheen)
+        if (strength > 0f) drawIntoCanvas { c ->
+            val n = c.nativeCanvas
+            n.save()
+            n.clipPath(native)
+            n.drawPath(native, band)
+            n.restore()
+        }
         drawContent()
         if (strength > 0f) drawPath(path, rim, style = Stroke(stroke))
     }
@@ -136,7 +183,7 @@ fun Modifier.glassEdges(shape: Shape, strength: Float, light: Boolean = true): M
  * the (slightly lowered) outline, with the shape itself clipped out so nothing
  * ghosts through translucent glass.
  */
-fun Modifier.softShadow(shape: Shape, blur: Dp, color: Color = Color(0xFF3A4150), alpha: Float = 0.14f, dy: Dp = 3.dp): Modifier = drawBehind {
+fun Modifier.softShadow(shape: Shape, blur: Dp, color: Color = Color(0xFF0A0820), alpha: Float = 0.22f, dy: Dp = 4.dp): Modifier = drawBehind {
     val outline = shape.createOutline(size, layoutDirection, this)
     val path = Path().apply { addOutline(outline) }.asAndroidPath()
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {

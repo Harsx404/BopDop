@@ -135,7 +135,7 @@ fun SheetHost(app: AppState) {
                     .fillMaxWidth()
                     .heightIn(max = 640.dp)
                     .graphicsLayer { translationY = drag.value }
-                    .glass(RoundedCornerShape(34.dp), state = if (overPlayer) null else LocalHaze.current, emphasis = if (overPlayer) 2.4f else 1.7f, shadow = 24.dp)
+                    .glass(RoundedCornerShape(34.dp), state = if (overPlayer) null else LocalHaze.current, tint = Bop.Base, emphasis = if (overPlayer) 2.4f else 3.4f, shadow = 24.dp)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(onDragEnd = {
                             scope.launch { if (drag.value > 160f) app.sheet = null; drag.animateTo(0f, spring(dampingRatio = 0.7f)) }
@@ -144,7 +144,7 @@ fun SheetHost(app: AppState) {
                     .padding(bottom = 10.dp),
             ) {
                 Box(Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 4.dp), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(40.dp, 5.dp).clip(RoundedCornerShape(50)).background(Bop.Ink.copy(alpha = 0.18f)))
+                    Box(Modifier.size(40.dp, 5.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.32f)))
                 }
                 when (val s = shown) {
                     is Sheet.TrackOptions -> TrackOptions(app, s.track, s.playlistId)
@@ -173,7 +173,7 @@ private fun Header(art: @Composable () -> Unit, title: String, sub: String) {
             Text(sub, style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
-    Box(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().height(0.5.dp).background(Bop.Ink.copy(alpha = 0.08f)))
+    Box(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().height(0.5.dp).background(Bop.Hairline))
 }
 
 @Composable
@@ -243,7 +243,7 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
     Action(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { withTracks { PlayerConnection.addToQueue(it); app.toast("Added ${it.size} songs to queue") }; close() }
     if (localPl != null) {
         Action(Icons.Rounded.Edit, "Rename") { app.sheet = Sheet.RenamePlaylist(localPl.id, localPl.name) }
-        Action(Icons.Rounded.Delete, "Delete playlist", Color(0xFFFF6B8B)) {
+        Action(Icons.Rounded.Delete, "Delete playlist", Bop.Danger) {
             LibraryStore.deletePlaylist(localPl.id); close(); app.nav.popBackStack(); app.toast("Playlist deleted")
         }
     } else {
@@ -293,18 +293,18 @@ private fun ColumnScope.NameInput(app: AppState, title: String, cta: String, ini
     LaunchedEffect(Unit) { delay(250); runCatching { focus.requestFocus() } }
     val submit = { if (name.isNotBlank()) { onDone(name.trim()); app.sheet = null } }
     Text(title, style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp))
-    Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(54.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+    Box(Modifier.padding(horizontal = 18.dp).fillMaxWidth().height(54.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.12f).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
         if (name.isEmpty()) Text("Playlist name", style = BopType.Body, color = Bop.Text3)
         BasicTextField(
             name, { name = it.take(60) }, singleLine = true,
-            textStyle = BopType.Headline.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink),
+            textStyle = BopType.Headline.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Accent),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { submit() }),
             modifier = Modifier.fillMaxWidth().focusRequester(focus),
         )
     }
     Box(
         Modifier.padding(18.dp).fillMaxWidth().height(50.dp).bounceClick { submit() }.clip(RoundedCornerShape(50))
-            .background(if (name.isBlank()) Bop.Ink.copy(alpha = 0.25f) else Bop.Ink),
+            .background(if (name.isBlank()) Bop.Accent.copy(alpha = 0.35f) else Bop.Accent),
         contentAlignment = Alignment.Center,
     ) { Text(cta, style = BopType.BodyStrong, color = Color.White) }
 }
@@ -332,19 +332,19 @@ private fun ColumnScope.SleepTimer(app: AppState) {
                 row.forEach { m ->
                     Box(
                         Modifier.weight(1f).height(50.dp).bounceClick { PlayerConnection.sleepIn(m); app.toast("Stopping in $m min"); app.sheet = null }
-                            .glassLite(RoundedCornerShape(16.dp), alpha = 0.6f),
+                            .glassLite(RoundedCornerShape(16.dp), alpha = 0.12f),
                         contentAlignment = Alignment.Center,
                     ) { Text("$m min", style = BopType.BodyStrong, color = Bop.Text) }
                 }
                 if (row.size < 4) Box(
                     Modifier.weight(1f).height(50.dp).bounceClick { PlayerConnection.sleepIn(0); app.toast("Stopping after this song"); app.sheet = null }
-                        .glassLite(RoundedCornerShape(16.dp), alpha = 0.6f),
+                        .glassLite(RoundedCornerShape(16.dp), alpha = 0.12f),
                     contentAlignment = Alignment.Center,
                 ) { Text("End of song", style = BopType.Caption, color = Bop.Text) }
             }
         }
     }
-    if (at != null) Action(Icons.Rounded.TimerOff, "Turn off timer", Color(0xFFFF6B8B)) { PlayerConnection.cancelSleep(); app.sheet = null }
+    if (at != null) Action(Icons.Rounded.TimerOff, "Turn off timer", Bop.Danger) { PlayerConnection.cancelSleep(); app.sheet = null }
 }
 
 @Composable

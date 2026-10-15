@@ -71,10 +71,10 @@ fun SettingsScreen() {
             }
             Group("Look & feel") {
                 RowHead(Icons.Rounded.BlurOn, "Glass", "How much the background shows through.")
-                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
+                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.08f).padding(4.dp)) {
                     GlassLevel.entries.forEach { g ->
                         val on = g == s.glass
-                        val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "g")
+                        val bg by animateColorAsState(if (on) Bop.Accent else Color.Transparent, label = "g")
                         Text(
                             g.label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text2,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -105,7 +105,7 @@ fun SettingsScreen() {
                                     LibraryStore.updateSettings { it.copy(languages = next.joinToString(",")) }
                                     ScreenCache.put("home", null)
                                 }
-                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Accent else Color.White.copy(alpha = 0.12f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
@@ -119,13 +119,13 @@ fun SettingsScreen() {
                         Text(
                             if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Color.White else Bop.Text,
                             modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Accent else Color.White.copy(alpha = 0.12f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
                 }
                 Text(
-                    "Clear cached audio", style = BopType.BodyStrong, color = Color(0xFFFF6B8B),
+                    "Clear cached audio", style = BopType.BodyStrong, color = Bop.Danger,
                     modifier = Modifier.padding(start = 56.dp, bottom = 16.dp).bounceClick {
                         val c = PlaybackService.cache(ctx)
                         val mb = c.cacheSpace / (1024 * 1024)
@@ -157,12 +157,12 @@ fun SettingsScreen() {
 @Composable
 private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(title.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 28.dp, top = 22.dp, bottom = 8.dp))
-    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(24.dp), alpha = 0.5f, shadow = 14.dp), content = content)
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(28.dp), alpha = 0.12f, shadow = 14.dp), content = content)
 }
 
 @Composable
 private fun IconBadge(icon: ImageVector) {
-    Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(Bop.Ink.copy(alpha = 0.07f)), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(30.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = Bop.Text, modifier = Modifier.size(17.dp))
     }
 }
@@ -197,7 +197,7 @@ private fun ToggleRow(icon: ImageVector, title: String, sub: String, on: Boolean
 @Composable
 fun GlassSwitch(on: Boolean) {
     val x by animateDpAsState(if (on) 22.dp else 2.dp, spring(dampingRatio = 0.6f, stiffness = 600f), label = "x")
-    val track by animateColorAsState(if (on) Color(0xFF34C759) else Bop.Ink.copy(alpha = 0.12f), label = "t")
+    val track by animateColorAsState(if (on) Bop.Green else Color.White.copy(alpha = 0.16f), label = "t")
     Box(Modifier.size(52.dp, 32.dp).clip(RoundedCornerShape(50)).background(track)) {
         Box(Modifier.offset(x = x, y = 2.dp).size(28.dp).clip(CircleShape).background(Color.White))
     }

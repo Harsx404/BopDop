@@ -159,14 +159,14 @@ private fun LikedHero() {
     val arts = liked.map { it.artwork }.distinct().take(3)
     val palette = rememberArtPalette(arts.firstOrNull())
     val shape = RoundedCornerShape(36.dp)
-    val bg = if (arts.isEmpty()) listOf(Color(0xFFB4C8E4), Color(0xFF7E95C2)) else listOf(palette.wash, palette.washDeep)
+    val bg = if (arts.isEmpty()) listOf(Color(0xFF4F8DF5), Color(0xFF6A35B8)) else listOf(palette.wash, palette.washDeep)
     Box(
         Modifier.padding(horizontal = 20.dp, vertical = 14.dp).fillMaxWidth().height(232.dp)
             .bounceClick(0.985f) { app.openLocal("liked") }
             .softShadow(shape, 20.dp, alpha = 0.2f, dy = 6.dp)
             .clip(shape)
             .background(Brush.linearGradient(bg))
-            .glassEdges(shape, 0.9f, true),
+            .glassEdges(shape, 0.9f),
     ) {
         // Fanned record stack on the right.
         arts.reversed().forEachIndexed { k, a ->
@@ -205,7 +205,7 @@ private fun HeroButton(icon: ImageVector, label: String, filled: Boolean, onClic
     val shape = RoundedCornerShape(50)
     Row(
         Modifier.height(40.dp).bounceClick(0.92f, onClick = onClick)
-            .then(if (filled) Modifier.clip(shape).background(Color.White) else Modifier.glassLite(shape, alpha = 0.26f))
+            .then(if (filled) Modifier.clip(shape).background(Color.White) else Modifier.glassLite(shape, alpha = 0.22f))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -219,7 +219,7 @@ private fun HeroButton(icon: ImageVector, label: String, filled: Boolean, onClic
 private fun Shortcut(title: String, sub: String, icon: ImageVector, modifier: Modifier, art: @Composable (Modifier) -> Unit, onClick: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Row(
-        modifier.height(86.dp).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.6f, shadow = 12.dp).padding(10.dp),
+        modifier.height(86.dp).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.12f, shadow = 12.dp).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         art(Modifier.size(64.dp))
@@ -235,7 +235,7 @@ private fun Shortcut(title: String, sub: String, icon: ImageVector, modifier: Mo
 @Composable
 private fun MiniCollage(arts: List<String>, modifier: Modifier) {
     if (arts.isEmpty()) {
-        Box(modifier.clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFFADC27A), Color(0xFF6F8B3C)))), contentAlignment = Alignment.Center) {
+        Box(modifier.clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E)))), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(26.dp))
         }
     } else Collage(arts, modifier, 18.dp)
@@ -246,12 +246,12 @@ private fun MiniCollage(arts: List<String>, modifier: Modifier) {
 private fun AvatarStack(arts: List<String>, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.CenterStart) {
         if (arts.isEmpty()) {
-            Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFB4C8E4), Color(0xFF7E95C2)))), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF4F8DF5), Color(0xFF2B3FC2)))), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Person, null, tint = Color.White, modifier = Modifier.size(26.dp))
             }
         }
         arts.forEachIndexed { i, a ->
-            Artwork(a, Modifier.offset(x = (i * 12).dp).size(40.dp).border(2.dp, Color.White, CircleShape), circle = true, size = 160)
+            Artwork(a, Modifier.offset(x = (i * 12).dp).size(40.dp).border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape), circle = true, size = 160)
         }
     }
 }
@@ -298,10 +298,10 @@ private fun CaptionCard(title: String, sub: String, onLong: () -> Unit, onClick:
 private fun NewPlaylistCard(onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Column(
-        Modifier.fillMaxWidth().aspectRatio(1f).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.45f, shadow = 12.dp),
+        Modifier.fillMaxWidth().aspectRatio(1f).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.10f, shadow = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Ink), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Accent).glassEdges(CircleShape, 0.7f), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(12.dp))
