@@ -27,8 +27,9 @@ Requires JDK 17+ and Android SDK platform 37.
 
 The release APK (signed with the debug key for sideloading) lands in `app/build/outputs/apk/release/`.
 
+Pushing a `v*` tag (e.g. `v1.1.0`) builds the release APK on GitHub Actions and publishes it as a GitHub release.
+
 ## Roadmap
 
 - Listen Together
 - Offline downloads
-- YouTube Music account sign-in
