@@ -1,9 +1,15 @@
 name: Release
 
-# Push a tag like v1.2.0 → builds the release APK and publishes a GitHub release with it.
+# Push a tag like v1.2.0 — or run it by hand with a version — to build the
+# release APK and publish a GitHub release with it (the tag is created if needed).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, e.g. v1.2.0"
+        required: true
 
 permissions:
   contents: write
@@ -11,6 +17,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.version || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,10 +37,12 @@ jobs:
         run: sh gradlew --no-daemon :app:assembleRelease
 
       - name: Name the APK after the tag
-        run: cp app/build/outputs/apk/release/app-release.apk "BopDop-${GITHUB_REF_NAME}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "BopDop-${TAG}.apk"
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: BopDop ${{ github.ref_name }}
-          files: BopDop-${{ github.ref_name }}.apk
+          tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
+          name: BopDop ${{ env.TAG }}
+          files: BopDop-${{ env.TAG }}.apk
           generate_release_notes: true
