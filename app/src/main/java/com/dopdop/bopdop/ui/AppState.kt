@@ -13,6 +13,8 @@ import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.model.Card
 import com.dopdop.bopdop.data.model.CardKind
 import com.dopdop.bopdop.data.model.Track
+import com.dopdop.bopdop.data.share.ShareCodec
+import com.dopdop.bopdop.data.share.SharePayload
 import com.dopdop.bopdop.playback.PlayerConnection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -36,8 +38,15 @@ object Routes {
     const val LOCAL = "local?id={id}"
     const val MOOD = "mood?title={title}&params={params}"
     const val SEE_ALL = "seeall?key={key}"
+    const val REPLAY = "replay"
+    const val SIGN_IN = "signin"
+    const val SHARE_QR = "shareqr?key={key}"
+    const val IMPORT = "import?key={key}"
     val tabs = listOf(HOME, SEARCH, LIBRARY)
 }
+
+/** A thing to put on a share code, with what the card shows about it. */
+data class ShareRequest(val payload: SharePayload, val title: String, val subtitle: String, val artwork: String)
 
 /** Lists handed to "See all" without serialising them into a route. */
 object SeeAllHolder {
@@ -86,6 +95,17 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     fun openLocal(id: String) = nav.navigate("local?id=${enc(id)}")
     fun openMood(title: String, params: String) = nav.navigate("mood?title=${enc(title)}&params=${enc(params)}")
     fun seeAll(title: String, items: Any) = nav.navigate("seeall?key=${enc(SeeAllHolder.put(title, items))}")
+
+    fun shareQr(req: ShareRequest) = nav.navigate("shareqr?key=${enc(SeeAllHolder.put("qr", req))}")
+
+    /** A scanned code or opened `bopdop://share/…` link. */
+    fun openShared(text: String) {
+        when (val p = ShareCodec.decode(text)) {
+            is SharePayload.Playlist -> nav.navigate("import?key=${enc(SeeAllHolder.put("import", p))}")
+            is SharePayload.Collection -> open(p.card)
+            null -> toast("That isn’t a BopDop code")
+        }
+    }
 
     fun playStation(card: Card) {
         toast("Tuning in to ${card.title}…")

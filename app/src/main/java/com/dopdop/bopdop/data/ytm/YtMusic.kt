@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.data.ytm
 
+import com.dopdop.bopdop.data.account.AccountStore
+import com.dopdop.bopdop.data.account.YtAccount
 import com.dopdop.bopdop.data.model.ArtistPage
 import com.dopdop.bopdop.data.model.Card
 import com.dopdop.bopdop.data.model.CardKind
@@ -17,7 +19,8 @@ import org.json.JSONObject
 import java.util.Locale
 
 /**
- * YouTube Music InnerTube client (WEB_REMIX identity, anonymous) — port of the
+ * YouTube Music InnerTube client (WEB_REMIX identity; anonymous, or signed in
+ * through [AccountStore]) — port of the
  * DopDop desktop src/lib/ytmusic.mjs catalogue code. Responses are walked
  * generically because YouTube reshuffles wrapper renderers often, the
  * list-item / two-row-item renderers rarely.
@@ -37,7 +40,8 @@ object YtMusic {
     private val cache = TtlCache<String, JSONObject>(10 * 60_000L, 200)
 
     suspend fun post(endpoint: String, body: JSONObject, cacheable: Boolean = true): JSONObject {
-        val key = "$endpoint|$body"
+        val auth = AccountStore.authHeaders()
+        val key = "${auth.isNotEmpty()}|$endpoint|$body"
         if (cacheable) cache.get(key)?.let { return it }
         body.put("context", JSONObject().put("client", JSONObject()
             .put("hl", hl).put("gl", gl)
@@ -50,11 +54,15 @@ object YtMusic {
             put("Origin", "https://music.youtube.com")
             put("Referer", "https://music.youtube.com/")
             visitorData?.let { put("X-Goog-Visitor-Id", it) }
+            putAll(auth)
         })
         res.optJSONObject("responseContext")?.optString("visitorData")?.takeIf { it.isNotEmpty() }?.let { visitorData = it }
         if (cacheable) cache.put(key, res)
         return res
     }
+
+    /** Drop memoised responses — after signing in or out the same request means something else. */
+    fun clearCache() = cache.clear()
 
     // --- generic walking ----------------------------------------------------------------
 
@@ -357,6 +365,45 @@ object YtMusic {
     }
 
     suspend fun home(): List<Shelf> = feed("FEmusic_home", 3)
+
+    /** Country charts (top songs, trending, top artists). */
+    suspend fun charts(): List<Shelf> = feed("FEmusic_charts", 1)
+
+    /** Name, handle and photo of the signed-in account. */
+    suspend fun accountInfo(): YtAccount? {
+        val d = post("account/account_menu", JSONObject(), cacheable = false)
+        val h = walk(d).firstNotNullOfOrNull { it.optJSONObject("activeAccountHeaderRenderer") } ?: return null
+        return YtAccount(
+            name = text(h.optJSONObject("accountName")),
+            handle = text(h.optJSONObject("channelHandle")),
+            photo = bigThumb(h.optJSONObject("accountPhoto")?.optJSONArray("thumbnails"), 240),
+        )
+    }
+
+    /** The signed-in user's saved / created playlists. */
+    suspend fun libraryPlaylists(): List<Card> =
+        pageAll(post("browse", JSONObject().put("browseId", "FEmusic_liked_playlists"), cacheable = false), 3).cards()
+            .filter { it.kind == CardKind.PLAYLIST && it.rawId != "LM" }
+
+    /** Metadata for a bare video id (shared playlists carry ids only). */
+    suspend fun trackInfo(videoId: String): Track? {
+        val d = post("next", JSONObject().put("videoId", videoId).put("isAudioOnly", true))
+        collect(d, mapOf("playlistPanelVideoRenderer" to { r: JSONObject ->
+            if (r.optString("videoId") != videoId) null else {
+                var b = byline(runs(r.optJSONObject("longBylineText")))
+                if (b.duration == 0) b = b.copy(duration = secs(text(r.optJSONObject("lengthText"))))
+                track(videoId, text(r.optJSONObject("title")), b, bigThumb(r.optJSONObject("thumbnail")?.optJSONArray("thumbnails")))
+            }
+        })).firstOrNull()?.let { return it }
+        val v = post("player", JSONObject().put("videoId", videoId)).optJSONObject("videoDetails") ?: return null
+        return Track(
+            id = "yt:$videoId", title = v.optString("title").ifEmpty { return null },
+            artist = v.optString("author").removeSuffix(" - Topic"),
+            artistId = v.optString("channelId").ifEmpty { null }?.let { "yt:$it" },
+            durationSec = v.optString("lengthSeconds").toIntOrNull() ?: 0,
+            artwork = bigThumb(v.optJSONObject("thumbnail")?.optJSONArray("thumbnails")),
+        )
+    }
     suspend fun explore(): List<Shelf> = feed("FEmusic_explore", 2)
 
     /** Moods & genres grid: (title, params) pairs for FEmusic_moods_and_genres_category. */

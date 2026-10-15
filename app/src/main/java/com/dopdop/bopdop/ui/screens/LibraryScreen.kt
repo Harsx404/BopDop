@@ -63,6 +63,17 @@ import com.dopdop.bopdop.ui.glass.rememberArtPalette
 import com.dopdop.bopdop.ui.glass.softShadow
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
+import com.dopdop.bopdop.data.PlayStats
+import androidx.compose.runtime.remember
+import com.dopdop.bopdop.data.account.AccountStore
+import com.dopdop.bopdop.data.ytm.YtMusic
+import com.dopdop.bopdop.ui.components.CardTile
+import com.dopdop.bopdop.ui.components.Load
+import com.dopdop.bopdop.ui.components.rememberLoad
+import com.dopdop.bopdop.ui.share.rememberQrScanner
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.ThumbUp
 
 @Composable
 fun LibraryScreen() {
@@ -72,12 +83,22 @@ fun LibraryScreen() {
     val savedCollections = lib.saved.filter { it.kind == CardKind.ALBUM || it.kind == CardKind.PLAYLIST }
     val following = lib.saved.filter { it.kind == CardKind.ARTIST }
 
+    val account by AccountStore.account.collectAsState()
+    val scan = rememberQrScanner { app.openShared(it) }
     LargeTitleScaffold(
         title = "Library",
         eyebrow = "${songs(lib.liked.size)} liked · ${lib.playlists.size} playlists",
-        trailing = { GlassIconButton(Icons.Rounded.Add, "New playlist", size = 44.dp) { app.sheet = Sheet.NewPlaylist(emptyList()) } },
+        trailing = {
+            GlassIconButton(Icons.Rounded.QrCodeScanner, "Scan a code", size = 44.dp, onClick = scan)
+            Spacer(Modifier.width(10.dp))
+            GlassIconButton(Icons.Rounded.Add, "New playlist", size = 44.dp) { app.sheet = Sheet.NewPlaylist(emptyList()) }
+        },
     ) {
         item(key = "liked") { LikedHero() }
+
+        item(key = "replay") { ReplayBanner { app.nav.navigate(com.dopdop.bopdop.ui.Routes.REPLAY) } }
+
+        if (account != null) item(key = "ytm") { YtMusicLibrary() }
 
         item(key = "shortcuts") {
             Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -159,14 +180,14 @@ private fun LikedHero() {
     val arts = liked.map { it.artwork }.distinct().take(3)
     val palette = rememberArtPalette(arts.firstOrNull())
     val shape = RoundedCornerShape(36.dp)
-    val bg = if (arts.isEmpty()) listOf(Color(0xFFB4C8E4), Color(0xFF7E95C2)) else listOf(palette.wash, palette.washDeep)
+    val bg = if (arts.isEmpty()) listOf(Color(0xFF4F8DF5), Color(0xFF6A35B8)) else listOf(palette.wash, palette.washDeep)
     Box(
         Modifier.padding(horizontal = 20.dp, vertical = 14.dp).fillMaxWidth().height(232.dp)
             .bounceClick(0.985f) { app.openLocal("liked") }
             .softShadow(shape, 20.dp, alpha = 0.2f, dy = 6.dp)
             .clip(shape)
             .background(Brush.linearGradient(bg))
-            .glassEdges(shape, 0.9f, true),
+            .glassEdges(shape, 0.9f),
     ) {
         // Fanned record stack on the right.
         arts.reversed().forEachIndexed { k, a ->
@@ -205,7 +226,7 @@ private fun HeroButton(icon: ImageVector, label: String, filled: Boolean, onClic
     val shape = RoundedCornerShape(50)
     Row(
         Modifier.height(40.dp).bounceClick(0.92f, onClick = onClick)
-            .then(if (filled) Modifier.clip(shape).background(Color.White) else Modifier.glassLite(shape, alpha = 0.26f))
+            .then(if (filled) Modifier.clip(shape).background(Color.White) else Modifier.glassLite(shape, alpha = 0.22f))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -219,7 +240,7 @@ private fun HeroButton(icon: ImageVector, label: String, filled: Boolean, onClic
 private fun Shortcut(title: String, sub: String, icon: ImageVector, modifier: Modifier, art: @Composable (Modifier) -> Unit, onClick: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Row(
-        modifier.height(86.dp).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.6f, shadow = 12.dp).padding(10.dp),
+        modifier.height(86.dp).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.12f, shadow = 12.dp).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         art(Modifier.size(64.dp))
@@ -235,7 +256,7 @@ private fun Shortcut(title: String, sub: String, icon: ImageVector, modifier: Mo
 @Composable
 private fun MiniCollage(arts: List<String>, modifier: Modifier) {
     if (arts.isEmpty()) {
-        Box(modifier.clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFFADC27A), Color(0xFF6F8B3C)))), contentAlignment = Alignment.Center) {
+        Box(modifier.clip(RoundedCornerShape(18.dp)).background(Brush.linearGradient(listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E)))), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(26.dp))
         }
     } else Collage(arts, modifier, 18.dp)
@@ -246,12 +267,12 @@ private fun MiniCollage(arts: List<String>, modifier: Modifier) {
 private fun AvatarStack(arts: List<String>, modifier: Modifier) {
     Box(modifier, contentAlignment = Alignment.CenterStart) {
         if (arts.isEmpty()) {
-            Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFB4C8E4), Color(0xFF7E95C2)))), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFF4F8DF5), Color(0xFF2B3FC2)))), contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.Person, null, tint = Color.White, modifier = Modifier.size(26.dp))
             }
         }
         arts.forEachIndexed { i, a ->
-            Artwork(a, Modifier.offset(x = (i * 12).dp).size(40.dp).border(2.dp, Color.White, CircleShape), circle = true, size = 160)
+            Artwork(a, Modifier.offset(x = (i * 12).dp).size(40.dp).border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape), circle = true, size = 160)
         }
     }
 }
@@ -298,14 +319,69 @@ private fun CaptionCard(title: String, sub: String, onLong: () -> Unit, onClick:
 private fun NewPlaylistCard(onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Column(
-        Modifier.fillMaxWidth().aspectRatio(1f).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.45f, shadow = 12.dp),
+        Modifier.fillMaxWidth().aspectRatio(1f).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.10f, shadow = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Ink), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Accent).glassEdges(CircleShape, 0.7f), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(12.dp))
         Text("New playlist", style = BopType.BodyStrong, color = Bop.Text)
         Text("Make it yours", style = BopType.Caption, color = Bop.Text2)
+    }
+}
+
+/** Spotify-Wrapped-style entry: your top songs and listening trend. */
+@Composable
+private fun ReplayBanner(onClick: () -> Unit) {
+    val stats by PlayStats.state.collectAsState()
+    val top = remember(stats.events.size) {
+        stats.events.takeLast(400).groupingBy { it.id }.eachCount().entries.sortedByDescending { it.value }
+            .mapNotNull { stats.tracks[it.key]?.artwork }.distinct().take(3)
+    }
+    val shape = RoundedCornerShape(30.dp)
+    Row(
+        Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().height(96.dp)
+            .bounceClick(0.98f, onClick = onClick)
+            .softShadow(shape, 16.dp, alpha = 0.22f, dy = 5.dp).clip(shape)
+            .background(Brush.linearGradient(listOf(Color(0xFF2443C4), Color(0xFF7A45CC), Color(0xFFE2678F))))
+            .glassEdges(shape, 0.9f)
+            .padding(horizontal = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("REPLAY", style = BopType.Micro, color = Color.White.copy(alpha = 0.75f))
+            Text("Your top songs & trends", style = BopType.Headline, color = Color.White, maxLines = 1)
+            Text(if (stats.events.isEmpty()) "Starts counting as you listen" else "${stats.events.size} plays counted", style = BopType.Caption, color = Color.White.copy(alpha = 0.8f))
+        }
+        Box(Modifier.size(width = 104.dp, height = 70.dp)) {
+            top.reversed().forEachIndexed { k, a ->
+                val i = top.size - 1 - k
+                Artwork(a, Modifier.size(60.dp).align(Alignment.CenterEnd).offset(x = (-i * 20).dp).graphicsLayer { rotationZ = 8f - i * 8f }, corner = 14.dp, size = 200, elevation = 10.dp)
+            }
+            if (top.isEmpty()) Icon(Icons.Rounded.Insights, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(52.dp).align(Alignment.CenterEnd))
+        }
+    }
+}
+
+/** The signed-in account's YouTube Music library: Liked Music + their playlists. */
+@Composable
+private fun YtMusicLibrary() {
+    val app = LocalApp.current
+    val load = rememberLoad("ytm:library", 5 * 60_000L) { YtMusic.libraryPlaylists() }
+    val liked = Card("yt:LM", CardKind.PLAYLIST, "Liked Music", "YouTube Music", "")
+    val cards = listOf(liked) + ((load.state as? Load.Ready)?.value.orEmpty())
+    Column {
+        SectionHeader("From YouTube Music", "Your account")
+        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            items(cards, key = { it.id }) { c ->
+                if (c.id == liked.id) Column(Modifier.width(140.dp).bounceClick { app.open(c) }) {
+                    GradientArt(Modifier.size(140.dp), Icons.Rounded.ThumbUp, listOf(Color(0xFFE2678F), Color(0xFF7A45CC)))
+                    Spacer(Modifier.height(9.dp))
+                    Text(c.title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1)
+                    Text(c.subtitle, style = BopType.Caption, color = Bop.Text2, maxLines = 1)
+                } else CardTile(c, width = 140.dp, onLongClick = { app.sheet = Sheet.CardOptions(c) }) { app.open(c) }
+            }
+        }
     }
 }

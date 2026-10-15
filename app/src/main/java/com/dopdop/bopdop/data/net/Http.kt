@@ -52,6 +52,7 @@ class TtlCache<K, V>(private val ttlMs: Long, private val max: Int = 200) {
     @Synchronized fun get(key: K): V? = map[key]?.takeIf { System.currentTimeMillis() - it.at < ttlMs }?.value
     @Synchronized fun put(key: K, value: V) { map[key] = Entry(System.currentTimeMillis(), value) }
     @Synchronized fun remove(key: K) { map.remove(key) }
+    @Synchronized fun clear() = map.clear()
 
     suspend fun getOrLoad(key: K, load: suspend () -> V): V = get(key) ?: load().also { put(key, it) }
 }

@@ -11,8 +11,8 @@ android {
         applicationId = "com.dopdop.bopdop"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0-alpha"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildTypes {
@@ -75,6 +75,10 @@ dependencies {
     implementation("dev.chrisbanes.haze:haze-blur:2.0.1")
 
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
+
+    // QR codes: encoder for the styled share codes, embedded camera scanner to read them.
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
 
     testImplementation("junit:junit:4.13.2")

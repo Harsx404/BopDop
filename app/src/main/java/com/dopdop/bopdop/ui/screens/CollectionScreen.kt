@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.QrCode2
+import com.dopdop.bopdop.data.share.SharePayload
+import com.dopdop.bopdop.ui.ShareRequest
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
@@ -89,6 +92,7 @@ fun CollectionLayout(
     saved: Boolean? = null,
     onSave: (() -> Unit)? = null,
     onMore: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     loading: Boolean = false,
     error: String? = null,
     onRetry: () -> Unit = {},
@@ -119,7 +123,7 @@ fun CollectionLayout(
                     .then(if (Build.VERSION.SDK_INT >= 31) Modifier.blur(70.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Unbounded) else Modifier),
                 corner = 0.dp, size = 300,
             )
-            Box(Modifier.fillMaxWidth().height(522.dp).background(Brush.verticalGradient(listOf(Bop.Pearl.copy(alpha = 0.10f), Bop.Pearl.copy(alpha = 0.45f), Color.Transparent))))
+            Box(Modifier.fillMaxWidth().height(522.dp).background(Brush.verticalGradient(listOf(Bop.Base.copy(alpha = 0.10f), Bop.Base.copy(alpha = 0.45f), Color.Transparent))))
         }
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
             item(key = "hero") {
@@ -151,6 +155,7 @@ fun CollectionLayout(
                         if (saved != null && onSave != null) GlassIconButton(if (saved) Icons.Rounded.Check else Icons.Rounded.Add, "Save", size = 46.dp, active = saved, onClick = onSave)
                         PillButton("Play", Icons.Rounded.PlayArrow, Modifier.width(112.dp)) { tracks?.let { PlayerConnection.play(it, 0, context) } }
                         PillButton("Shuffle", Icons.Rounded.Shuffle, Modifier.width(120.dp), filled = false) { tracks?.let { PlayerConnection.play(it, 0, context, shuffle = true) } }
+                        if (onShare != null) GlassIconButton(Icons.Rounded.QrCode2, "Share code", size = 46.dp, onClick = onShare)
                         if (onMore != null) GlassIconButton(Icons.Rounded.MoreHoriz, "More", size = 46.dp, onClick = onMore)
                     }
                     Spacer(Modifier.height(18.dp))
@@ -208,6 +213,7 @@ fun CollectionScreen(id: String, kind: String, title: String, sub: String, art: 
         saved = id in lib.savedIds,
         onSave = { app.toast(if (LibraryStore.toggleSaved(saveCard)) "Added to Library" else "Removed from Library") },
         onMore = { app.sheet = Sheet.CardOptions(saveCard) },
+        onShare = { app.shareQr(ShareRequest(SharePayload.Collection(saveCard), saveCard.title, if (isAlbum) "Album · ${saveCard.subtitle}" else "Playlist", saveCard.artwork)) },
         loading = load.state is Load.Loading,
         error = (load.state as? Load.Failed)?.message,
         onRetry = load.retry,
@@ -223,13 +229,13 @@ fun LocalCollectionScreen(id: String) {
         "liked" -> CollectionLayout(
             title = "Liked Songs", subtitle = "", meta = songs(lib.liked.size), artUrl = lib.liked.firstOrNull()?.artwork,
             tracks = lib.liked, context = "Liked Songs", numbered = false,
-            art = { m -> GradientArt(m, Icons.Rounded.Favorite, listOf(Color(0xFFAFC4E0), Color(0xFF7E95C2))) },
+            art = { m -> GradientArt(m, Icons.Rounded.Favorite, listOf(Color(0xFF4F8DF5), Color(0xFF6A35B8))) },
             empty = "Songs you ♥ land here.",
         )
         "history" -> CollectionLayout(
             title = "Recently Played", subtitle = "", meta = songs(lib.history.size), artUrl = lib.history.firstOrNull()?.artwork,
             tracks = lib.history, context = "Recently Played", numbered = false,
-            art = { m -> GradientArt(m, Icons.Rounded.History, listOf(Color(0xFFADC27A), Color(0xFF6F8B3C))) },
+            art = { m -> GradientArt(m, Icons.Rounded.History, listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E))) },
             onMore = { LibraryStore.clearHistory(); app.toast("History cleared") },
             empty = "Start listening — your history shows up here.",
         )
@@ -244,6 +250,9 @@ fun LocalCollectionScreen(id: String) {
                 tracks = p.tracks, context = p.name, numbered = false, playlistId = p.id,
                 art = { m -> Collage(p.tracks.map { it.artwork }.distinct(), m) },
                 onMore = { app.sheet = Sheet.CardOptions(Card(p.cardId, CardKind.PLAYLIST, p.name, "Your playlist", p.artwork)) },
+                onShare = if (p.tracks.isEmpty()) null else ({
+                    app.shareQr(ShareRequest(SharePayload.Playlist(p.name, p.tracks.map { it.id }), p.name, songs(p.tracks.size), p.artwork))
+                }),
                 empty = "Add songs from any track’s ••• menu.",
             )
         }
@@ -265,7 +274,7 @@ fun GradientArt(modifier: Modifier, icon: ImageVector, colors: List<Color>) {
 @Composable
 fun Collage(arts: List<String>, modifier: Modifier, corner: androidx.compose.ui.unit.Dp = 18.dp) {
     if (arts.size < 4) {
-        if (arts.isEmpty()) GradientArt(modifier, Icons.Rounded.QueueMusic, listOf(Color(0xFF3A3550), Color(0xFF1A1A26)))
+        if (arts.isEmpty()) GradientArt(modifier, Icons.Rounded.QueueMusic, listOf(Color(0xFF5A4FB0), Color(0xFF2A2468)))
         else Artwork(arts.first(), modifier, corner = corner, size = 600)
         return
     }

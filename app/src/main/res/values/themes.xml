@@ -3,7 +3,7 @@
         <item name="android:windowBackground">@color/ink</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
-    <color name="ink">#FFDCDFE4</color>
+    <color name="ink">#FF161338</color>
 </resources>

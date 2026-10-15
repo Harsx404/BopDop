@@ -165,6 +165,16 @@ object SaavnApi {
         )
     }
 
+    /** Song objects for bare JioSaavn ids (shared playlists carry ids only). */
+    suspend fun songs(ids: List<String>): List<Track> {
+        if (ids.isEmpty()) return emptyList()
+        val d = obj("song.getDetails", mapOf("pids" to ids.joinToString(",")))
+        val list = d.optJSONArray("songs")?.objects()
+            ?: d.keys().asSequence().mapNotNull { d.optJSONObject(it) }.toList()
+        val byId = tracks(list).associateBy { it.rawId }
+        return ids.mapNotNull { byId[it] }
+    }
+
     suspend fun reco(id: String): List<Track> {
         val d = call("reco.getreco", mapOf("pid" to id), ctx = "android")
         val list = when (d) {

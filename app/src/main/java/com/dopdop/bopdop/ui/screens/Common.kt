@@ -118,15 +118,15 @@ fun TopBlurBar(
     val style = remember {
         HazeBlurStyle {
             blurRadius(22.dp)
-            backgroundColor(Bop.Pearl)
-            colorEffects(listOf(HazeColorEffect.tint(Bop.Pearl.copy(alpha = 0.55f))))
+            backgroundColor(Bop.Base)
+            colorEffects(listOf(HazeColorEffect.tint(Bop.Base.copy(alpha = 0.55f))))
             // Fade the whole effect (blur + tint) out toward the bottom: no hard edge.
             mask(Brush.verticalGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent))
         }
     }
     Box(Modifier.fillMaxWidth()) {
         // At rest only a soft scrim keeps the status bar legible; the glass bar fades in on scroll.
-        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Brush.verticalGradient(listOf(Bop.Pearl.copy(alpha = 0.7f), Color.Transparent))))
+        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Brush.verticalGradient(listOf(Bop.Base.copy(alpha = 0.7f), Color.Transparent))))
         if (titleAlpha > 0.01f) Box(
             Modifier.matchParentSizeOrBar()
                 .graphicsLayer { alpha = titleAlpha }
@@ -154,7 +154,7 @@ private fun Modifier.matchParentSizeOrBar(): Modifier {
 
 @Composable
 fun BackButton(onBack: () -> Unit) {
-    Box(Modifier.size(42.dp).bounceClick(0.88f, onClick = onBack).glassLite(CircleShape, alpha = 0.7f, shadow = 10.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(42.dp).bounceClick(0.88f, onClick = onBack).glassLite(CircleShape, alpha = 0.14f, shadow = 10.dp), contentAlignment = Alignment.Center) {
         Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "Back", tint = Bop.Text, modifier = Modifier.size(18.dp).padding(start = 4.dp))
     }
 }

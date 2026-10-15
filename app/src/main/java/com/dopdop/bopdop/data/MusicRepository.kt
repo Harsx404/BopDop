@@ -17,7 +17,10 @@ import com.dopdop.bopdop.data.saavn.SaavnApi
 import com.dopdop.bopdop.data.ytm.YtMusic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -111,6 +114,29 @@ object MusicRepository {
             runCatching { YtMusic.searchSongs("${t.artist.split(",").first()} songs") }.getOrDefault(emptyList())
         }.filter { it.id != t.id }
     }
+
+    /** Tracks for shared ids ("yt:…" / "sv:…"), in the order given; unknown ids are dropped. */
+    suspend fun tracksByIds(ids: List<String>, onProgress: (Int) -> Unit = {}): List<Track> = withContext(Dispatchers.IO) {
+        val sv = ids.filter { it.startsWith("sv:") }.map { it.removePrefix("sv:") }
+        val saavn = sv.chunked(40).flatMap { runCatching { SaavnApi.songs(it) }.getOrDefault(emptyList()) }.associateBy { it.id }
+        var done = saavn.size
+        onProgress(done)
+        val gate = Semaphore(6)
+        val yt = coroutineScope {
+            ids.filter { it.startsWith("yt:") }.map { id ->
+                async {
+                    gate.withPermit {
+                        runCatching { YtMusic.trackInfo(id.removePrefix("yt:")) }.getOrNull()
+                            .also { synchronized(this@MusicRepository) { done++; onProgress(done) } }
+                    }
+                }
+            }.awaitAll().filterNotNull().associateBy { it.id }
+        }
+        ids.mapNotNull { saavn[it] ?: yt[it] }
+    }
+
+    /** Global "right now": YouTube Music charts for the user's country. */
+    suspend fun charts(): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.charts() }
 
     suspend fun moods(): List<Pair<String, String>> = withContext(Dispatchers.IO) { YtMusic.moods() }
     suspend fun moodCategory(params: String): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.moodCategory(params) }
