@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BlurOn
@@ -43,6 +44,10 @@ import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.BuildConfig
 import com.dopdop.bopdop.data.GlassLevel
 import com.dopdop.bopdop.data.LibraryStore
+import com.dopdop.bopdop.data.account.AccountStore
+import com.dopdop.bopdop.data.ytm.YtMusic
+import com.dopdop.bopdop.ui.Routes
+import com.dopdop.bopdop.ui.components.Artwork
 import com.dopdop.bopdop.playback.PlaybackService
 import com.dopdop.bopdop.ui.LocalApp
 import com.dopdop.bopdop.ui.components.ScreenCache
@@ -59,8 +64,41 @@ fun SettingsScreen() {
     val ctx = LocalContext.current
     val lib by LibraryStore.state.collectAsState()
     val s = lib.settings
+    val account by AccountStore.account.collectAsState()
     LargeTitleScaffold(title = "Settings", showBack = true) {
         item {
+            Group("Account") {
+                val a = account
+                if (a == null) {
+                    Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.SIGN_IN) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(Icons.Rounded.AccountCircle)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Sign in to YouTube Music", style = BopType.BodyStrong, color = Bop.Text)
+                            Text("Your own Home mixes, Liked Music and playlists. Optional — everything else works without it.", style = BopType.Caption, color = Bop.Text2)
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text("Sign in", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(650)), color = Color.White,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Accent).padding(horizontal = 14.dp, vertical = 8.dp))
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Artwork(a.photo.ifBlank { null }, Modifier.size(46.dp), circle = true, size = 160)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(a.name, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1)
+                            Text(a.handle.ifBlank { "YouTube Music" }, style = BopType.Caption, color = Bop.Text2, maxLines = 1)
+                        }
+                        Text(
+                            "Sign out", style = BopType.BodyStrong, color = Bop.Danger,
+                            modifier = Modifier.bounceClick {
+                                AccountStore.signOut(); YtMusic.clearCache(); ScreenCache.put("home", null)
+                                app.toast("Signed out")
+                            }.padding(8.dp),
+                        )
+                    }
+                }
+            }
             Group("Sound") {
                 ToggleRow(Icons.Rounded.GraphicEq, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
                     LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }

@@ -143,7 +143,10 @@ fun HomeScreen() {
                     Spacer(Modifier.weight(1f))
                     CircleButton(onClick = { app.goTab(Routes.SEARCH) }) { Icon(Icons.Rounded.Search, "Search", tint = Bop.Text, modifier = Modifier.size(24.dp)) }
                     Spacer(Modifier.width(12.dp))
-                    Avatar(current?.artwork ?: lib.history.firstOrNull()?.artwork) { app.goTab(Routes.LIBRARY) }
+                    val account by com.dopdop.bopdop.data.account.AccountStore.account.collectAsState()
+                    Avatar(account?.photo?.ifBlank { null } ?: current?.artwork ?: lib.history.firstOrNull()?.artwork) {
+                        if (account == null) app.nav.navigate(Routes.SIGN_IN) else app.goTab(Routes.LIBRARY)
+                    }
                 }
             }
             item(key = "headline") {
@@ -328,9 +331,9 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
             add(Mix("Discovery Station", "Endless, from ${seed.artist.split(",").first()}", Icons.Rounded.AutoAwesome,
                 listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
         }
-        if (history.size >= 5) add(Mix("Replay Mix", "Your recent rotation", Icons.Rounded.History,
+        add(Mix("Your Replay", "Top songs, artists & trends", Icons.Rounded.History,
             listOf(Color(0xFFF07A8E), Color(0xFFB2408A)), history.getOrNull(2)?.artwork) {
-            PlayerConnection.play(history.take(60), context = "Replay Mix", shuffle = true)
+            app.nav.navigate(Routes.REPLAY)
         })
         if (liked.size >= 3) add(Mix("Deep Cuts", "Radio from your likes", Icons.Rounded.Shuffle,
             listOf(Color(0xFF3FB6D9), Color(0xFF2560B8)), liked.random().artwork) {

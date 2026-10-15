@@ -427,3 +427,18 @@ fun <T> rememberLoad(cacheKey: String, maxAgeMs: Long = 15 * 60_000L, block: sus
 }
 
 fun Color.mix(other: Color, f: Float) = lerp(this, other, f)
+
+// --- Choice chips --------------------------------------------------------------------
+
+/** Glass choice chip; the selected one fills with the accent blue. */
+@Composable
+fun GlassChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        label, style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(if (selected) 650 else 550)),
+        color = if (selected) Color.White else Bop.Text2, maxLines = 1,
+        modifier = modifier.bounceClick(0.94f, onClick = onClick)
+            .then(if (selected) Modifier.glassLite(shape, tint = Bop.Accent, alpha = 1f) else Modifier.glassLite(shape, alpha = 0.12f))
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}

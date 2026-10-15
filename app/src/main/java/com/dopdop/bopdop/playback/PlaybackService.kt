@@ -24,11 +24,14 @@ import androidx.media3.session.MediaSessionService
 import com.dopdop.bopdop.MainActivity
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.MusicRepository
+import com.dopdop.bopdop.data.PlayStats
 import com.dopdop.bopdop.data.net.Http
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -43,6 +46,7 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         LibraryStore.init(this)
+        PlayStats.init(this)
 
         val resolving = ResolvingDataSource.Factory(OkHttpDataSource.Factory(Http.client)) { spec -> resolve(spec) }
         val dataSource = CacheDataSource.Factory()
@@ -58,6 +62,13 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         player.addListener(listener)
+        // Replay: count real listening time, one second at a time.
+        scope.launch {
+            while (isActive) {
+                delay(1000)
+                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it) }
+            }
+        }
 
         val open = PendingIntent.getActivity(
             this, 0,
@@ -83,6 +94,7 @@ class PlaybackService : MediaSessionService() {
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             mediaItem?.toTrack()?.let(LibraryStore::recordPlay)
+            PlayStats.newSession()
             maybeExtendQueue()
         }
 

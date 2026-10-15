@@ -93,6 +93,9 @@ import com.dopdop.bopdop.data.model.songs
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.AppState
 import com.dopdop.bopdop.ui.Sheet
+import com.dopdop.bopdop.ui.ShareRequest
+import com.dopdop.bopdop.data.share.SharePayload
+import androidx.compose.material.icons.rounded.QrCode2
 import com.dopdop.bopdop.ui.components.Artwork
 import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.glass.LocalHaze
@@ -241,6 +244,12 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
     Action(Icons.Rounded.PlayArrow, "Play") { withTracks { PlayerConnection.play(it, 0, c.title) }; close() }
     Action(Icons.Rounded.Shuffle, "Shuffle") { withTracks { PlayerConnection.play(it, 0, c.title, shuffle = true) }; close() }
     Action(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { withTracks { PlayerConnection.addToQueue(it); app.toast("Added ${it.size} songs to queue") }; close() }
+    if (localPl != null && localPl.tracks.isNotEmpty()) Action(Icons.Rounded.QrCode2, "Share as code") {
+        close(); app.shareQr(ShareRequest(SharePayload.Playlist(localPl.name, localPl.tracks.map { it.id }), localPl.name, songs(localPl.tracks.size), localPl.artwork))
+    }
+    if (!local && c.kind in setOf(CardKind.ALBUM, CardKind.PLAYLIST, CardKind.ARTIST)) Action(Icons.Rounded.QrCode2, "Share as code") {
+        close(); app.shareQr(ShareRequest(SharePayload.Collection(c), c.title, c.subtitle.ifBlank { c.kind.name.lowercase().replaceFirstChar { it.uppercase() } }, c.artwork))
+    }
     if (localPl != null) {
         Action(Icons.Rounded.Edit, "Rename") { app.sheet = Sheet.RenamePlaylist(localPl.id, localPl.name) }
         Action(Icons.Rounded.Delete, "Delete playlist", Bop.Danger) {

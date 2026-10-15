@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.QrCode2
+import com.dopdop.bopdop.data.share.SharePayload
+import com.dopdop.bopdop.ui.ShareRequest
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
@@ -89,6 +92,7 @@ fun CollectionLayout(
     saved: Boolean? = null,
     onSave: (() -> Unit)? = null,
     onMore: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     loading: Boolean = false,
     error: String? = null,
     onRetry: () -> Unit = {},
@@ -151,6 +155,7 @@ fun CollectionLayout(
                         if (saved != null && onSave != null) GlassIconButton(if (saved) Icons.Rounded.Check else Icons.Rounded.Add, "Save", size = 46.dp, active = saved, onClick = onSave)
                         PillButton("Play", Icons.Rounded.PlayArrow, Modifier.width(112.dp)) { tracks?.let { PlayerConnection.play(it, 0, context) } }
                         PillButton("Shuffle", Icons.Rounded.Shuffle, Modifier.width(120.dp), filled = false) { tracks?.let { PlayerConnection.play(it, 0, context, shuffle = true) } }
+                        if (onShare != null) GlassIconButton(Icons.Rounded.QrCode2, "Share code", size = 46.dp, onClick = onShare)
                         if (onMore != null) GlassIconButton(Icons.Rounded.MoreHoriz, "More", size = 46.dp, onClick = onMore)
                     }
                     Spacer(Modifier.height(18.dp))
@@ -208,6 +213,7 @@ fun CollectionScreen(id: String, kind: String, title: String, sub: String, art: 
         saved = id in lib.savedIds,
         onSave = { app.toast(if (LibraryStore.toggleSaved(saveCard)) "Added to Library" else "Removed from Library") },
         onMore = { app.sheet = Sheet.CardOptions(saveCard) },
+        onShare = { app.shareQr(ShareRequest(SharePayload.Collection(saveCard), saveCard.title, if (isAlbum) "Album · ${saveCard.subtitle}" else "Playlist", saveCard.artwork)) },
         loading = load.state is Load.Loading,
         error = (load.state as? Load.Failed)?.message,
         onRetry = load.retry,
@@ -244,6 +250,9 @@ fun LocalCollectionScreen(id: String) {
                 tracks = p.tracks, context = p.name, numbered = false, playlistId = p.id,
                 art = { m -> Collage(p.tracks.map { it.artwork }.distinct(), m) },
                 onMore = { app.sheet = Sheet.CardOptions(Card(p.cardId, CardKind.PLAYLIST, p.name, "Your playlist", p.artwork)) },
+                onShare = if (p.tracks.isEmpty()) null else ({
+                    app.shareQr(ShareRequest(SharePayload.Playlist(p.name, p.tracks.map { it.id }), p.name, songs(p.tracks.size), p.artwork))
+                }),
                 empty = "Add songs from any track’s ••• menu.",
             )
         }

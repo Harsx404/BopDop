@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainActivity : ComponentActivity() {
     /** Bumped when the notification is tapped so the root expands the player. */
     val openPlayer = MutableStateFlow(0)
+    /** A `bopdop://share/…` link waiting for the UI to open it. */
+    val sharedLink = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -32,7 +34,7 @@ class MainActivity : ComponentActivity() {
         handle(intent)
         setContent {
             BopDopTheme {
-                BopDopRoot(openPlayer)
+                BopDopRoot(openPlayer, sharedLink)
             }
         }
     }
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true) openPlayer.value++
+        intent?.data?.takeIf { it.scheme == "bopdop" && it.host == "share" }?.let { sharedLink.value = it.toString() }
     }
 
     companion object {

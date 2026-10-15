@@ -14,6 +14,8 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         LibraryStore.init(this)
+        com.dopdop.bopdop.data.PlayStats.init(this)
+        com.dopdop.bopdop.data.account.AccountStore.init(this)
         com.dopdop.bopdop.playback.StreamResolver.init(this)
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
     }

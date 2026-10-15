@@ -99,7 +99,7 @@ import kotlin.math.roundToInt
 val LocalChromePadding = compositionLocalOf { PaddingValues(0.dp) }
 
 @Composable
-fun BopDopRoot(openPlayer: StateFlow<Int>) {
+fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.MutableStateFlow<String?>) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val app = remember { AppState(nav, scope) }
@@ -110,6 +110,16 @@ fun BopDopRoot(openPlayer: StateFlow<Int>) {
     val open by openPlayer.collectAsState()
 
     LaunchedEffect(open) { if (open > 0 && PlayerConnection.current.value != null) app.expandPlayer() }
+
+    // bopdop://share/… opened from a camera app, a chat, or the browser.
+    val link by sharedLink.collectAsState()
+    LaunchedEffect(link) { link?.let { sharedLink.value = null; app.collapsePlayer(); app.openShared(it) } }
+
+    // Keep the signed-in profile (name / photo) fresh.
+    LaunchedEffect(Unit) {
+        if (com.dopdop.bopdop.data.account.AccountStore.signedIn) runCatching { com.dopdop.bopdop.data.ytm.YtMusic.accountInfo() }.getOrNull()
+            ?.let(com.dopdop.bopdop.data.account.AccountStore::setProfile)
+    }
 
     // White status-bar icons everywhere: the aurora and the Now Playing art are both dark-mid.
     val view = androidx.compose.ui.platform.LocalView.current
@@ -182,6 +192,10 @@ private fun AppNavHost(app: AppState) {
             MoodScreen(e.arguments!!.getString("title")!!, e.arguments!!.getString("params")!!)
         }
         composable(Routes.SEE_ALL, listOf(str("key"))) { e -> SeeAllScreen(e.arguments!!.getString("key")!!) }
+        composable(Routes.REPLAY) { com.dopdop.bopdop.ui.screens.ReplayScreen() }
+        composable(Routes.SIGN_IN) { com.dopdop.bopdop.ui.screens.SignInScreen() }
+        composable(Routes.SHARE_QR, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ShareQrScreen(e.arguments!!.getString("key")!!) }
+        composable(Routes.IMPORT, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ImportScreen(e.arguments!!.getString("key")!!) }
     }
 }
 

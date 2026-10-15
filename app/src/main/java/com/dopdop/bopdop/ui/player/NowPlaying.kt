@@ -1,6 +1,5 @@
 package com.dopdop.bopdop.ui.player
 
-import android.media.AudioManager
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -353,116 +352,20 @@ private fun SideDrop(next: Boolean, haze: HazeState, onLong: () -> Unit, onClick
     ) { LineSkip(next, Modifier.size(22.dp), color = Color.White, stroke = 1.8.dp) }
 }
 
-// --- Glass pill sliders (reference "Volume · 60% · 100%") --------------------------------
-
-/**
- * A frosted track with a brighter frosted fill riding inside it. Drag or tap to set.
- * Labels: [start] inside the fill, [fillLabel] at the fill's end, [end] at the track end.
- */
-@Composable
-private fun GlassPillSlider(
-    value: Float,
-    haze: HazeState,
-    start: String,
-    fillLabel: String?,
-    end: String,
-    minFill: Dp = 104.dp,
-    onDrag: (Float) -> Unit,
-    onRelease: (Float) -> Unit,
-) {
-    var dragging by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(50)
-    BoxWithConstraints(
-        Modifier.fillMaxWidth().height(56.dp)
-            .mediaGlass(shape, haze, emphasis = 0.75f)
-            .pointerInput(Unit) {
-                detectTapGestures { o ->
-                    val v = ((o.x - minFill.toPx()) / (size.width - minFill.toPx())).coerceIn(0f, 1f)
-                    onDrag(v); onRelease(v)
-                }
-            }
-            .pointerInput(Unit) {
-                var v = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { o -> dragging = true; v = ((o.x - minFill.toPx()) / (size.width - minFill.toPx())).coerceIn(0f, 1f); onDrag(v) },
-                    onDragEnd = { dragging = false; onRelease(v) },
-                    onDragCancel = { dragging = false },
-                ) { change, d ->
-                    change.consume()
-                    v = (v + d / (size.width - minFill.toPx())).coerceIn(0f, 1f)
-                    onDrag(v)
-                }
-            },
-    ) {
-        val fillW = minFill + (maxWidth - minFill) * value.coerceIn(0f, 1f)
-        // Dots in the empty part of the track
-        Row(Modifier.fillMaxHeight().padding(start = fillW + 10.dp, end = 18.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Dots(Modifier.weight(1f))
-            Text(end, style = BopType.BodyStrong, color = Bop.OnMedia2)
-        }
-        Box(
-            Modifier.width(fillW).fillMaxHeight()
-                .graphicsLayer { val s = if (dragging) 1.02f else 1f; scaleY = s }
-                .mediaGlass(shape, haze, emphasis = 2.2f),
-        ) {
-            Row(Modifier.fillMaxSize().padding(start = 20.dp, end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(start, style = BopType.BodyStrong, color = Bop.OnMedia, maxLines = 1)
-                if (fillLabel != null) {
-                    Dots(Modifier.weight(1f).padding(horizontal = 8.dp))
-                    Text(fillLabel, style = BopType.BodyStrong, color = Bop.OnMedia, maxLines = 1)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun Dots(modifier: Modifier) {
-    BoxWithConstraints(modifier) {
-        val n = ((maxWidth.value / 28f).toInt()).coerceIn(0, 4)
-        if (n > 0) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            repeat(n) { Box(Modifier.size(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.55f))) }
-        }
-    }
-}
+// --- Seek & volume (see Sliders.kt) ---------------------------------------------------
 
 @Composable
 private fun ProgressPill(t: Track, haze: HazeState) {
-    var drag by remember(t.id) { mutableStateOf<Float?>(null) }
-    val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(250) } }
-    val dur = PlayerConnection.duration.coerceAtLeast(1L)
-    val frac = drag ?: (pos.toFloat() / dur).coerceIn(0f, 1f)
-    GlassPillSlider(
-        value = frac, haze = haze,
-        start = formatDuration((frac * dur / 1000).toInt()).ifEmpty { "0:00" },
-        fillLabel = null,
-        end = formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" },
-        minFill = 84.dp,
-        onDrag = { drag = it },
-        onRelease = { PlayerConnection.seekTo((it * dur).toLong()); drag = null },
+    val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(200) } }
+    val playing by PlayerConnection.isPlaying.collectAsState()
+    WavySeekBar(
+        positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
+        onSeek = { PlayerConnection.seekTo(it) },
     )
 }
 
 @Composable
-private fun VolumePill(haze: HazeState) {
-    val ctx = LocalContext.current
-    val am = remember { ctx.getSystemService(AudioManager::class.java) }
-    val max = remember { am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
-    var vol by remember { mutableFloatStateOf(am.getStreamVolume(AudioManager.STREAM_MUSIC) / max.toFloat()) }
-    var touching by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            if (!touching) vol = am.getStreamVolume(AudioManager.STREAM_MUSIC) / max.toFloat()
-            delay(400)
-        }
-    }
-    GlassPillSlider(
-        value = vol, haze = haze, start = "Volume", fillLabel = "${(vol * 100).roundToInt()}%", end = "100%",
-        minFill = 150.dp,
-        onDrag = { touching = true; vol = it; am.setStreamVolume(AudioManager.STREAM_MUSIC, (it * max).roundToInt(), 0) },
-        onRelease = { touching = false },
-    )
-}
+private fun VolumePill(haze: HazeState) = VolumeSlider(Modifier.padding(horizontal = 4.dp))
 
 // --- Small pieces ---------------------------------------------------------------------
 
