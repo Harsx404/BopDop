@@ -285,11 +285,41 @@ object YtMusic {
     }
 
     /** Plain lyrics from YouTube Music's "Lyrics" tab (LyricFind / Musixmatch text). */
-    suspend fun lyrics(videoId: String): String? {
+    private suspend fun lyricsBrowseId(videoId: String): String? {
         val d = post("next", JSONObject().put("videoId", videoId).put("isAudioOnly", true))
-        val bid = walk(d).firstNotNullOfOrNull { n ->
+        return walk(d).firstNotNullOfOrNull { n ->
             n.optJSONObject("browseEndpoint")?.takeIf { pageType(it) == "MUSIC_PAGE_TYPE_TRACK_LYRICS" }?.optString("browseId")
-        } ?: return null
+        }
+    }
+
+    /**
+     * Time-synced lyrics (LyricFind) as the YouTube Music Android app gets them: the same
+     * lyrics tab, asked for as ANDROID_MUSIC, answers with a timedLyricsModel. Returns
+     * (startMs, endMs, line) — timed to the YouTube recording.
+     */
+    suspend fun timedLyrics(videoId: String): List<Triple<Long, Long, String>>? {
+        val bid = lyricsBrowseId(videoId) ?: return null
+        val ver = "7.27.52"
+        val body = JSONObject().put("browseId", bid).put("context", JSONObject().put("client", JSONObject()
+            .put("hl", hl).put("gl", gl).put("clientName", "ANDROID_MUSIC").put("clientVersion", ver)
+            .put("androidSdkVersion", 34).put("osName", "Android").put("osVersion", "14")
+            .apply { visitorData?.let { put("visitorData", it) } }))
+        val res = Http.postJson("${API}browse?prettyPrint=false", body, mapOf(
+            "User-Agent" to "com.google.android.apps.youtube.music/$ver (Linux; U; Android 14) gzip",
+            "X-YouTube-Client-Name" to "21", "X-YouTube-Client-Version" to ver,
+        ))
+        // …elementRenderer…timedLyricsModel.lyricsData.timedLyricsData[] — find the array wherever YouTube nests it.
+        val data = walk(res).firstNotNullOfOrNull { it.optJSONArray("timedLyricsData") } ?: return null
+        return (0 until data.length()).mapNotNull { i ->
+            val o = data.optJSONObject(i) ?: return@mapNotNull null
+            val cue = o.optJSONObject("cueRange") ?: return@mapNotNull null
+            Triple(cue.optString("startTimeMilliseconds").toLongOrNull() ?: return@mapNotNull null,
+                cue.optString("endTimeMilliseconds").toLongOrNull() ?: 0L, o.optString("lyricLine"))
+        }.takeIf { it.size >= 3 }
+    }
+
+    suspend fun lyrics(videoId: String): String? {
+        val bid = lyricsBrowseId(videoId) ?: return null
         val b = browse(bid)
         return collect(b, mapOf("musicDescriptionShelfRenderer" to { r: JSONObject -> text(r.optJSONObject("description")) }))
             .firstOrNull { it.isNotBlank() }?.replace("\r\n", "\n")?.replace('\r', '\n')

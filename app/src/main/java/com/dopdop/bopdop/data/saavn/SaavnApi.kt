@@ -131,7 +131,7 @@ object SaavnApi {
             id = "sv:$id", kind = CardKind.ALBUM,
             title = unescape(d.optString("title")),
             subtitle = unescape(d.optString("subtitle").ifEmpty { d.optJSONObject("more_info")?.optString("music").orEmpty() }),
-            artwork = img(d.optString("image"), "1000x1000"),
+            artwork = img(d.optString("image")),
             tracks = tracks(d.optJSONArray("list").objects()),
             year = d.optString("year"),
         )
@@ -143,7 +143,7 @@ object SaavnApi {
             id = "sv:$id", kind = CardKind.PLAYLIST,
             title = unescape(d.optString("title")),
             subtitle = unescape(d.optString("subtitle").ifEmpty { d.optString("header_desc") }),
-            artwork = img(d.optString("image"), "1000x1000"),
+            artwork = img(d.optString("image")),
             tracks = tracks(d.optJSONArray("list").objects()),
         )
     }
@@ -154,7 +154,7 @@ object SaavnApi {
         return ArtistPage(
             id = "sv:$id",
             name = unescape(d.optString("name")),
-            artwork = img(d.optString("image"), "1000x1000"),
+            artwork = img(d.optString("image")),
             subtitle = unescape(d.optString("subtitle").ifEmpty { d.optString("dominantType") }).ifEmpty { "Artist" },
             topSongs = tracks(d.optJSONArray("topSongs").objects()),
             albums = albums,

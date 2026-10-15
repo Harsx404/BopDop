@@ -81,7 +81,7 @@ fun ArtistScreen(id: String, name: String, art: String) {
                         },
                         corner = 0.dp, size = 1200,
                     )
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.30f), 0.3f to Color.Transparent, 0.55f to Bop.Base.copy(alpha = 0f), 0.82f to Bop.Base.copy(alpha = 0.82f), 1f to Bop.Base)))
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.30f), 0.3f to Color.Transparent, 0.55f to Bop.Pearl.copy(alpha = 0f), 0.82f to Bop.Pearl.copy(alpha = 0.82f), 1f to Bop.Pearl)))
                     Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 18.dp)) {
                         Text((page?.subtitle ?: "Artist").uppercase(), style = BopType.Micro, color = Bop.Text2)
                         Text(title, style = BopType.Hero.copy(fontSize = BopType.Hero.fontSize * 1.2f), color = Bop.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)

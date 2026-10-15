@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -29,6 +30,10 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.DownloadForOffline
+import androidx.compose.material.icons.rounded.HighQuality
+import com.dopdop.bopdop.ui.glass.glassEdges
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,19 +105,30 @@ fun SettingsScreen() {
                 }
             }
             Group("Sound") {
-                ToggleRow(Icons.Rounded.GraphicEq, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
+                ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
                     LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
+                }
+                Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.EQ) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconBadge(Icons.Rounded.GraphicEq)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Equalizer", style = BopType.BodyStrong, color = Bop.Text)
+                        Text(if (s.eq.enabled) "${s.eq.preset} · on" else "Shape the sound — bass, vocals, sparkle.", style = BopType.Caption, color = Bop.Text2)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    EqMini(s.eq.gains, s.eq.enabled)
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Bop.Text3, modifier = Modifier.size(22.dp))
                 }
                 ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
                     LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
                 }
             }
             Group("Look & feel") {
-                RowHead(Icons.Rounded.BlurOn, "Glass", "How much the background shows through.")
-                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.08f).padding(4.dp)) {
+                RowHead(Icons.Rounded.WaterDrop, "Glass", "How much the background shows through.")
+                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
                     GlassLevel.entries.forEach { g ->
                         val on = g == s.glass
-                        val bg by animateColorAsState(if (on) Bop.Accent else Color.Transparent, label = "g")
+                        val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "g")
                         Text(
                             g.label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text2,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -143,27 +159,27 @@ fun SettingsScreen() {
                                     LibraryStore.updateSettings { it.copy(languages = next.joinToString(",")) }
                                     ScreenCache.put("home", null)
                                 }
-                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Accent else Color.White.copy(alpha = 0.12f))
+                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
                 }
             }
             Group("Storage") {
-                RowHead(Icons.Rounded.Storage, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch.")
+                RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch.")
                 Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(512, 1024, 2048, 4096).forEach { mb ->
                         val on = s.cacheMb == mb
                         Text(
                             if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Color.White else Bop.Text,
                             modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Accent else Color.White.copy(alpha = 0.12f))
+                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
                 }
                 Text(
-                    "Clear cached audio", style = BopType.BodyStrong, color = Bop.Danger,
+                    "Clear cached audio", style = BopType.BodyStrong, color = Color(0xFFFF6B8B),
                     modifier = Modifier.padding(start = 56.dp, bottom = 16.dp).bounceClick {
                         val c = PlaybackService.cache(ctx)
                         val mb = c.cacheSpace / (1024 * 1024)
@@ -195,13 +211,13 @@ fun SettingsScreen() {
 @Composable
 private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
     Text(title.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 28.dp, top = 22.dp, bottom = 8.dp))
-    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(28.dp), alpha = 0.12f, shadow = 14.dp), content = content)
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(24.dp), alpha = 0.5f, shadow = 14.dp), content = content)
 }
 
 @Composable
 private fun IconBadge(icon: ImageVector) {
-    Box(Modifier.size(30.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = Bop.Text, modifier = Modifier.size(17.dp))
+    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.9f)).glassEdges(RoundedCornerShape(10.dp), 0.8f, true), contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
     }
 }
 
@@ -235,7 +251,7 @@ private fun ToggleRow(icon: ImageVector, title: String, sub: String, on: Boolean
 @Composable
 fun GlassSwitch(on: Boolean) {
     val x by animateDpAsState(if (on) 22.dp else 2.dp, spring(dampingRatio = 0.6f, stiffness = 600f), label = "x")
-    val track by animateColorAsState(if (on) Bop.Green else Color.White.copy(alpha = 0.16f), label = "t")
+    val track by animateColorAsState(if (on) Color(0xFF34C759) else Bop.Ink.copy(alpha = 0.12f), label = "t")
     Box(Modifier.size(52.dp, 32.dp).clip(RoundedCornerShape(50)).background(track)) {
         Box(Modifier.offset(x = x, y = 2.dp).size(28.dp).clip(CircleShape).background(Color.White))
     }

@@ -137,14 +137,14 @@ fun SearchScreen() {
                         value = text, onValueChange = { text = it },
                         singleLine = true,
                         textStyle = BopType.Body.copy(color = Bop.Text),
-                        cursorBrush = SolidColor(Bop.Accent),
+                        cursorBrush = SolidColor(Bop.Ink),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { submit(text) }),
                         modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
                     )
                 }
                 if (text.isNotEmpty()) {
-                    Box(Modifier.size(28.dp).bounceClick(0.85f) { text = ""; submitted = "" }.glassLite(CircleShape, alpha = 0.16f), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(28.dp).bounceClick(0.85f) { text = ""; submitted = "" }.glassLite(CircleShape, tint = Bop.Ink, alpha = 0.12f), contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.Close, "Clear", tint = Bop.Text, modifier = Modifier.size(16.dp))
                     }
                 }
@@ -175,10 +175,10 @@ private fun SuggestionList(q: String, suggestions: List<String>, onPick: (String
 /** Deterministic, pleasant gradient per category name. */
 private fun tileColors(name: String): List<Color> {
     val palettes = listOf(
-        listOf(0xFF4F8DF5, 0xFF2B3FC2), listOf(0xFF8A55E0, 0xFF4A2A9E), listOf(0xFFF07A8E, 0xFFB2408A),
-        listOf(0xFF3FB6D9, 0xFF2560B8), listOf(0xFFB463E6, 0xFF6A35B8), listOf(0xFFF2A65A, 0xFFC9506E),
-        listOf(0xFFE86AA8, 0xFF8A3AA8), listOf(0xFF38C2A0, 0xFF1F6FA8), listOf(0xFF6E7BF2, 0xFF3A2FA8),
-        listOf(0xFFF08A6A, 0xFFA83A6A),
+        listOf(0xFF9FB8D8, 0xFF6F8DBF), listOf(0xFF9DB56A, 0xFF6F8B3C), listOf(0xFFE4B48C, 0xFFC98A6A),
+        listOf(0xFF8FC7C1, 0xFF4F8F89), listOf(0xFFC7B3E0, 0xFF8E78B8), listOf(0xFFE8C77A, 0xFFC09A45),
+        listOf(0xFFE3A3A8, 0xFFB8707A), listOf(0xFF9BB0A0, 0xFF5E7666), listOf(0xFFA9C4E8, 0xFF7C93C8),
+        listOf(0xFFD8A58A, 0xFFA8705A),
     )
     return palettes[abs(name.hashCode()) % palettes.size].map { Color(it) }
 }
@@ -194,7 +194,7 @@ private fun Browse(recent: List<String>, onPick: (String) -> Unit) {
                 FlowRow(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     recent.forEach { r ->
                         Row(
-                            Modifier.bounceClick { onPick(r) }.glassLite(RoundedCornerShape(50), alpha = 0.12f, shadow = 8.dp).padding(horizontal = 14.dp, vertical = 9.dp),
+                            Modifier.bounceClick { onPick(r) }.glassLite(RoundedCornerShape(50), alpha = 0.55f, shadow = 8.dp).padding(horizontal = 14.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Rounded.History, null, tint = Bop.Text3, modifier = Modifier.size(15.dp))
@@ -249,11 +249,11 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(Filter.entries.toList()) { f ->
                     val on = f == filter
-                    val bg by animateColorAsState(if (on) Bop.Accent else Color.White.copy(alpha = 0.12f), label = "f")
+                    val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f), label = "f")
                     Text(
                         f.label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text,
                         modifier = Modifier.bounceClick { onFilter(f) }.clip(RoundedCornerShape(50)).background(bg)
-                            .glassEdges(RoundedCornerShape(50), if (on) 0.7f else 1f)
+                            .glassEdges(RoundedCornerShape(50), if (on) 0f else 1f, true)
                             .padding(horizontal = 16.dp, vertical = 9.dp),
                     )
                 }
@@ -331,7 +331,7 @@ private fun TopResult(top: Any) {
         Row(
             Modifier.padding(horizontal = 20.dp).fillMaxWidth()
                 .bounceClick { if (top is Card) app.open(top) else PlayerConnection.startRadio(top as Track, "Top result") }
-                .glassLite(shape, alpha = 0.12f, shadow = 14.dp).padding(16.dp),
+                .glassLite(shape, alpha = 0.5f, shadow = 14.dp).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Artwork(art as String, Modifier.size(92.dp), corner = 14.dp, circle = circle as Boolean, elevation = 12.dp)
@@ -344,7 +344,7 @@ private fun TopResult(top: Any) {
             Box(
                 Modifier.size(48.dp).bounceClick(0.88f) {
                     if (top is Card) app.playStationOrArtist(top) else PlayerConnection.startRadio(top as Track, "Top result")
-                }.clip(CircleShape).background(Bop.Accent).glassEdges(CircleShape, 0.7f),
+                }.clip(CircleShape).background(Bop.Ink),
                 contentAlignment = Alignment.Center,
             ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(28.dp)) }
         }
@@ -361,8 +361,8 @@ private fun MoodTile(title: String, params: String, wide: Boolean, modifier: Mod
     val list = (arts.state as? Load.Ready)?.value.orEmpty()
     val palette = com.dopdop.bopdop.ui.glass.rememberArtPalette(list.firstOrNull())
     val fallback = tileColors(title)
-    val top by animateColorAsState(if (list.isEmpty()) fallback[0] else androidx.compose.ui.graphics.lerp(palette.wash, Bop.Violet, 0.18f), androidx.compose.animation.core.tween(700), label = "mt")
-    val bottom by animateColorAsState(if (list.isEmpty()) fallback[1] else androidx.compose.ui.graphics.lerp(palette.washDeep, Bop.Base, 0.25f), androidx.compose.animation.core.tween(700), label = "mb")
+    val top by animateColorAsState(if (list.isEmpty()) fallback[0] else androidx.compose.ui.graphics.lerp(palette.wash, Color(0xFF9A9DA4), 0.28f), androidx.compose.animation.core.tween(700), label = "mt")
+    val bottom by animateColorAsState(if (list.isEmpty()) fallback[1] else androidx.compose.ui.graphics.lerp(palette.washDeep, Color(0xFF55585F), 0.22f), androidx.compose.animation.core.tween(700), label = "mb")
     val shape = RoundedCornerShape(28.dp)
     val h = if (wide) 150.dp else 128.dp
     val cover = if (wide) 112.dp else 84.dp
@@ -371,7 +371,7 @@ private fun MoodTile(title: String, params: String, wide: Boolean, modifier: Mod
             .softShadow(shape, 14.dp, alpha = 0.16f)
             .clip(shape)
             .background(Brush.linearGradient(listOf(top, bottom), start = androidx.compose.ui.geometry.Offset.Zero, end = androidx.compose.ui.geometry.Offset.Infinite))
-            .glassEdges(shape, 0.8f),
+            .glassEdges(shape, 0.8f, true),
     ) {
         // Back cover, then front cover — a little stack of records.
         list.getOrNull(1)?.let {

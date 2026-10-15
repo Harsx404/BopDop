@@ -62,6 +62,11 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_NETWORK)
             .build()
         player.addListener(listener)
+        // Our own audio session so the equalizer can sit on it from the first note.
+        val sessionId = androidx.media3.common.util.Util.generateAudioSessionIdV21(this)
+        player.setAudioSessionId(sessionId)
+        AudioFx.attach(sessionId)
+        scope.launch { AudioFx.state.collect { AudioFx.apply(it) } }
         // Replay: count real listening time, one second at a time.
         scope.launch {
             while (isActive) {
@@ -160,6 +165,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         scope.cancel()
+        AudioFx.release()
         session?.run {
             player.release()
             release()

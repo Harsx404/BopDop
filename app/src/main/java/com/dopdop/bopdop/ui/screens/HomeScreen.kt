@@ -246,20 +246,26 @@ private fun HeroCarousel(items: List<Featured>) {
                 .bounceClick(0.985f) { if (f.card != null) app.open(f.card) else f.track?.let { PlayerConnection.startRadio(it, "Featured") } },
         ) {
             Artwork(f.art, Modifier.fillMaxSize(), corner = 0.dp, size = 1000)
-            // Sky-to-wash grading like the reference: legible title on top, artwork melting into its own colour below.
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.30f), 0.28f to Color.Transparent, 0.62f to Color.Transparent, 1f to palette.wash.copy(alpha = 0.92f))))
-            Column(Modifier.fillMaxWidth().padding(top = 30.dp, start = 22.dp, end = 22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(f.title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 0.92f), color = Bop.OnMedia, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(4.dp))
-                Text(f.subtitle, style = BopType.Body, color = Bop.OnMedia2, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            PillButton(
-                if (f.card != null) "Listen" else "Play Now", Icons.Rounded.PlayArrow,
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp).width(190.dp).height(60.dp),
-                onMedia = true,
+            // Artwork melts into its own colour at the bottom, where the title sits.
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 0.78f to palette.washDeep.copy(alpha = 0.55f), 1f to palette.washDeep.copy(alpha = 0.92f))))
+            Row(
+                Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 22.dp, end = 18.dp, bottom = 22.dp),
+                verticalAlignment = Alignment.Bottom,
             ) {
-                if (f.track != null) PlayerConnection.play(f.all, f.all.indexOf(f.track).coerceAtLeast(0), "Featured")
-                else f.card?.let { app.playStationOrArtist(it) }
+                Column(Modifier.weight(1f)) {
+                    Text(f.title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 0.92f), color = Bop.OnMedia, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(3.dp))
+                    Text(f.subtitle, style = BopType.Body, color = Bop.OnMedia2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(12.dp))
+                // Icon-only play: a small white disc, no label.
+                Box(
+                    Modifier.size(52.dp).bounceClick(0.88f) {
+                        if (f.track != null) PlayerConnection.play(f.all, f.all.indexOf(f.track).coerceAtLeast(0), "Featured")
+                        else f.card?.let { app.playStationOrArtist(it) }
+                    }.softShadow(CircleShape, 14.dp, color = Color.Black, alpha = 0.22f, dy = 3.dp).clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Bop.Ink, modifier = Modifier.size(28.dp)) }
             }
         }
     }
@@ -268,15 +274,15 @@ private fun HeroCarousel(items: List<Featured>) {
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    val bg by animateColorAsState(if (selected) Bop.Accent else Color.White.copy(alpha = 0.12f), label = "chip")
+    val bg by animateColorAsState(if (selected) Color.White else Color.White.copy(alpha = 0.42f), label = "chip")
     Text(
         label,
         style = BopType.BodyStrong.copy(fontWeight = if (selected) FontWeight(650) else FontWeight(500)),
-        color = if (selected) Color.White else Bop.Text2,
+        color = if (selected) Bop.Text else Bop.Text2,
         modifier = Modifier
             .bounceClick(0.94f, onClick = onClick)
-            .softShadow(shape, if (selected) 14.dp else 8.dp, alpha = if (selected) 0.28f else 0.12f, dy = 4.dp)
-            .clip(shape).background(bg).glassEdges(shape, if (selected) 0.7f else 1f)
+            .softShadow(shape, if (selected) 14.dp else 8.dp, alpha = if (selected) 0.16f else 0.08f, dy = 4.dp)
+            .clip(shape).background(bg).glassEdges(shape, 1f, light = true)
             .padding(horizontal = 20.dp, vertical = 12.dp),
     )
 }
@@ -284,7 +290,7 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun CircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).glassLite(CircleShape, alpha = 0.14f, shadow = 12.dp),
+        Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).glassLite(CircleShape, alpha = 0.6f, shadow = 12.dp),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -305,7 +311,7 @@ private fun MenuGlyph() {
 private fun Avatar(art: String?, onClick: () -> Unit) {
     Box(
         Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).softShadow(CircleShape, 12.dp, dy = 4.dp)
-            .clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).glassEdges(CircleShape).padding(3.dp),
+            .clip(CircleShape).background(Color.White).padding(3.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (art != null) Artwork(art, Modifier.fillMaxSize(), circle = true, size = 160)
@@ -323,20 +329,20 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
     val mixes = buildList {
         add(Mix(
             "Liked Songs", if (liked.isEmpty()) "Tap ♥ on anything" else "${liked.size} songs · shuffle",
-            Icons.Rounded.Favorite, listOf(Color(0xFF4F8DF5), Color(0xFF2B3FC2)), liked.firstOrNull()?.artwork,
+            Icons.Rounded.Favorite, listOf(Color(0xFF9FB8D8), Color(0xFF7E95C2)), liked.firstOrNull()?.artwork,
         ) {
             if (liked.isEmpty()) app.openLocal("liked") else PlayerConnection.play(liked, context = "Liked Songs", shuffle = true)
         })
         history.firstOrNull()?.let { seed ->
             add(Mix("Discovery Station", "Endless, from ${seed.artist.split(",").first()}", Icons.Rounded.AutoAwesome,
-                listOf(Color(0xFF8A55E0), Color(0xFF4A2A9E)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
+                listOf(Color(0xFF9DB56A), Color(0xFF6F8B3C)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
         }
         add(Mix("Your Replay", "Top songs, artists & trends", Icons.Rounded.History,
-            listOf(Color(0xFFF07A8E), Color(0xFFB2408A)), history.getOrNull(2)?.artwork) {
+            listOf(Color(0xFFE4B48C), Color(0xFFC98A6A)), history.getOrNull(2)?.artwork) {
             app.nav.navigate(Routes.REPLAY)
         })
         if (liked.size >= 3) add(Mix("Deep Cuts", "Radio from your likes", Icons.Rounded.Shuffle,
-            listOf(Color(0xFF3FB6D9), Color(0xFF2560B8)), liked.random().artwork) {
+            listOf(Color(0xFF8FC7C1), Color(0xFF5E9E98)), liked.random().artwork) {
             PlayerConnection.startRadio(liked.random(), "Deep Cuts")
         })
     }
@@ -356,7 +362,7 @@ private fun MixCard(m: Mix) {
             .softShadow(shape, 16.dp, alpha = 0.18f, dy = 6.dp)
             .clip(shape)
             .background(Brush.linearGradient(m.colors))
-            .glassEdges(shape, 0.9f),
+            .glassEdges(shape, 0.9f, light = true),
     ) {
         if (m.art != null) {
             Artwork(
@@ -366,8 +372,8 @@ private fun MixCard(m: Mix) {
             )
         }
         Column(Modifier.padding(18.dp).fillMaxSize()) {
-            Box(Modifier.size(36.dp).glassLite(CircleShape, alpha = 0.3f), contentAlignment = Alignment.Center) {
-                Icon(m.icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Box(Modifier.size(38.dp).softShadow(CircleShape, 8.dp, alpha = 0.12f, dy = 2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
+                Icon(m.icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
             }
             Spacer(Modifier.weight(1f))
             Text(m.title, style = BopType.Title, color = Color.White, maxLines = 1)

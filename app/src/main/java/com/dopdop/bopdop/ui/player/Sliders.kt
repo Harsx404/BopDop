@@ -66,6 +66,8 @@ import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
+private fun smooth(t: Float) = t * t * (3f - 2f * t)
+
 /** Press, then drag: reports the absolute fraction under the finger (0..1) — no drift, taps seek too. */
 @Composable
 private fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: (Float) -> Unit, inset: Dp = 0.dp): Modifier {
@@ -92,7 +94,7 @@ private fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: 
  * and a pill thumb marks the playhead.
  */
 @Composable
-fun WavySeekBar(positionMs: Long, durationMs: Long, playing: Boolean, onSeek: (Long) -> Unit, modifier: Modifier = Modifier) {
+fun WavySeekBar(positionMs: Long, durationMs: Long, playing: Boolean, onSeek: (Long) -> Unit, modifier: Modifier = Modifier, caption: String? = null) {
     val dur = durationMs.coerceAtLeast(1L)
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)
@@ -128,9 +130,14 @@ fun WavySeekBar(positionMs: Long, durationMs: Long, playing: Boolean, onSeek: (L
                 var px = pad
                 p.moveTo(px, cy)
                 val step = 1.5.dp.toPx()
+                // A squiggle needs room: short played segments stay (nearly) flat instead of kinking.
+                val room = ((end - pad) / (lambda * 1.6f)).coerceIn(0f, 1f)
                 while (px < end) {
                     px = (px + step).coerceAtMost(end)
-                    val taper = ((end - px) / (lambda * 0.5f)).coerceIn(0f, 1f)
+                    // Ease in from the left cap and out into the thumb, so both ends meet the line smoothly.
+                    val inT = ((px - pad) / (lambda * 0.5f)).coerceIn(0f, 1f)
+                    val outT = ((end - px) / (lambda * 0.5f)).coerceIn(0f, 1f)
+                    val taper = room * smooth(inT) * smooth(outT)
                     p.lineTo(px, cy + wave * taper * sin((px - pad) / lambda * 2f * PI.toFloat() - phase))
                 }
                 drawPath(p, Color.White, style = Stroke(stroke, cap = StrokeCap.Round))
@@ -141,6 +148,8 @@ fun WavySeekBar(positionMs: Long, durationMs: Long, playing: Boolean, onSeek: (L
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Text(formatDuration((frac * dur / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Caption, color = if (drag != null) Bop.OnMedia else Bop.OnMedia2)
+            Spacer(Modifier.weight(1f))
+            if (caption != null) Text(caption, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = Bop.OnMedia3)
             Spacer(Modifier.weight(1f))
             Text(
                 if (drag != null) "-" + formatDuration(((1f - frac) * dur / 1000).toInt()).ifEmpty { "0:00" } else formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" },

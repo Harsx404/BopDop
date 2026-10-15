@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed-icon silhouette: two "dop" discs, the play triangle cut out of the front one. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#99000000"
+        android:pathData="M44,54m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0" />
+    <path android:fillColor="#FF000000" android:fillType="evenOdd"
+        android:pathData="M64,54m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0 M60,47.5 L71,54 L60,60.5 Z" />
+</vector>

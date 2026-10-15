@@ -9,6 +9,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -64,6 +65,7 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
     val playing by PlayerConnection.isPlaying.collectAsState()
     val t = track ?: return
     val palette = rememberArtPalette(t.artwork)
+    val press = remember { MutableInteractionSource() }
     var progress by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(t.id) {
         while (true) {
@@ -104,11 +106,12 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                     change.consume(); total += d
                 }
             }
-            .glass(shape, emphasis = 1.3f, shadow = 18.dp)
-            .bounceClick(0.98f) { app.expandPlayer() },
+            .glass(shape, emphasis = 1.3f, shadow = 18.dp, interactionSource = press)
+            .bounceClick(0.98f, interactionSource = press) { app.expandPlayer() },
     ) {
         // A whisper of the artwork's colour washing through the glass.
-        Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(palette.wash.copy(alpha = 0.30f), Color.Transparent))))
+        // (Clipped: the glass layer doesn't clip its children, so an unclipped wash shows square corners.)
+        Box(Modifier.matchParentSize().clip(shape).background(Brush.horizontalGradient(listOf(palette.wash.copy(alpha = 0.22f), Color.Transparent))))
         Row(Modifier.fillMaxHeight().padding(start = 9.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Artwork(t.artwork, Modifier.size(46.dp), corner = 14.dp, size = 226)
             Spacer(Modifier.width(12.dp))
@@ -123,15 +126,15 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                 }
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.toggle() }, contentAlignment = Alignment.Center) {
-                PlayPauseGlyph(playing, Modifier.size(22.dp), color = Bop.Text)
+                PlayPauseGlyph(playing, Modifier.size(22.dp), color = Bop.Ink)
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.next() }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.FastForward, "Next", tint = Bop.Text, modifier = Modifier.size(28.dp))
             }
         }
         // Progress hairline
-        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White.copy(alpha = 0.14f))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White))))
+        Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.Black.copy(alpha = 0.07f))) {
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(palette.wash, palette.washDeep))))
         }
     }
 }

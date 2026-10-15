@@ -36,9 +36,10 @@ data class Settings(
     val cacheMb: Int = 1024,
     val reduceMotion: Boolean = false,
     val showSaavnHome: Boolean = true,
+    val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
-        .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
+        .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome).put("eq", eq.toJson())
 
     companion object {
         fun fromJson(o: JSONObject?) = if (o == null) Settings() else Settings(
@@ -49,6 +50,7 @@ data class Settings(
             cacheMb = o.optInt("cacheMb", 1024),
             reduceMotion = o.optBoolean("reduceMotion", false),
             showSaavnHome = o.optBoolean("showSaavnHome", true),
+            eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }
 }
@@ -83,6 +85,7 @@ object LibraryStore {
         if (::file.isInitialized) return
         file = File(context.filesDir, "library.json")
         _state.value = runCatching { read(JSONObject(file.readText())) }.getOrDefault(LibraryState())
+        com.dopdop.bopdop.playback.AudioFx.state.value = _state.value.settings.eq
         _state.drop(1).debounce(400).onEach { write(it) }.launchIn(scope)
     }
 

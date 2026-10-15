@@ -35,10 +35,16 @@ object LyricsApi {
     suspend fun get(t: Track): Lyrics? {
         cache.get(t.id)?.let { return it }
         if (misses.get(t.id) == true) return null
-        val synced = runCatching { lrclib(t) }.onFailure { Log.w(TAG, "lrclib: ${it.message}") }.getOrNull()
-        val result = synced?.takeIf { it.isSynced }
-            ?: runCatching { youtube(t) }.onFailure { Log.w(TAG, "ytm: ${it.message}") }.getOrNull()
-            ?: synced
+        // 1) YouTube Music's own timed lyrics — exact for YT tracks, and they cover Bollywood.
+        val vid = runCatching { videoIdFor(t) }.getOrNull()
+        val timed = vid?.let { v -> runCatching { YtMusic.timedLyrics(v) }.onFailure { Log.w(TAG, "ytm timed: ${it.message}") }.getOrNull() }
+            ?.let { lines -> Lyrics(lines.map { (s, _, text) -> LyricLine(s, text) }, null) }
+        val result = timed
+            // 2) LRCLIB synced, 3) any plain text.
+            ?: runCatching { lrclib(t) }.onFailure { Log.w(TAG, "lrclib: ${it.message}") }.getOrNull()?.let { l ->
+                if (l.isSynced) l else (vid?.let { runCatching { YtMusic.lyrics(it) }.getOrNull() }?.let { Lyrics(emptyList(), it) } ?: l)
+            }
+            ?: vid?.let { runCatching { YtMusic.lyrics(it) }.getOrNull() }?.let { Lyrics(emptyList(), it) }
             ?: runCatching { saavn(t) }.getOrNull()
         if (result == null) misses.put(t.id, true) else cache.put(t.id, result)
         return result
@@ -72,14 +78,12 @@ object LyricsApi {
         return if (bestScore >= 4.0) best?.let(::parse) else null
     }
 
-    private suspend fun youtube(t: Track): Lyrics? {
-        val videoId = if (t.id.startsWith("yt:")) t.rawId else
-            YtMusic.searchSongs("${cleanTitle(t.title)} ${t.artist.split(",").first()}").firstOrNull {
-                norm(cleanTitle(it.title)).let { a -> val b = norm(cleanTitle(t.title)); a.contains(b) || b.contains(a) }
-            }?.rawId ?: return null
-        val text = YtMusic.lyrics(videoId) ?: return null
-        return Lyrics(emptyList(), text)
-    }
+    /** The YouTube video for a track: its own id, or the best title match for JioSaavn songs. */
+    private suspend fun videoIdFor(t: Track): String? = if (t.id.startsWith("yt:")) t.rawId else
+        YtMusic.searchSongs("${cleanTitle(t.title)} ${t.artist.split(",").first()}").firstOrNull {
+            norm(cleanTitle(it.title)).let { a -> val b = norm(cleanTitle(t.title)); a.contains(b) || b.contains(a) } &&
+                (t.durationSec <= 0 || it.durationSec <= 0 || kotlin.math.abs(it.durationSec - t.durationSec) <= 6)
+        }?.rawId
 
     private suspend fun saavn(t: Track): Lyrics? {
         if (!t.id.startsWith("sv:")) return null

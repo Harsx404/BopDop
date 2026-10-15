@@ -73,6 +73,7 @@ dependencies {
 
     implementation("dev.chrisbanes.haze:haze:2.0.1")
     implementation("dev.chrisbanes.haze:haze-blur:2.0.1")
+    implementation("dev.chrisbanes.haze:haze-glass:2.0.1")
 
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
 

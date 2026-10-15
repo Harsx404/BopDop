@@ -1,6 +1,10 @@
 package com.dopdop.bopdop.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -132,16 +136,41 @@ fun NowPlaying(app: AppState) {
     )
     // Lyrics/queue: the artwork melts into a soft colour field behind the text.
     val artBlur by animateFloatAsState(if (app.nowPlayingPage == NowPlayingPage.ART) 0f else 46f, tween(520), label = "artBlur")
+    // Swipe: depth-parallax swap inside the backdrop — the cover drifts back and fades
+    // while the neighbour glides in over it. Nothing leaves the artwork area.
+    val swipe = remember { Animatable(0f) }
+    var swiped by remember { mutableStateOf(false) }
+    // The track a swipe started on; once the player moves on, the old offset no longer applies.
+    var swipeFrom by remember { mutableStateOf<String?>(null) }
+    val queue by PlayerConnection.queue.collectAsState()
+    val index by PlayerConnection.index.collectAsState()
+    val nextArt = queue.getOrNull(index + 1)?.artwork
+    val prevArt = queue.getOrNull(index - 1)?.artwork
+    LaunchedEffect(t.id) {
+        swipe.snapTo(0f)
+        swipeFrom = null
+        delay(120) // let the art transition read `swiped` before clearing it
+        swiped = false
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val h = constraints.maxHeight.toFloat()
+        val w = constraints.maxWidth.toFloat()
         Box(
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    translationY = (1f - p) * h
-                    val r = lerp(40.dp.toPx(), 0f, p).coerceAtLeast(0f)
-                    shape = RoundedCornerShape(r, r, 0f, 0f)
+                    // Closes INTO the mini player: sinks toward it, shrinks about the bottom edge,
+                    // rounds into a card and dissolves over the last stretch (opening reverses it).
+                    val e = 1f - p
+                    val eased = e * e * (3f - 2f * e)
+                    translationY = eased * h * 0.64f
+                    val sc = 1f - 0.14f * eased
+                    scaleX = sc; scaleY = sc
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                    alpha = (p / 0.42f).coerceIn(0f, 1f)
+                    val r = (eased * 44.dp.toPx()).coerceAtLeast(0f)
+                    shape = RoundedCornerShape(r)
                     clip = true
                 }
                 .pointerInput(Unit) {
@@ -156,19 +185,54 @@ fun NowPlaying(app: AppState) {
             // --- Backdrop: artwork full-bleed on top, melting into its own colour ---
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to wash, 0.64f to wash, 1f to washDeep)))
-                AnimatedContent(
-                    targetState = t.artwork,
-                    transitionSpec = { fadeIn(tween(700)) togetherWith fadeOut(tween(700)) },
-                    label = "bgart",
-                    modifier = Modifier.fillMaxWidth().aspectRatio(0.86f).clipToBounds()
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(0.86f).clipToBounds()
                         .then(if (android.os.Build.VERSION.SDK_INT >= 31 && artBlur > 0.5f) Modifier.blur(artBlur.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Rectangle) else Modifier),
-                ) { art -> KenBurnsArt(art) }
+                ) {
+                    val active = swipeFrom == t.id
+                    val sv = if (active) swipe.value else 0f
+                    val incoming = if (sv < -1f) nextArt else if (sv > 1f) prevArt else null
+                    AnimatedContent(
+                        targetState = t.artwork,
+                        // A swipe already brought the new cover in — don't crossfade it again.
+                        transitionSpec = { if (swiped) EnterTransition.None togetherWith ExitTransition.None else fadeIn(tween(700)) togetherWith fadeOut(tween(700)) },
+                        label = "bgart",
+                        modifier = Modifier.fillMaxSize().graphicsLayer {
+                            if (swipeFrom != t.id) return@graphicsLayer
+                            val x = swipe.value
+                            val prog = (kotlin.math.abs(x) / w).coerceIn(0f, 1f)
+                            // Melts away: drifts with the finger, swells and softens. The zoom always
+                            // outgrows the drift, so the cover never shows an edge.
+                            translationX = x * 0.06f
+                            val sc = 1f + 0.16f * prog
+                            scaleX = sc; scaleY = sc
+                            alpha = 1f - prog
+                            liquidBlur(prog)
+                        },
+                    ) { art -> KenBurnsArt(art) }
+                    if (incoming != null) Artwork(
+                        incoming,
+                        Modifier.fillMaxSize().graphicsLayer {
+                            val x = if (swipeFrom == t.id) swipe.value else 0f
+                            val prog = (kotlin.math.abs(x) / w).coerceIn(0f, 1f)
+                            // Condenses in from the side the finger pulls from, settling from a zoom into focus.
+                            translationX = -kotlin.math.sign(x) * (1f - prog) * w * 0.06f
+                            val sc = 1f + 0.16f * (1f - prog)
+                            scaleX = sc; scaleY = sc
+                            alpha = (prog * 1.3f).coerceIn(0f, 1f)
+                            liquidBlur(1f - prog)
+                        },
+                        corner = 0.dp, size = 1200,
+                    )
+                }
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(0.86f).background(
                         Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.28f), 0.2f to Color.Transparent, 0.5f to Color.Transparent, 0.86f to wash.copy(alpha = 0.85f), 1f to wash),
                     ),
                 )
                 Box(Modifier.fillMaxSize().background(washDeep.copy(alpha = dim)))
+                // Contrast floor: light covers wash out white controls, so deepen the bottom a touch.
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.62f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f))))
             }
 
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).windowInsetsPadding(WindowInsets.navigationBars)) {
@@ -180,7 +244,7 @@ fun NowPlaying(app: AppState) {
                         label = "np",
                     ) { page ->
                         when (page) {
-                            NowPlayingPage.ART -> ArtGestureArea(t)
+                            NowPlayingPage.ART -> ArtGestureArea(t, swipe, w, hasNext = nextArt != null, hasPrev = prevArt != null, onStart = { swipeFrom = t.id }) { swiped = true }
                             NowPlayingPage.LYRICS -> Column { SongHeader(t, app, haze); LyricsView(t, palette, Modifier.weight(1f)) }
                             NowPlayingPage.QUEUE -> Column { SongHeader(t, app, haze); QueueView(app, Modifier.weight(1f)) }
                         }
@@ -190,6 +254,13 @@ fun NowPlaying(app: AppState) {
             }
         }
     }
+}
+
+/** Soft focus for the cover swap (API 31+); clamped edges so the blur never fades to transparent. */
+private fun androidx.compose.ui.graphics.GraphicsLayerScope.liquidBlur(amount: Float) {
+    if (android.os.Build.VERSION.SDK_INT < 31) return
+    val r = amount * 26.dp.toPx()
+    renderEffect = if (r < 0.5f) null else androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
 }
 
 /** Slow Ken Burns drift while playing — the photo feels alive, like the reference's hero shots. */
@@ -208,19 +279,52 @@ private fun KenBurnsArt(art: String) {
     Artwork(art, Modifier.fillMaxSize().graphicsLayer { scaleX = zoom.value; scaleY = zoom.value }, corner = 0.dp, size = 1200)
 }
 
-/** Empty space over the artwork: swipe to skip, double-tap to like (with a heart burst). */
+/**
+ * Empty space over the artwork. Swipe to change song: the cover tracks the finger
+ * (rubber-banding where there is no neighbour), a fling or a past-the-third
+ * release completes the change. Double-tap likes, with a heart burst.
+ */
 @Composable
-private fun ArtGestureArea(t: Track) {
+private fun ArtGestureArea(t: Track, swipe: Animatable<Float, AnimationVector1D>, width: Float, hasNext: Boolean, hasPrev: Boolean, onStart: () -> Unit, onSwiped: () -> Unit) {
     val scope = rememberCoroutineScope()
     val heart = remember { Animatable(0f) }
-    var dx by remember { mutableFloatStateOf(0f) }
+    val haptics = LocalHapticFeedback.current
     Box(
         Modifier.fillMaxSize()
-            .pointerInput(t.id) {
-                detectHorizontalDragGestures(onDragEnd = {
-                    if (dx < -140f) PlayerConnection.next() else if (dx > 140f) PlayerConnection.previous()
-                    dx = 0f
-                }) { change, d -> change.consume(); dx += d }
+            .pointerInput(t.id, hasNext, hasPrev) {
+                val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                var raw = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { tracker.resetTracking(); raw = 0f; onStart() },
+                    onDragCancel = { scope.launch { swipe.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 400f)) } },
+                    onDragEnd = {
+                        val v = tracker.calculateVelocity().x
+                        val goNext = hasNext && (swipe.value < -width / 3 || (v < -1400f && swipe.value < 0))
+                        val goPrev = hasPrev && (swipe.value > width / 3 || (v > 1400f && swipe.value > 0))
+                        scope.launch {
+                            when {
+                                goNext -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                    swipe.animateTo(-width, tween(300, easing = FastOutSlowInEasing))
+                                    onSwiped(); PlayerConnection.next()
+                                }
+                                goPrev -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                                    swipe.animateTo(width, tween(300, easing = FastOutSlowInEasing))
+                                    onSwiped(); PlayerConnection.skipTo(PlayerConnection.index.value - 1)
+                                }
+                                else -> swipe.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 380f)) // settles back
+                            }
+                        }
+                    },
+                ) { change, d ->
+                    change.consume()
+                    tracker.addPosition(change.uptimeMillis, change.position)
+                    raw += d
+                    // Resist where there is nothing to swipe to.
+                    val resisted = if ((raw < 0 && !hasNext) || (raw > 0 && !hasPrev)) raw * 0.22f else raw
+                    scope.launch { swipe.snapTo(resisted) }
+                }
             }
             .pointerInput(t.id) {
                 detectTapGestures(onDoubleTap = {
@@ -263,49 +367,31 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
     val liked = t.id in lib.likedIds
     val onArt = app.nowPlayingPage == NowPlayingPage.ART
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 14.dp)) {
         AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MediaChip(ctxLabel.ifBlank { "Now playing" }, haze)
-                    quality[t.id]?.let { QualityChip(it, haze) }
-                }
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f)) {
-                        AnimatedContent(t.title, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "title") { title ->
-                            Text(title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 1.15f), color = Bop.OnMedia, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(
-                            t.artist, style = BopType.Headline.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(500)), color = Bop.OnMedia2,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp).bounceClick { t.artistId?.let { id -> app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } },
-                        )
+            Row(Modifier.padding(bottom = 18.dp), verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    AnimatedContent(t.title, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "title") { title ->
+                        Text(title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 1.1f), color = Bop.OnMedia, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    Spacer(Modifier.width(12.dp))
-                    LikeCircle(t, liked, haze, app)
+                    Text(
+                        t.artist, style = BopType.Headline.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(500)), color = Bop.OnMedia2,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 4.dp).bounceClick { t.artistId?.let { id -> app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } },
+                    )
                 }
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.width(12.dp))
+                LikeCircle(t, liked, haze, app)
             }
         }
-        ProgressPill(t, haze)
-        AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Column { Spacer(Modifier.height(10.dp)); VolumePill(haze) }
-        }
-        Spacer(Modifier.height(18.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            SmallToggle(Icons.Rounded.Shuffle, "Shuffle", shuffle) { PlayerConnection.toggleShuffle() }
-            Spacer(Modifier.weight(1f))
-            TransportCluster(playing, buffering, haze, app)
-            Spacer(Modifier.weight(1f))
-            SmallToggle(if (repeat == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, "Repeat", repeat != RepeatMode.OFF) { PlayerConnection.cycleRepeat() }
-        }
-        Spacer(Modifier.height(16.dp))
+        ProgressPill(t, quality[t.id])
+        Spacer(Modifier.height(20.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TransportCluster(playing, buffering, haze, app) }
+        Spacer(Modifier.height(22.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             PageToggle(Icons.Rounded.Lyrics, "Lyrics", app.nowPlayingPage == NowPlayingPage.LYRICS, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.LYRICS) NowPlayingPage.ART else NowPlayingPage.LYRICS
             }
-            if (!onArt) PageToggle(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Like", liked, haze) { LibraryStore.toggleLike(t) }
             PageToggle(Icons.Rounded.Bedtime, "Sleep", sleepAt != null, haze) { app.sheet = Sheet.SleepTimer }
             PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", app.nowPlayingPage == NowPlayingPage.QUEUE, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.QUEUE) NowPlayingPage.ART else NowPlayingPage.QUEUE
@@ -341,37 +427,37 @@ private fun TransportCluster(playing: Boolean, buffering: Boolean, haze: HazeSta
 
 @Composable
 private fun SideDrop(next: Boolean, haze: HazeState, onLong: () -> Unit, onClick: () -> Unit) {
+    val press = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(70.dp).bounceClick(0.9f, onLongClick = onLong, onClick = onClick)
-            .mediaGlass(CircleShape, haze, emphasis = 1.1f)
+        Modifier.size(70.dp).bounceClick(0.9f, onLongClick = onLong, interactionSource = press, onClick = onClick)
+            .mediaGlass(CircleShape, haze, emphasis = 1.1f, interactionSource = press, strong = true)
             .drawBehind {
                 // Inner hairline ring — the reference's double-rim droplet.
                 drawCircle(Color.White.copy(alpha = 0.28f), radius = size.minDimension / 2f - 7.dp.toPx(), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
             },
         contentAlignment = Alignment.Center,
-    ) { LineSkip(next, Modifier.size(22.dp), color = Color.White, stroke = 1.8.dp) }
+    ) { LineSkip(next, Modifier.size(24.dp), color = Color.White, stroke = 2.3.dp) }
 }
 
 // --- Seek & volume (see Sliders.kt) ---------------------------------------------------
 
 @Composable
-private fun ProgressPill(t: Track, haze: HazeState) {
+private fun ProgressPill(t: Track, q: StreamQuality?) {
     val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(200) } }
     val playing by PlayerConnection.isPlaying.collectAsState()
     WavySeekBar(
         positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
         onSeek = { PlayerConnection.seekTo(it) },
+        caption = q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
     )
 }
-
-@Composable
-private fun VolumePill(haze: HazeState) = VolumeSlider(Modifier.padding(horizontal = 4.dp))
 
 // --- Small pieces ---------------------------------------------------------------------
 
 @Composable
 private fun MediaCircle(icon: ImageVector, desc: String, haze: HazeState, size: Dp, onClick: () -> Unit) {
-    Box(Modifier.size(size).bounceClick(0.88f, onClick = onClick).mediaGlass(CircleShape, haze), contentAlignment = Alignment.Center) {
+    val press = remember { MutableInteractionSource() }
+    Box(Modifier.size(size).bounceClick(0.88f, interactionSource = press, onClick = onClick).mediaGlass(CircleShape, haze, interactionSource = press, strong = true), contentAlignment = Alignment.Center) {
         Icon(icon, desc, tint = Color.White, modifier = Modifier.size(size * 0.52f))
     }
 }
@@ -399,12 +485,13 @@ private fun QualityChip(q: StreamQuality, haze: HazeState) {
 private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState) {
     var pop by remember { mutableStateOf(false) }
     val s by animateFloatAsState(if (pop) 1.35f else 1f, spring(dampingRatio = 0.35f, stiffness = 700f), finishedListener = { pop = false }, label = "pop")
+    val press = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(46.dp).bounceClick(0.85f) {
+        Modifier.size(46.dp).bounceClick(0.85f, interactionSource = press) {
             val now = LibraryStore.toggleLike(t)
             if (now) pop = true
             app.toast(if (now) "Added to Liked Songs" else "Removed from Liked Songs")
-        }.mediaGlass(CircleShape, haze),
+        }.mediaGlass(CircleShape, haze, interactionSource = press, strong = true),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -429,7 +516,7 @@ private fun PageToggle(icon: ImageVector, desc: String, on: Boolean, haze: HazeS
         Modifier.size(44.dp).clip(CircleShape).bounceClick(0.85f, onClick = onClick)
             .then(if (on) Modifier.mediaGlass(CircleShape, haze, emphasis = 1.6f) else Modifier),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, desc, tint = if (on) Color.White else Color.White.copy(alpha = 0.62f), modifier = Modifier.size(22.dp)) }
+    ) { Icon(icon, desc, tint = if (on) Color.White else Color.White.copy(alpha = 0.92f), modifier = Modifier.size(24.dp)) }
 }
 
 /** Compact "now playing" line shown above lyrics and the queue. */

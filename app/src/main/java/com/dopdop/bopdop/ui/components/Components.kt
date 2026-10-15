@@ -84,9 +84,10 @@ import kotlinx.coroutines.launch
 fun Modifier.bounceClick(
     scaleDown: Float = 0.96f,
     onLongClick: (() -> Unit)? = null,
+    interactionSource: MutableInteractionSource? = null,
     onClick: () -> Unit,
 ): Modifier = composed {
-    val source = remember { MutableInteractionSource() }
+    val source = interactionSource ?: remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) scaleDown else 1f, spring(dampingRatio = 0.55f, stiffness = 900f), label = "press")
     val haptics = LocalHapticFeedback.current
@@ -115,10 +116,10 @@ fun Artwork(
         modifier
             .then(if (elevation > 0.dp) Modifier.shadow(elevation, shape, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.06f)))),
+            .background(Brush.linearGradient(listOf(Color(0xFFEDEFF2), Color(0xFFD3D8DF)))),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(Icons.Rounded.MusicNote, null, tint = Bop.Text.copy(alpha = 0.28f), modifier = Modifier.fillMaxSize(0.38f))
+        Icon(Icons.Rounded.MusicNote, null, tint = Bop.Text.copy(alpha = 0.14f), modifier = Modifier.fillMaxSize(0.38f))
         if (!url.isNullOrBlank()) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, size)).build(),
@@ -128,6 +129,24 @@ fun Artwork(
             )
         }
     }
+}
+
+/**
+ * A "blurred" cover that costs nothing per frame: decoded at ~24 px and stretched
+ * with bilinear filtering, which reads as a soft colour field. Replaces a live
+ * 70 dp RenderEffect blur that had to be recomputed on every frame of a scroll
+ * or page transition.
+ */
+@Composable
+fun BlurredArtwork(url: String?, modifier: Modifier = Modifier) {
+    if (url.isNullOrBlank()) return
+    AsyncImage(
+        model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, 120)).size(24).build(),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+        modifier = modifier,
+    )
 }
 
 // --- Rows & cards --------------------------------------------------------------------
@@ -311,9 +330,9 @@ fun GlassIconButton(
     Box(
         modifier.size(size).bounceClick(0.9f, onClick = onClick)
             .then(if (onMedia) Modifier.glassLite(CircleShape, alpha = if (active) 0.42f else 0.2f)
-            else Modifier.glassLite(CircleShape, tint = if (active) Bop.Accent else Color.White, alpha = if (active) 1f else 0.14f, shadow = 10.dp)),
+            else Modifier.glassLite(CircleShape, tint = if (active) Bop.Ink else Color.White, alpha = if (active) 0.92f else 0.6f, shadow = 10.dp)),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription, tint = if (active || onMedia) Color.White else tint, modifier = Modifier.size(size * 0.5f)) }
+    ) { Icon(icon, contentDescription, tint = if (active && !onMedia) Color.White else if (onMedia) Color.White else tint, modifier = Modifier.size(size * 0.5f)) }
 }
 
 @Composable
@@ -327,8 +346,8 @@ fun PillButton(text: String, icon: ImageVector?, modifier: Modifier = Modifier, 
                 when {
                     onMedia && filled -> Modifier.softShadow(shape, 16.dp, alpha = 0.22f).clip(shape).background(Color.White)
                     onMedia -> Modifier.glassLite(shape, alpha = 0.2f)
-                    filled -> Modifier.glassLite(shape, tint = Bop.Accent, alpha = 1f, shadow = 14.dp)
-                    else -> Modifier.glassLite(shape, alpha = 0.16f, shadow = 12.dp)
+                    filled -> Modifier.softShadow(shape, 14.dp, alpha = 0.25f).clip(shape).background(Bop.Ink)
+                    else -> Modifier.glassLite(shape, alpha = 0.62f, shadow = 12.dp)
                 },
             )
             .padding(horizontal = 16.dp),
@@ -352,9 +371,9 @@ fun Modifier.shimmer(corner: Dp = 12.dp): Modifier = composed {
     val t = rememberInfiniteTransition(label = "shimmer")
     val x by t.animateFloat(-1f, 2f, infiniteRepeatable(tween(1300, easing = LinearEasing)), label = "x")
     this.clip(RoundedCornerShape(corner)).drawBehind {
-        drawRect(Color.White.copy(alpha = 0.07f))
+        drawRect(Color.Black.copy(alpha = 0.05f))
         drawRect(Brush.linearGradient(
-            listOf(Color.Transparent, Color.White.copy(alpha = 0.14f), Color.Transparent),
+            listOf(Color.Transparent, Color.White.copy(alpha = 0.55f), Color.Transparent),
             start = Offset(size.width * x, 0f), end = Offset(size.width * (x + 0.6f), size.height),
         ))
     }
@@ -438,7 +457,7 @@ fun GlassChip(label: String, selected: Boolean, modifier: Modifier = Modifier, o
         label, style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(if (selected) 650 else 550)),
         color = if (selected) Color.White else Bop.Text2, maxLines = 1,
         modifier = modifier.bounceClick(0.94f, onClick = onClick)
-            .then(if (selected) Modifier.glassLite(shape, tint = Bop.Accent, alpha = 1f) else Modifier.glassLite(shape, alpha = 0.12f))
+            .then(if (selected) Modifier.glassLite(shape, tint = Bop.Accent, alpha = 1f) else Modifier.glassLite(shape, alpha = 0.55f))
             .padding(horizontal = 14.dp, vertical = 8.dp),
     )
 }

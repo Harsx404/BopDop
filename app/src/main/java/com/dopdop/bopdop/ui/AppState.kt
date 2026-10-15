@@ -42,6 +42,8 @@ object Routes {
     const val SIGN_IN = "signin"
     const val SHARE_QR = "shareqr?key={key}"
     const val IMPORT = "import?key={key}"
+    const val SCAN = "scan"
+    const val EQ = "eq"
     val tabs = listOf(HOME, SEARCH, LIBRARY)
 }
 
@@ -71,7 +73,7 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
         scope.launch { player.animateTo(1f, spring(dampingRatio = 0.86f, stiffness = 380f)) }
     }
 
-    fun collapsePlayer() { scope.launch { player.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 420f)) } }
+    fun collapsePlayer() { scope.launch { player.animateTo(0f, spring(dampingRatio = 1f, stiffness = 280f)) } }
 
     private fun enc(s: String) = Uri.encode(s)
 
@@ -97,6 +99,8 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     fun seeAll(title: String, items: Any) = nav.navigate("seeall?key=${enc(SeeAllHolder.put(title, items))}")
 
     fun shareQr(req: ShareRequest) = nav.navigate("shareqr?key=${enc(SeeAllHolder.put("qr", req))}")
+
+    fun openScanner() = nav.navigate(Routes.SCAN) { launchSingleTop = true }
 
     /** A scanned code or opened `bopdop://share/…` link. */
     fun openShared(text: String) {

@@ -57,6 +57,7 @@ import com.dopdop.bopdop.ui.components.SectionHeader
 import com.dopdop.bopdop.ui.components.TrackRow
 import com.dopdop.bopdop.ui.components.TrackTile
 import com.dopdop.bopdop.ui.components.bounceClick
+import com.dopdop.bopdop.ui.glass.glass
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
@@ -118,15 +119,15 @@ fun TopBlurBar(
     val style = remember {
         HazeBlurStyle {
             blurRadius(22.dp)
-            backgroundColor(Bop.Base)
-            colorEffects(listOf(HazeColorEffect.tint(Bop.Base.copy(alpha = 0.55f))))
+            backgroundColor(Bop.Pearl)
+            colorEffects(listOf(HazeColorEffect.tint(Bop.Pearl.copy(alpha = 0.55f))))
             // Fade the whole effect (blur + tint) out toward the bottom: no hard edge.
             mask(Brush.verticalGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent))
         }
     }
     Box(Modifier.fillMaxWidth()) {
         // At rest only a soft scrim keeps the status bar legible; the glass bar fades in on scroll.
-        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Brush.verticalGradient(listOf(Bop.Base.copy(alpha = 0.7f), Color.Transparent))))
+        Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Brush.verticalGradient(listOf(Bop.Pearl.copy(alpha = 0.7f), Color.Transparent))))
         if (titleAlpha > 0.01f) Box(
             Modifier.matchParentSizeOrBar()
                 .graphicsLayer { alpha = titleAlpha }
@@ -136,7 +137,7 @@ fun TopBlurBar(
             Modifier.windowInsetsPadding(WindowInsets.statusBars).fillMaxWidth().height(52.dp).padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (showBack) BackButton(onBack) else Spacer(Modifier.width(40.dp))
+            if (showBack) BackButton(haze, onBack) else Spacer(Modifier.width(40.dp))
             Text(
                 title, style = BopType.Headline, color = Bop.Text.copy(alpha = titleAlpha), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -153,8 +154,12 @@ private fun Modifier.matchParentSizeOrBar(): Modifier {
 }
 
 @Composable
-fun BackButton(onBack: () -> Unit) {
-    Box(Modifier.size(42.dp).bounceClick(0.88f, onClick = onBack).glassLite(CircleShape, alpha = 0.14f, shadow = 10.dp), contentAlignment = Alignment.Center) {
+fun BackButton(haze: dev.chrisbanes.haze.HazeState? = null, onBack: () -> Unit) {
+    val press = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    // In a top bar it floats over the scrolling page: true glass that refracts what slides beneath.
+    val surface = if (haze != null) Modifier.glass(CircleShape, state = haze, emphasis = 1.5f, shadow = 10.dp, interactionSource = press, strong = true)
+    else Modifier.glassLite(CircleShape, alpha = 0.7f, shadow = 10.dp)
+    Box(Modifier.size(42.dp).bounceClick(0.88f, interactionSource = press, onClick = onBack).then(surface), contentAlignment = Alignment.Center) {
         Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "Back", tint = Bop.Text, modifier = Modifier.size(18.dp).padding(start = 4.dp))
     }
 }

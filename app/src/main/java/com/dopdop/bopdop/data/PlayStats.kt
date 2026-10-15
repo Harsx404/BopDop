@@ -125,6 +125,8 @@ data class ReplaySummary(
     /** Minutes per day for the last 30 days, oldest first. */
     val last30: List<Pair<LocalDate, Int>>,
     val busiestHour: Int?,
+    /** Counted plays per hour of day (0–23) in the range. */
+    val hours: List<Int> = List(24) { 0 },
 ) {
     val isEmpty get() = plays == 0
 }
@@ -176,8 +178,9 @@ object Replay {
             d to ((s.daily[d.toEpochDay()] ?: 0) + 30) / 60
         }
         val minutes = s.daily.entries.filter { LocalDate.ofEpochDay(it.key) >= fromDay }.sumOf { it.value } / 60
-        val busiestHour = events.groupingBy { Instant.ofEpochMilli(it.at).atZone(zone).hour }.eachCount().maxByOrNull { it.value }?.key
+        val byHour = events.groupingBy { Instant.ofEpochMilli(it.at).atZone(zone).hour }.eachCount()
+        val busiestHour = byHour.maxByOrNull { it.value }?.key
 
-        return ReplaySummary(minutes, events.size, topTracks, topArtists, rising, last30, busiestHour)
+        return ReplaySummary(minutes, events.size, topTracks, topArtists, rising, last30, busiestHour, List(24) { byHour[it] ?: 0 })
     }
 }

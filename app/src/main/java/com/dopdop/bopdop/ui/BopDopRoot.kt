@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -67,8 +68,8 @@ import androidx.navigation.navArgument
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.components.bounceClick
-import com.dopdop.bopdop.ui.glass.LiquidAuroraBackground
-import com.dopdop.bopdop.ui.glass.glassEdges
+import com.dopdop.bopdop.ui.glass.LiquidMetalBackground
+import com.dopdop.bopdop.ui.glass.softShadow
 import com.dopdop.bopdop.ui.glass.LocalGlassLevel
 import com.dopdop.bopdop.ui.glass.LocalHaze
 import com.dopdop.bopdop.ui.glass.LocalReduceMotion
@@ -90,6 +91,11 @@ import com.dopdop.bopdop.ui.screens.SettingsScreen
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import dev.chrisbanes.haze.hazeSource
+import kotlinx.coroutines.launch
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import dev.chrisbanes.haze.glass.hazeGlass
+import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
@@ -121,13 +127,14 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             ?.let(com.dopdop.bopdop.data.account.AccountStore::setProfile)
     }
 
-    // White status-bar icons everywhere: the aurora and the Now Playing art are both dark-mid.
+    // Graphite status-bar icons on metal; white ones over the Now Playing artwork.
     val view = androidx.compose.ui.platform.LocalView.current
-    LaunchedEffect(Unit) {
+    val overMedia = app.player.value > 0.5f
+    LaunchedEffect(overMedia) {
         val window = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
         androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = !overMedia
+            isAppearanceLightNavigationBars = !overMedia
         }
     }
 
@@ -137,13 +144,14 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     CompositionLocalProvider(
         LocalApp provides app,
         LocalHaze provides haze,
-        LocalGlassLevel provides lib.settings.glass,
+        LocalGlassLevel provides lib.settings.glass.also { Bop.clear = it == com.dopdop.bopdop.data.GlassLevel.CLEAR },
         LocalReduceMotion provides lib.settings.reduceMotion,
+        com.dopdop.bopdop.ui.glass.LocalGlassLight provides com.dopdop.bopdop.ui.glass.rememberTiltLight(!lib.settings.reduceMotion),
         LocalChromePadding provides PaddingValues(bottom = chrome + 12.dp),
     ) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                LiquidAuroraBackground(palette, Modifier.fillMaxSize())
+                LiquidMetalBackground(palette, Modifier.fillMaxSize())
                 AppNavHost(app)
             }
 
@@ -161,10 +169,12 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
 
 @Composable
 private fun AppNavHost(app: AppState) {
-    val enter = slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { it / 5 } + fadeIn(tween(260))
-    val exit = slideOutHorizontally(tween(340, easing = FastOutSlowInEasing)) { -it / 8 } + fadeOut(tween(200))
-    val popEnter = slideInHorizontally(tween(340, easing = FastOutSlowInEasing)) { -it / 8 } + fadeIn(tween(260))
-    val popExit = slideOutHorizontally(tween(320, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(200))
+    // Short and decisive: the page underneath fades out fast, so both pages (each with
+    // its own glass and artwork) only render together for a few frames.
+    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(200, delayMillis = 40))
+    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(140))
+    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(200, delayMillis = 40))
+    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 5 } + fadeOut(tween(140))
     val str = { name: String -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }
 
     NavHost(
@@ -179,6 +189,7 @@ private fun AppNavHost(app: AppState) {
         composable(Routes.SEARCH) { SearchScreen() }
         composable(Routes.LIBRARY) { LibraryScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
+        composable(Routes.EQ) { com.dopdop.bopdop.ui.screens.EqualizerScreen() }
         composable(Routes.COLLECTION, listOf(str("id"), str("kind"), str("title"), str("sub"), str("art"))) { e ->
             val a = e.arguments!!
             CollectionScreen(a.getString("id")!!, a.getString("kind")!!, a.getString("title")!!, a.getString("sub")!!, a.getString("art")!!)
@@ -196,18 +207,28 @@ private fun AppNavHost(app: AppState) {
         composable(Routes.SIGN_IN) { com.dopdop.bopdop.ui.screens.SignInScreen() }
         composable(Routes.SHARE_QR, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ShareQrScreen(e.arguments!!.getString("key")!!) }
         composable(Routes.IMPORT, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ImportScreen(e.arguments!!.getString("key")!!) }
+        composable(Routes.SCAN) { com.dopdop.bopdop.ui.share.ScanScreen() }
     }
 }
 
 @Composable
 private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
-    val p = app.player.value
+    // Full-screen tools (share code, scanner, sign-in) get the whole screen.
+    val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
+    val away by androidx.compose.animation.core.animateFloatAsState(
+        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN) 1f else 0f, tween(260), label = "chromeAway",
+    )
+    val p = maxOf(app.player.value, away)
     Column(
         Modifier
             .fillMaxSize()
             .graphicsLayer {
-                translationY = p * 260.dp.toPx()
-                alpha = (1f - p * 1.6f).coerceIn(0f, 1f)
+                // The mini player and tab bar rise back as the player settles into them.
+                translationY = p * 160.dp.toPx()
+                alpha = (1f - p * 1.8f).coerceIn(0f, 1f)
+                val sc = 1f - 0.06f * p
+                scaleX = sc; scaleY = sc
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
             }
             .padding(bottom = navBottom + 10.dp),
         verticalArrangement = Arrangement.Bottom,
@@ -225,7 +246,13 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
 
 private data class Tab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 
-/** Floating glass capsule; the selection is a brighter glass droplet that glides on a spring and stretches while moving. */
+/**
+ * Floating Liquid Glass capsule. The selection is a clear glass lens that
+ * refracts the tab icons beneath it: tap a tab and it glides there on a spring,
+ * or press and drag it across the bar — it swells while held, stretches with
+ * speed, and snaps to the nearest tab on release (iOS 26 style).
+ */
+@OptIn(dev.chrisbanes.haze.ExperimentalHazeApi::class)
 @Composable
 private fun TabBar(app: AppState) {
     val tabs = remember {
@@ -238,7 +265,25 @@ private fun TabBar(app: AppState) {
     if (route in Routes.tabs) lastTab.value = route!!
     val selected = tabs.indexOfFirst { it.route == lastTab.value }.coerceAtLeast(0)
     val lens = remember { Animatable(selected.toFloat()) }
-    LaunchedEffect(selected) { lens.animateTo(selected.toFloat(), spring(dampingRatio = 0.62f, stiffness = 420f)) }
+    var dragging by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(selected) { if (!dragging) lens.animateTo(selected.toFloat(), spring(dampingRatio = 0.62f, stiffness = 420f)) }
+    val held by androidx.compose.animation.core.animateFloatAsState(if (dragging) 1f else 0f, spring(dampingRatio = 0.55f, stiffness = 520f), label = "held")
+    val iconsHaze = rememberHazeState()
+    val level = com.dopdop.bopdop.ui.glass.LocalGlassLevel.current
+    val light by com.dopdop.bopdop.ui.glass.LocalGlassLight.current
+    val lensShape = RoundedCornerShape(27.dp)
+    // At rest the lens is a milky pill marking the tab; held, it clears into a magnifying lens.
+    val restTint = if (level == com.dopdop.bopdop.data.GlassLevel.CLEAR) Color.Transparent else Color.White.copy(alpha = 0.78f)
+    val lensTint = androidx.compose.ui.graphics.lerp(restTint, Color.Transparent, held)
+    val lensStyle = remember(level, light, lensTint) {
+        com.dopdop.bopdop.ui.glass.liquidStyle(com.dopdop.bopdop.data.GlassLevel.CLEAR, light, lensShape, lensTint, strong = true)
+    }
+
+    fun go(i: Int) {
+        val t = tabs[i]
+        if (route == t.route) app.nav.popBackStack(t.route, inclusive = false) else app.goTab(t.route)
+    }
 
     BoxWithConstraints(
         Modifier
@@ -248,35 +293,64 @@ private fun TabBar(app: AppState) {
             .glass(RoundedCornerShape(32.dp), emphasis = 1.1f, shadow = 18.dp),
     ) {
         val slot = maxWidth / tabs.size
+        val slotPx = with(LocalDensity.current) { slot.toPx() }
         val stretch = 1f + (abs(lens.velocity) / 9f).coerceAtMost(0.35f)
         Box(
-            Modifier
-                .offset { IntOffset(((slot * lens.value).toPx() + 5.dp.toPx()).roundToInt(), 5.dp.roundToPx()) }
-                .width(slot - 10.dp)
-                .fillMaxHeight()
-                .padding(bottom = 10.dp)
-                .graphicsLayer { scaleX = stretch; scaleY = 1f / (1f + (stretch - 1f) * 0.5f) }
-                .clip(RoundedCornerShape(27.dp))
-                .background(Color.White.copy(alpha = 0.20f))
-                .glassEdges(RoundedCornerShape(27.dp), 0.9f),
-        )
-        Row(Modifier.fillMaxSize()) {
-            tabs.forEachIndexed { i, t ->
-                val on = i == selected
-                Column(
-                    Modifier.weight(1f).fillMaxHeight().bounceClick(0.9f) {
-                        if (route == t.route) {
-                            // Re-tap: pop to the tab root.
-                            app.nav.popBackStack(t.route, inclusive = false)
-                        } else app.goTab(t.route)
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { o ->
+                        dragging = true
+                        scope.launch { lens.animateTo((o.x / slotPx - 0.5f).coerceIn(0f, tabs.size - 1f), spring(dampingRatio = 0.7f, stiffness = 900f)) }
                     },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    Icon(t.icon, t.label, tint = if (on) Bop.Text else Bop.Text2, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.height(2.dp))
-                    Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on) Bop.Text else Bop.Text3)
+                    onDragEnd = {
+                        dragging = false
+                        val i = lens.value.roundToInt().coerceIn(tabs.indices)
+                        scope.launch { lens.animateTo(i.toFloat(), spring(dampingRatio = 0.6f, stiffness = 420f)) }
+                        if (i != selected || route != tabs[i].route) go(i)
+                    },
+                    onDragCancel = { dragging = false; scope.launch { lens.animateTo(selected.toFloat(), spring(dampingRatio = 0.6f, stiffness = 420f)) } },
+                ) { change, d ->
+                    change.consume()
+                    scope.launch { lens.snapTo((lens.value + d / slotPx).coerceIn(-0.15f, tabs.size - 0.85f)) }
                 }
+            },
+        ) {
+            // Icons — also the source the lens refracts while it's being dragged.
+            TabIcons(tabs, selected, Modifier.fillMaxSize().hazeSource(iconsHaze), clickable = false, alpha = { held }) {}
+            // The lens: real refractive glass over the icons.
+            Box(
+                Modifier
+                    .offset { IntOffset(((slot * lens.value).toPx() + 4.dp.toPx()).roundToInt(), 4.dp.roundToPx()) }
+                    .width(slot - 8.dp)
+                    .height(56.dp)
+                    .graphicsLayer {
+                        val grow = 1f + 0.16f * held
+                        scaleX = stretch * grow
+                        scaleY = grow / (1f + (stretch - 1f) * 0.5f)
+                    }
+                    .softShadow(lensShape, 10.dp, alpha = 0.12f * (1f - held), dy = 3.dp)
+                    .hazeGlass(HazeInput.Sources(iconsHaze), lensStyle, expandLayerBounds = false),
+            )
+            // Crisp icons on top at rest; they melt away while dragging so the lens can magnify.
+            TabIcons(tabs, selected, Modifier.fillMaxSize(), clickable = true, alpha = { 1f - held }) { go(it) }
+        }
+    }
+}
+
+@Composable
+private fun TabIcons(tabs: List<Tab>, selected: Int, modifier: Modifier, clickable: Boolean, alpha: () -> Float, onTap: (Int) -> Unit) {
+    Row(modifier) {
+        tabs.forEachIndexed { i, t ->
+            val on = i == selected
+            Column(
+                Modifier.weight(1f).fillMaxHeight().then(if (clickable) Modifier.bounceClick(0.9f) { onTap(i) } else Modifier)
+                    .graphicsLayer { this.alpha = alpha() },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(t.icon, t.label, tint = if (on) Bop.Ink else Bop.Text2, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.height(2.dp))
+                Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on) Bop.Ink else Bop.Text3)
             }
         }
     }
