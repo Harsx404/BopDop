@@ -3,7 +3,6 @@ package com.dopdop.bopdop.playback
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import kotlin.random.Random
 
 class VideoQualityTest {
     private fun opt(id: String, mime: String, h: Int, fps: Int = 30) = PictureOption(id, mime, h * 16 / 9, h, fps)
@@ -28,20 +27,5 @@ class VideoQualityTest {
     @Test fun fallsBackToSmallestWhenNothingFitsTheCap() {
         assertEquals("avc480", choosePicture(formats, 240) { true })
         assertNull(choosePicture(formats, 1080) { false })
-    }
-
-    @Test fun findsWhereTheSongStartsInTheVideo() {
-        val rnd = Random(7)
-        val song = FloatArray(4500) { if (rnd.nextFloat() > 0.9f) rnd.nextFloat() else 0f }
-        val intro = 1700 // 17 s story intro before the song
-        val video = FloatArray(intro + song.size + 300) { i -> if (i >= intro && i - intro < song.size) song[i - intro] * 0.8f else rnd.nextFloat() * 0.05f }
-        assertEquals(intro, AudioAlign.bestLag(song, video, 2500, 4500))
-    }
-
-    @Test fun refusesToAlignUnrelatedAudio() {
-        val rnd = Random(3)
-        val song = FloatArray(4500) { if (rnd.nextFloat() > 0.9f) rnd.nextFloat() else 0f }
-        val video = FloatArray(9000) { if (rnd.nextFloat() > 0.9f) rnd.nextFloat() else 0f }
-        assertNull(AudioAlign.bestLag(song, video, 2500, 4500))
     }
 }

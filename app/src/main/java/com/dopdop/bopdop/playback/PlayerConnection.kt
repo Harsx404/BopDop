@@ -13,10 +13,6 @@ import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.model.MusicVideoMatch
-import com.dopdop.bopdop.data.model.VideoSegment
-import com.dopdop.bopdop.data.ytm.ResolvedVideo
-import com.dopdop.bopdop.data.model.songToVideo
-import com.dopdop.bopdop.data.model.videoToSong
 import com.dopdop.bopdop.data.ytm.YtMusic
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -39,8 +35,6 @@ object PlayerConnection {
     private var playGeneration = 0L
     private var videoJob: Job? = null
     private var videoRequest = 0L
-    /** Song ⇄ video timing for the item currently playing as video. */
-    private var videoSegments: List<VideoSegment> = emptyList()
     private val _video = MutableStateFlow(VideoPlaybackState())
     val video: StateFlow<VideoPlaybackState> = _video.asStateFlow()
 
@@ -144,8 +138,7 @@ object PlayerConnection {
             _video.value = VideoPlaybackState(trackId = track.id)
             if (item.videoId != null) {
                 val index = c.currentMediaItemIndex
-                val position = videoSegments.videoToSong(c.currentPosition)
-                videoSegments = emptyList()
+                val position = c.currentPosition
                 c.replaceMediaItem(index, track.toMediaItem())
                 c.seekTo(index, position)
                 c.prepare()
@@ -162,15 +155,14 @@ object PlayerConnection {
                 val (match, streams, songAt) = withContext(Dispatchers.IO) {
                     val match = YtMusic.musicVideoFor(track) ?: throw IllegalStateException("No music video found for this song")
                     val streams = VideoResolver.prepare(match.videoId, cap)
-                    Triple(match, streams, songStartInVideo(track, match, streams))
+                    Triple(match, streams, songStartInVideo(match))
                 }
                 if (request != videoRequest || generation != playGeneration || c.currentMediaItem?.mediaId != track.id) return@launch
                 val index = c.currentMediaItemIndex
-                // With the song's own audio the timeline stays the song's; otherwise map into the video's.
-                val segments = if (songAt != null) emptyList() else match.segments
-                val position = segments.songToVideo(c.currentPosition)
-                videoSegments = segments
-                _video.value = VideoPlaybackState(track.id, active = true, songAudio = songAt != null,
+                // The song keeps playing from its own source; only the picture changes, so its
+                // timeline (and position) stay the song's.
+                val position = c.currentPosition
+                _video.value = VideoPlaybackState(track.id, active = true,
                     aspectRatio = if (streams.width > 0 && streams.height > 0) streams.width.toFloat() / streams.height else 16f / 9f,
                     height = streams.height)
                 c.replaceMediaItem(index, track.toMediaItem().forVideo(match.videoId, streams.audio != null, cap, songAt))
@@ -189,23 +181,11 @@ object PlayerConnection {
     }
 
     /**
-     * Where the song begins in the video, so its own JioSaavn / YouTube Music stream can play under
-     * the picture. Null → the video's soundtrack is used instead (can't line them up with confidence).
+     * ms into the video that lines up with the song's 0:00. YouTube Music's timing map gives it
+     * when the video only adds an intro; otherwise both start together.
      */
-    private fun songStartInVideo(track: Track, match: MusicVideoMatch, streams: ResolvedVideo): Long? {
-        val sound = streams.audio ?: return null
-        val key = "${track.id}>${match.videoId}"
-        VideoQualityPolicy.songStart(key)?.let { return it }
-        val at = when {
-            match.videoId == track.rawId -> 0L
-            // YouTube Music's own map; a single stretch means the video only adds an intro/outro.
-            match.segments.size == 1 -> match.segments[0].let { it.videoStartMs - it.songStartMs }
-            match.segments.size > 1 -> null
-            else -> runCatching { AudioAlign.songStartInVideo(StreamResolver.resolve(StreamResolver.playUri(track)), sound) }.getOrNull()
-        }?.takeIf { it >= 0 }
-        at?.let { VideoQualityPolicy.rememberSongStart(key, it) }
-        return at
-    }
+    private fun songStartInVideo(match: MusicVideoMatch): Long =
+        match.segments.singleOrNull()?.let { it.videoStartMs - it.songStartMs }?.coerceAtLeast(0) ?: 0L
 
     private fun cancelVideoRequest() {
         videoRequest++

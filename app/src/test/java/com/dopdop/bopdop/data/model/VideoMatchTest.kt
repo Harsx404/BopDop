@@ -31,13 +31,4 @@ class VideoMatchTest {
         assertTrue(musicVideoMatchScore(song, video) > musicVideoMatchScore(song, audio))
         assertTrue(musicVideoMatchScore(song, video) > musicVideoMatchScore(song, extended))
     }
-
-    @Test fun timingMapCarriesPositionBothWays() {
-        // Video opens with a 30 s scene, then plays the song through.
-        val map = listOf(VideoSegment(songStartMs = 0, videoStartMs = 30_000, durationMs = 250_000))
-        assertEquals(90_000L, map.songToVideo(60_000))
-        assertEquals(60_000L, map.videoToSong(90_000))
-        assertEquals(0L, map.videoToSong(10_000))
-        assertEquals(42_000L, emptyList<VideoSegment>().songToVideo(42_000))
-    }
 }

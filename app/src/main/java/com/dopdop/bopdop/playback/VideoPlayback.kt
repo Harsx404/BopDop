@@ -8,6 +8,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.C
 import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
 import com.dopdop.bopdop.data.ytm.ResolvedStream
@@ -22,8 +23,6 @@ data class VideoPlaybackState(
     val active: Boolean = false,
     val aspectRatio: Float = 16f / 9f,
     val height: Int = 0,
-    /** The song's own stream (JioSaavn / YouTube Music) plays under the picture, not the video's soundtrack. */
-    val songAudio: Boolean = false,
     val error: String? = null,
 )
 
@@ -77,8 +76,7 @@ internal object VideoResolver {
 @OptIn(UnstableApi::class)
 internal class VideoMediaSourceFactory(private val delegate: MediaSource.Factory) : MediaSource.Factory by delegate {
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
-        val id = mediaItem.videoId
-        if (id == null || !mediaItem.hasSeparateVideoAudio) return delegate.createMediaSource(mediaItem)
+        val id = mediaItem.videoId ?: return delegate.createMediaSource(mediaItem)
         val songAt = mediaItem.songStartInVideo
         // The song's stream, but carrying this item's identity: the merged source reports the first
         // child's item as current, and without the video extras the app would think video ended.
@@ -86,13 +84,15 @@ internal class VideoMediaSourceFactory(private val delegate: MediaSource.Factory
             mediaItem.buildUpon().setUri(plain.localConfiguration!!.uri).setCustomCacheKey(plain.mediaId).build()
         }
         if (songAt != null && song != null) {
-            // Song audio leads; the picture is trimmed so its frame at songAt lands on the song's 0:00.
+            // The song plays from its own source; the video gives only its picture (any soundtrack in
+            // it is dropped), trimmed so its frame at songAt lands on the song's 0:00.
             // Unclipped durations: the song's own length decides when the item ends.
-            val picture = delegate.createMediaSource(mediaItem).let {
+            val picture = FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
                 if (songAt > 0) ClippingMediaSource(it, songAt * 1000, C.TIME_END_OF_SOURCE) else it
             }
             return MergingMediaSource(true, false, delegate.createMediaSource(song), picture)
         }
+        if (!mediaItem.hasSeparateVideoAudio) return delegate.createMediaSource(mediaItem)
         val audio = mediaItem.buildUpon()
             .setUri(mediaItem.localConfiguration!!.uri.buildUpon().appendQueryParameter("part", "audio").build())
             .setCustomCacheKey("video:$id:${mediaItem.videoCap}:sound").build()

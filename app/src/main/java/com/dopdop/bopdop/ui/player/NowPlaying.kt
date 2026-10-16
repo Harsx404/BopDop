@@ -486,10 +486,9 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
         positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
         onSeek = { PlayerConnection.seekTo(it) },
         caption = if (video.active) {
-            // Sound first (where it comes from), then the picture.
+            // The song's own sound, then the picture.
             val res = when { video.height >= 2160 -> "4K"; video.height >= 1440 -> "1440p"; video.height > 0 -> "${video.height}p"; else -> "Video" }
-            val sound = if (video.songAudio) q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label } else "Video audio"
-            listOfNotNull(sound, res).joinToString(" · ")
+            listOfNotNull(q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label }, res).joinToString(" · ")
         } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
     )
 }

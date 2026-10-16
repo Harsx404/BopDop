@@ -31,15 +31,3 @@ internal fun musicVideoMatchScore(song: Track, video: Track): Int {
 data class VideoSegment(val songStartMs: Long, val videoStartMs: Long, val durationMs: Long)
 
 data class MusicVideoMatch(val videoId: String, val segments: List<VideoSegment> = emptyList())
-
-/** Where [ms] into the song is heard in the video; without a map both timelines are the same. */
-internal fun List<VideoSegment>.songToVideo(ms: Long) = remap(ms, toVideo = true)
-internal fun List<VideoSegment>.videoToSong(ms: Long) = remap(ms, toVideo = false)
-
-private fun List<VideoSegment>.remap(ms: Long, toVideo: Boolean): Long {
-    if (isEmpty()) return ms
-    fun from(s: VideoSegment) = if (toVideo) s.songStartMs else s.videoStartMs
-    fun to(s: VideoSegment) = if (toVideo) s.videoStartMs else s.songStartMs
-    val seg = firstOrNull { ms >= from(it) && ms < from(it) + it.durationMs } ?: lastOrNull { from(it) <= ms } ?: first()
-    return (to(seg) + (ms - from(seg)).coerceIn(0, seg.durationMs)).coerceAtLeast(0)
-}

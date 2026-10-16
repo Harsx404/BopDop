@@ -11,15 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 /** Turns the music-video quality setting into a height cap and checks what this phone can decode. */
 object VideoQualityPolicy {
     private var appContext: Context? = null
-    private var aligned: android.content.SharedPreferences? = null
-    fun init(context: Context) {
-        appContext = context.applicationContext
-        aligned = context.getSharedPreferences("video_align", Context.MODE_PRIVATE).also { if (it.all.size > 500) it.edit().clear().apply() }
-    }
-
-    /** Song→video offsets found earlier, so a video switch is instant the second time. */
-    fun songStart(key: String): Long? = aligned?.getLong(key, -1L)?.takeIf { it >= 0 }
-    fun rememberSongStart(key: String, ms: Long) { aligned?.edit()?.putLong(key, ms)?.apply() }
+    fun init(context: Context) { appContext = context.applicationContext }
 
     /** Auto: full HD on Wi-Fi and other unmetered networks, 480p on mobile data. */
     fun maxHeight(quality: VideoQuality): Int {
