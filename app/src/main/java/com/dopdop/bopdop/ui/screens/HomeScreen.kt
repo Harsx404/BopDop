@@ -141,7 +141,7 @@ fun HomeScreen() {
                 ) {
                     CircleButton(onClick = { app.nav.navigate(Routes.SETTINGS) }) { MenuGlyph() }
                     Spacer(Modifier.weight(1f))
-                    CircleButton(onClick = { app.goTab(Routes.SEARCH) }) { Icon(Icons.Rounded.Search, "Search", tint = Bop.Text, modifier = Modifier.size(24.dp)) }
+                    CircleButton(onClick = { app.nav.navigate(Routes.SEARCH) }) { Icon(Icons.Rounded.Search, "Search", tint = Bop.Text, modifier = Modifier.size(24.dp)) }
                     Spacer(Modifier.width(12.dp))
                     val account by com.dopdop.bopdop.data.account.AccountStore.account.collectAsState()
                     Avatar(account?.photo?.ifBlank { null } ?: current?.artwork ?: lib.history.firstOrNull()?.artwork) {

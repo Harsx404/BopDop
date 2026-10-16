@@ -4,6 +4,8 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.util.Log
 import androidx.annotation.OptIn
+import androidx.media3.cast.CastPlayer
+import androidx.media3.cast.RemoteCastPlayer
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -24,15 +26,13 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ToFloatPcmAudioProcessor
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.dopdop.bopdop.MainActivity
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.PlayStats
 import com.dopdop.bopdop.data.net.Http
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -44,8 +44,8 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
-    private var session: MediaSession? = null
+class PlaybackService : MediaLibraryService() {
+    private var session: MediaLibrarySession? = null
     private lateinit var player: ExoPlayer
     private val scope = MainScope()
     private var extending = false
@@ -73,6 +73,7 @@ class PlaybackService : MediaSessionService() {
         player = buildPlayer(main = true)
         crossfader = Crossfader(scope) { buildPlayer(main = false) }
         crossfader.attach(player)
+        LockScreenLyrics(scope) { player }
         scope.launch {
             LibraryStore.state.map { it.settings.skipSilence }.distinctUntilChanged().collect { player.skipSilenceEnabled = it }
         }
@@ -101,8 +102,7 @@ class PlaybackService : MediaSessionService() {
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        session = MediaSession.Builder(this, player)
-            .setCallback(SessionCallback)
+        session = MediaLibrarySession.Builder(this, castable(player), LibraryCallback(this))
             .setSessionActivity(open)
             .build()
     }
@@ -150,6 +150,16 @@ class PlaybackService : MediaSessionService() {
         override fun getSkippedOutputFrameCount() = inner.getSkippedOutputFrameCount()
     }
 
+    /**
+     * The session's player: the local ExoPlayer wrapped so a Cast device can take over and hand
+     * back. Without Google Play services the local player is used as is.
+     */
+    private fun castable(local: ExoPlayer): Player = runCatching {
+        CastPlayer.Builder(this).setLocalPlayer(local)
+            .setRemotePlayer(RemoteCastPlayer.Builder(this).setMediaItemConverter(CastConverter).build())
+            .build()
+    }.onFailure { Log.w("PlaybackService", "Cast unavailable: ${it.message}") }.getOrDefault(local)
+
     /** New output precision: carry the queue, position and state over to a freshly built player. */
     private fun rebuildPlayer() {
         val old = player
@@ -166,7 +176,7 @@ class PlaybackService : MediaSessionService() {
         next.playWhenReady = old.playWhenReady
         old.removeListener(listener)
         old.removeAnalyticsListener(AudioPipeline.listener)
-        session?.player = next
+        session?.player = castable(next)
         player = next
         crossfader.attach(next)
         old.release()
@@ -191,6 +201,13 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_TIMELINE_CHANGED)) {
+                WidgetUpdater.update(this@PlaybackService, player.currentMediaItem?.toTrack(), player.isPlaying)
+            }
+            if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED)) {
+                val from = player.currentMediaItemIndex
+                CastPrefetch.onQueue((from until minOf(player.mediaItemCount, from + 4)).mapNotNull { player.getMediaItemAt(it).toTrack() })
+            }
             // Video is an explicit choice for the current song; queued and past items remain audio.
             if (events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION)) {
                 for (i in 0 until player.mediaItemCount) {
@@ -285,16 +302,7 @@ class PlaybackService : MediaSessionService() {
             timeline.getNextWindowIndex(next, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled) == C.INDEX_UNSET
     }
 
-    private object SessionCallback : MediaSession.Callback {
-        override fun onAddMediaItems(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: MutableList<MediaItem>,
-        ): ListenableFuture<MutableList<MediaItem>> =
-            Futures.immediateFuture(mediaItems.map { it.withPlaybackUri() }.toMutableList())
-    }
-
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         val p = session?.player

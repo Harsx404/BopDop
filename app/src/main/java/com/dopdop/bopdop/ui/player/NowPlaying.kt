@@ -382,6 +382,8 @@ private fun TopRow(app: AppState, haze: HazeState) {
             Text("PLAYING FROM", style = BopType.Micro, color = Bop.OnMedia3)
             Text(ctx.ifBlank { "Your queue" }, style = BopType.BodyStrong, color = Bop.OnMedia, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 12.dp))
         }
+        androidx.media3.cast.MediaRouteButton(Modifier.size(46.dp))
+        Spacer(Modifier.width(6.dp))
         MediaCircle(Icons.Rounded.MoreHoriz, "More", haze, 46.dp) { PlayerConnection.current.value?.let { app.sheet = Sheet.TrackOptions(it) } }
     }
 }

@@ -1,5 +1,11 @@
 package com.dopdop.bopdop.ui.player
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.mutableStateListOf
+import com.dopdop.bopdop.data.lyrics.LyricsTranslate
+import com.dopdop.bopdop.data.lyrics.Romanize
 import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -97,11 +103,19 @@ private fun Modifier.edgeFade(): Modifier = this
         )
     }
 
+enum class LyricMode(val label: String) { ORIGINAL("Original"), ROMANIZED("Romanized"), TRANSLATED("Translate") }
+
+/** How lyrics are shown; kept for the session so it carries across songs. */
+object LyricPrefs { var mode by mutableStateOf(LyricMode.ORIGINAL) }
+
 @Composable
 fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
     val state by produceState<LyricState>(LyricState.Loading, t.id) {
         value = MusicRepository.lyrics(t)?.let { LyricState.Ready(it) } ?: LyricState.None
     }
+    var selecting by remember(t.id) { mutableStateOf(false) }
+    val selected = remember(t.id) { mutableStateListOf<Int>() }
+    var card by remember(t.id) { mutableStateOf<List<String>?>(null) }
     Box(modifier.fillMaxWidth()) {
         when (val s = state) {
             LyricState.Loading -> Column(Modifier.padding(horizontal = 26.dp, vertical = 30.dp)) {
@@ -115,14 +129,76 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 Text("No lyrics for this one", style = LyricStyle.copy(fontSize = 26.sp), color = Color.White.copy(alpha = 0.9f))
                 Text("Just feel it.", style = BopType.Headline, color = Color.White.copy(alpha = 0.55f))
             }
-            is LyricState.Ready -> if (s.l.isSynced) SyncedLyrics(s.l.synced, t) else PlainLyrics(s.l.plain.orEmpty(), "unsynced · drifts with the song")
+            is LyricState.Ready -> {
+                val texts = remember(s.l) { if (s.l.isSynced) s.l.synced.map { it.text } else s.l.plain.orEmpty().trim().lines() }
+                val indic = remember(texts) { texts.any(Romanize::hasIndic) }
+                val mode = LyricPrefs.mode.takeIf { it != LyricMode.ROMANIZED || indic } ?: LyricMode.ORIGINAL
+                val romanized = remember(texts, indic) { if (indic) texts.map(Romanize::line) else texts }
+                val translated by produceState<List<String?>>(emptyList(), t.id, mode) {
+                    if (mode == LyricMode.TRANSLATED) value = runCatching { LyricsTranslate.translate(t.id, texts) }.getOrDefault(emptyList())
+                }
+                val main: (Int) -> String = { i -> if (mode == LyricMode.ROMANIZED) romanized[i] else texts[i] }
+                val sub: (Int) -> String? = { i ->
+                    if (mode != LyricMode.TRANSLATED) null
+                    else translated.getOrNull(i)?.takeIf { !it.equals(texts[i].trim(), ignoreCase = true) }
+                }
+                val toggle: (Int) -> Unit = { i -> if (i in selected) selected.remove(i) else if (selected.size < 5) selected.add(i) }
+                Column(Modifier.fillMaxSize()) {
+                    LyricControls(indic, mode, selecting) { selecting = !selecting; selected.clear() }
+                    Box(Modifier.weight(1f)) {
+                        if (s.l.isSynced) SyncedLyrics(s.l.synced, t, main, sub, selecting, selected, toggle)
+                        else PlainLyrics(texts, main, sub, "unsynced · drifts with the song", selecting, selected, toggle)
+                    }
+                    if (selecting) LyricShareBar(selected.size, onCancel = { selecting = false; selected.clear() }) {
+                        card = selected.sorted().map(main)
+                    }
+                }
+            }
         }
+    }
+    card?.let { lines -> LyricCardDialog(t, palette, lines) { card = null; selecting = false; selected.clear() } }
+}
+
+/** Original / Romanized / Translate, plus the share-a-card switch. */
+@Composable
+private fun LyricControls(indic: Boolean, mode: LyricMode, selecting: Boolean, onShare: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        LyricMode.entries.filter { it != LyricMode.ROMANIZED || indic }.forEach { m ->
+            val on = m == mode
+            Text(
+                m.label, style = BopType.Caption, color = if (on) Color(0xFF15161B) else Color.White,
+                modifier = Modifier.padding(end = 8.dp).clip(RoundedCornerShape(50))
+                    .background(if (on) Color.White else Color.White.copy(alpha = 0.14f))
+                    .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            Modifier.size(36.dp).clip(CircleShape).background(if (selecting) Color.White else Color.White.copy(alpha = 0.14f)).bounceClick(onClick = onShare),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Rounded.IosShare, "Share lyrics", tint = if (selecting) Color(0xFF15161B) else Color.White, modifier = Modifier.size(18.dp)) }
+    }
+}
+
+@Composable
+private fun LyricShareBar(count: Int, onCancel: () -> Unit, onShare: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(if (count == 0) "Tap lines to share (up to 5)" else "$count selected", style = BopType.Body, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+        Text("Cancel", style = BopType.BodyStrong, color = Color.White.copy(alpha = 0.7f), modifier = Modifier.bounceClick(onClick = onCancel).padding(10.dp))
+        Text(
+            "Share card", style = BopType.BodyStrong, color = Color(0xFF15161B),
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = if (count > 0) 1f else 0.4f))
+                .bounceClick { if (count > 0) onShare() }.padding(horizontal = 16.dp, vertical = 10.dp),
+        )
     }
 }
 
 /** Unsynced lyrics drift down with the song's progress; a touch pauses the drift for a few seconds. */
 @Composable
-private fun PlainLyrics(text: String, source: String) {
+private fun PlainLyrics(
+    lines: List<String>, main: (Int) -> String, sub: (Int) -> String?, source: String,
+    selecting: Boolean, selected: List<Int>, onToggle: (Int) -> Unit,
+) {
     val scroll = rememberScrollState()
     var touchedAt by remember { mutableLongStateOf(0L) }
     LaunchedEffect(scroll.isScrollInProgress) { if (scroll.isScrollInProgress) touchedAt = System.currentTimeMillis() }
@@ -138,27 +214,36 @@ private fun PlainLyrics(text: String, source: String) {
     Column(Modifier.fillMaxSize().edgeFade().verticalScroll(scroll).padding(horizontal = 26.dp, vertical = 40.dp)) {
         Text("LYRICS · $source", style = BopType.Micro, color = Color.White.copy(alpha = 0.5f))
         Spacer(Modifier.height(16.dp))
-        text.trim().split(Regex("\\n\\s*\\n")).forEach { stanza ->
-            Text(stanza.trim(), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 34.sp), color = Color.White.copy(alpha = 0.9f))
-            Spacer(Modifier.height(28.dp))
+        lines.forEachIndexed { i, line ->
+            if (line.isBlank()) { Spacer(Modifier.height(24.dp)); return@forEachIndexed }
+            val picked = i in selected
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(if (picked) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                    .then(if (selecting) Modifier.bounceClick(0.98f) { onToggle(i) } else Modifier)
+                    .padding(vertical = 3.dp, horizontal = if (selecting) 8.dp else 0.dp),
+            ) {
+                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp), color = Color.White.copy(alpha = 0.9f))
+                sub(i)?.let { Text(it, style = BopType.Headline, color = Color.White.copy(alpha = 0.55f)) }
+            }
         }
         Spacer(Modifier.height(160.dp))
     }
 }
 
 /** One rendered row: a lyric, or an instrumental gap shown as breathing dots. */
-private data class LyricRow(val start: Long, val end: Long, val text: String) {
+private data class LyricRow(val start: Long, val end: Long, val text: String, val src: Int) {
     val isGap get() = text.isBlank() || text == "♪"
 }
 
 private fun rowsOf(lines: List<LyricLine>): List<LyricRow> {
     val out = mutableListOf<LyricRow>()
     val first = lines.firstOrNull()?.timeMs ?: 0
-    if (first > 4000) out += LyricRow(0, first, "")
+    if (first > 4000) out += LyricRow(0, first, "", -1)
     lines.forEachIndexed { i, l ->
         val end = lines.getOrNull(i + 1)?.timeMs ?: (l.timeMs + 6000)
         if (l.text.isBlank() && end - l.timeMs < 2500) return@forEachIndexed // too short to show dots
-        out += LyricRow(l.timeMs, end, l.text)
+        out += LyricRow(l.timeMs, end, l.text, i)
     }
     return out
 }
@@ -172,7 +257,10 @@ private fun rowsOf(lines: List<LyricLine>): List<LyricRow> {
  * - drag to browse, it settles back after a moment; tap any line to jump.
  */
 @Composable
-private fun SyncedLyrics(lines: List<LyricLine>, t: Track) {
+private fun SyncedLyrics(
+    lines: List<LyricLine>, t: Track, main: (Int) -> String, sub: (Int) -> String?,
+    selecting: Boolean, selected: List<Int>, onToggle: (Int) -> Unit,
+) {
     val rows = remember(lines) { rowsOf(lines) }
     val reduce = LocalReduceMotion.current
     val pos by produceState(0L, t.id) {
@@ -229,15 +317,23 @@ private fun SyncedLyrics(lines: List<LyricLine>, t: Track) {
                         }
                         .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier)
                         .clip(RoundedCornerShape(16.dp))
-                        .bounceClick(0.98f) { scope.launch { user.snapTo(0f) }; PlayerConnection.seekTo(row.start) }
+                        .background(if (row.src in selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                        .bounceClick(0.98f) {
+                            if (selecting) { if (!row.isGap) onToggle(row.src) }
+                            else { scope.launch { user.snapTo(0f) }; PlayerConnection.seekTo(row.start) }
+                        }
                         .padding(vertical = if (row.isGap) 14.dp else 10.dp),
                 ) {
                     if (row.isGap) BreathingDots(active = on, progress = if (on) ((pos - row.start).toFloat() / (row.end - row.start).coerceAtLeast(1)).coerceIn(0f, 1f) else 0f)
-                    else Text(
-                        if (on) karaoke(row.text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f)) else AnnotatedString(row.text),
-                        style = LyricStyle.copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
-                        color = Color.White,
-                    )
+                    else Column(Modifier.padding(horizontal = if (selecting) 8.dp else 0.dp)) {
+                        val text = main(row.src)
+                        Text(
+                            if (on && !selecting) karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f)) else AnnotatedString(text),
+                            style = LyricStyle.copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
+                            color = Color.White,
+                        )
+                        sub(row.src)?.let { Text(it, style = BopType.Headline.copy(fontWeight = FontWeight(560)), color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(top = 4.dp)) }
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))

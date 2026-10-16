@@ -160,6 +160,7 @@ fun SheetHost(app: AppState) {
                     is Sheet.RenamePlaylist -> NameInput(app, "Rename playlist", "Save", s.name) { name -> LibraryStore.renamePlaylist(s.id, name) }
                     Sheet.SleepTimer -> SleepTimer(app)
                     Sheet.AudioPipeline -> AudioPipelineSheet()
+                    Sheet.ImportPlaylist -> ImportPlaylistSheet(app)
                     null -> {}
                 }
             }
@@ -440,4 +441,54 @@ private fun PipeStage(title: String, rows: List<Pair<String, String>>) {
             }
         }
     }
+}
+
+/** Paste a Spotify / YouTube playlist link; songs are matched to YouTube Music and saved as a playlist. */
+@Composable
+private fun ColumnScope.ImportPlaylistSheet(app: AppState) {
+    val clip = androidx.compose.ui.platform.LocalClipboardManager.current
+    var link by remember { mutableStateOf(clip.getText()?.text?.takeIf { com.dopdop.bopdop.data.PlaylistImport.recognises(it) }.orEmpty()) }
+    var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val busy = progress != null
+    Text("Import a playlist", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp))
+    Text("Paste a Spotify or YouTube playlist link. Each song is matched to YouTube Music by title, artist and length.",
+        style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+    Box(Modifier.padding(horizontal = 18.dp, vertical = 12.dp).fillMaxWidth().height(54.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+        if (link.isEmpty()) Text("https://open.spotify.com/playlist/…", style = BopType.Body, color = Bop.Text3)
+        BasicTextField(
+            link, { link = it.trim(); error = null }, singleLine = true, enabled = !busy,
+            textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    error?.let { Text(it, style = BopType.Caption, color = Bop.Danger, modifier = Modifier.padding(horizontal = 22.dp)) }
+    progress?.let { (done, total) ->
+        Text(if (total == 0) "Reading the playlist…" else "Matching songs… $done of $total", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+    }
+    val ready = com.dopdop.bopdop.data.PlaylistImport.recognises(link) && !busy
+    Box(
+        Modifier.padding(18.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50))
+            .background(if (ready) Bop.Ink else Bop.Ink.copy(alpha = 0.25f))
+            .bounceClick {
+                if (!ready) return@bounceClick
+                progress = 0 to 0
+                scope.launch {
+                    try {
+                        val r = com.dopdop.bopdop.data.PlaylistImport.import(link) { d, t -> progress = d to t }
+                        if (r.matched.isEmpty()) { error = "Couldn't match any songs from that playlist"; return@launch }
+                        val p = LibraryStore.createPlaylist(r.name, r.matched)
+                        app.sheet = null
+                        app.toast(if (r.missed.isEmpty()) "Imported ${r.matched.size} songs" else "Imported ${r.matched.size} songs · ${r.missed.size} not found")
+                        app.openLocal(p.id)
+                    } catch (e: Exception) {
+                        error = e.message ?: "Import failed"
+                    } finally {
+                        progress = null
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) { Text(if (busy) "Importing…" else "Import", style = BopType.BodyStrong, color = Color.White) }
 }

@@ -55,7 +55,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true) openPlayer.value++
-        intent?.data?.takeIf { it.scheme == "bopdop" && it.host == "share" }?.let { sharedLink.value = it.toString() }
+        intent?.data?.takeIf { it.scheme == "bopdop" && (it.host == "share" || it.host == "together") }?.let { sharedLink.value = it.toString() }
     }
 
     companion object {

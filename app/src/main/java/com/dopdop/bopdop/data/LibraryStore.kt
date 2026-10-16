@@ -56,13 +56,15 @@ data class Settings(
     val floatOutput: Boolean = false,
     /** Automix: seconds the outgoing and incoming songs overlap; 0 = off. */
     val crossfadeSec: Int = 0,
+    /** Show the line being sung in the media notification / lock screen. */
+    val lockScreenLyrics: Boolean = false,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
         .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
-        .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec)
+        .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("eq", eq.toJson())
 
     companion object {
@@ -82,6 +84,7 @@ data class Settings(
             filterNonMusic = o.optBoolean("filterNonMusic", true),
             floatOutput = o.optBoolean("floatOutput", false),
             crossfadeSec = o.optInt("crossfadeSec", 0),
+            lockScreenLyrics = o.optBoolean("lockScreenLyrics", false),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

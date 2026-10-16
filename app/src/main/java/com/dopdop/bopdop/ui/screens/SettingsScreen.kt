@@ -1,5 +1,6 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -153,6 +154,11 @@ fun SettingsScreen() {
                 val pipe by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
                 NavRow(Icons.Rounded.Insights, "Audio pipeline", if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
                     app.sheet = Sheet.AudioPipeline
+                }
+            }
+            Group("Lyrics") {
+                ToggleRow(Icons.Rounded.Lyrics, "Lyrics on lock screen", "Shows the line being sung in the notification and on the lock screen.", s.lockScreenLyrics) {
+                    LibraryStore.updateSettings { it.copy(lockScreenLyrics = !it.lockScreenLyrics) }
                 }
             }
             Group("Local music") {

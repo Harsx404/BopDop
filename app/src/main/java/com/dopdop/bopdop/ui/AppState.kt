@@ -27,11 +27,15 @@ sealed interface Sheet {
     data class RenamePlaylist(val id: String, val name: String) : Sheet
     data object SleepTimer : Sheet
     data object AudioPipeline : Sheet
+    data object ImportPlaylist : Sheet
 }
 
 object Routes {
     const val HOME = "home"
     const val SEARCH = "search"
+    const val EXPLORE = "explore"
+    const val TOGETHER = "together?code={code}"
+    const val WRAPPED = "wrapped"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
     const val COLLECTION = "collection?id={id}&kind={kind}&title={title}&sub={sub}&art={art}"
@@ -45,7 +49,7 @@ object Routes {
     const val IMPORT = "import?key={key}"
     const val SCAN = "scan"
     const val EQ = "eq"
-    val tabs = listOf(HOME, SEARCH, LIBRARY)
+    val tabs = listOf(HOME, EXPLORE, LIBRARY)
 }
 
 /** A thing to put on a share code, with what the card shows about it. */
@@ -107,6 +111,7 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
 
     /** A scanned code or opened `bopdop://share/…` link. */
     fun openShared(text: String) {
+        Regex("^bopdop://together/([A-Za-z0-9]{4,8})").find(text)?.let { nav.navigate("together?code=${enc(it.groupValues[1])}"); return }
         when (val p = ShareCodec.decode(text)) {
             is SharePayload.Playlist -> nav.navigate("import?key=${enc(SeeAllHolder.put("import", p))}")
             is SharePayload.Collection -> open(p.card)

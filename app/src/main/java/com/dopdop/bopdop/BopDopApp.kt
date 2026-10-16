@@ -19,6 +19,9 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.playback.StreamResolver.init(this)
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
         com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)
+        com.dopdop.bopdop.data.DailyMixes.init(this)
+        com.dopdop.bopdop.data.together.Together.init(this)
+        runCatching { androidx.media3.cast.Cast.getSingletonInstance(this).initialize() }
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)

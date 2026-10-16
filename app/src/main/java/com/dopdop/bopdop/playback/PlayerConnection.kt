@@ -248,7 +248,17 @@ object PlayerConnection {
 
     fun next() = withController { if (it.hasNextMediaItem()) it.seekToNextMediaItem() }
     fun previous() = withController { it.seekToPrevious() }
-    fun seekTo(ms: Long) = withController { it.seekTo(ms) }
+    private val _seeks = kotlinx.coroutines.flow.MutableSharedFlow<Long>(extraBufferCapacity = 4)
+    /** User scrubs, so Listen Together can tell the room straight away. */
+    val seeks: kotlinx.coroutines.flow.SharedFlow<Long> = _seeks
+
+    fun seekTo(ms: Long) = withController { it.seekTo(ms); _seeks.tryEmit(ms) }
+
+    /** Remote control (Listen Together): jump without announcing it as a user seek. */
+    fun syncTo(index: Int, ms: Long, playing: Boolean) = withController { c ->
+        if (index in 0 until c.mediaItemCount && (index != c.currentMediaItemIndex || kotlin.math.abs(c.currentPosition - ms) > 1500)) c.seekTo(index, ms)
+        if (playing) c.play() else c.pause()
+    }
     fun skipTo(index: Int) = withController { if (index in 0 until it.mediaItemCount) { it.seekTo(index, 0L); it.play() } }
     fun removeAt(index: Int) = withController { if (index in 0 until it.mediaItemCount) it.removeMediaItem(index) }
     fun move(from: Int, to: Int) = withController { if (from != to) it.moveMediaItem(from, to) }

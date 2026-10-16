@@ -38,6 +38,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -187,6 +188,9 @@ private fun AppNavHost(app: AppState) {
     ) {
         composable(Routes.HOME) { HomeScreen() }
         composable(Routes.SEARCH) { SearchScreen() }
+        composable(Routes.EXPLORE) { com.dopdop.bopdop.ui.screens.ExploreScreen() }
+        composable(Routes.TOGETHER, listOf(str("code"))) { e -> com.dopdop.bopdop.ui.screens.TogetherScreen(e.arguments!!.getString("code")!!) }
+        composable(Routes.WRAPPED) { com.dopdop.bopdop.ui.screens.WrappedScreen() }
         composable(Routes.LIBRARY) { LibraryScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
         composable(Routes.EQ) { com.dopdop.bopdop.ui.screens.EqualizerScreen() }
@@ -216,7 +220,7 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
     // Full-screen tools (share code, scanner, sign-in) get the whole screen.
     val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
     val away by androidx.compose.animation.core.animateFloatAsState(
-        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN) 1f else 0f, tween(260), label = "chromeAway",
+        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.WRAPPED) 1f else 0f, tween(260), label = "chromeAway",
     )
     Column(
         Modifier
@@ -257,7 +261,7 @@ private data class Tab(val route: String, val label: String, val icon: androidx.
 @Composable
 private fun TabBar(app: AppState) {
     val tabs = remember {
-        listOf(Tab(Routes.HOME, "Home", Icons.Rounded.Home), Tab(Routes.SEARCH, "Search", Icons.Rounded.Search), Tab(Routes.LIBRARY, "Library", Icons.Rounded.LibraryMusic))
+        listOf(Tab(Routes.HOME, "Home", Icons.Rounded.Home), Tab(Routes.EXPLORE, "Explore", Icons.Rounded.Explore), Tab(Routes.LIBRARY, "Library", Icons.Rounded.LibraryMusic))
     }
     val entry by app.nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route

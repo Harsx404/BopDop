@@ -114,7 +114,7 @@ fun LibraryScreen() {
                 Shortcut(
                     "Following", if (following.isEmpty()) "No artists yet" else "${following.size} artists", Icons.Rounded.Person, Modifier.weight(1f),
                     art = { m -> AvatarStack(following.map { it.artwork }.take(3), m) },
-                ) { if (following.isNotEmpty()) app.seeAll("Following", following) else app.goTab(com.dopdop.bopdop.ui.Routes.SEARCH) }
+                ) { if (following.isNotEmpty()) app.seeAll("Following", following) else app.goTab(com.dopdop.bopdop.ui.Routes.EXPLORE) }
             }
         }
 

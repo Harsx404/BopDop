@@ -227,6 +227,7 @@ fun CollectionScreen(id: String, kind: String, title: String, sub: String, art: 
 fun LocalCollectionScreen(id: String) {
     val app = LocalApp.current
     val lib by LibraryStore.state.collectAsState()
+    if (id.startsWith("mix:")) { MixCollection(id.removePrefix("mix:")); return }
     when (id) {
         "liked" -> CollectionLayout(
             title = "Liked Songs", subtitle = "", meta = songs(lib.liked.size), artUrl = lib.liked.firstOrNull()?.artwork,
@@ -307,4 +308,21 @@ fun Collage(arts: List<String>, modifier: Modifier, corner: androidx.compose.ui.
         Row(Modifier.weight(1f)) { Artwork(arts[0], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300); Artwork(arts[1], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300) }
         Row(Modifier.weight(1f)) { Artwork(arts[2], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300); Artwork(arts[3], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300) }
     }
+}
+
+/** One of today's daily mixes. */
+@Composable
+private fun MixCollection(mixId: String) {
+    val mixes by com.dopdop.bopdop.data.DailyMixes.mixes.collectAsState()
+    val m = mixes.firstOrNull { it.id == mixId }
+    if (m == null) {
+        Text("This mix has been refreshed", style = BopType.Body, color = Bop.Text2, modifier = Modifier.statusBarsPad().padding(40.dp))
+        return
+    }
+    CollectionLayout(
+        title = m.title, subtitle = m.subtitle, meta = songs(m.tracks.size) + " · refreshed daily",
+        artUrl = m.artworks.firstOrNull(), tracks = m.tracks, context = m.title, numbered = false,
+        art = { mod -> Collage(m.artworks, mod) },
+        empty = "This mix is empty.",
+    )
 }

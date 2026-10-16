@@ -353,7 +353,7 @@ private fun TopResult(top: Any) {
 
 /** Genre tile coloured by its own cover art, with two tilted covers peeking out. */
 @Composable
-private fun MoodTile(title: String, params: String, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
+internal fun MoodTile(title: String, params: String, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val arts = rememberLoad("moodart:$params", 12 * 3600_000L) {
         MusicRepository.moodCategory(params).flatMap { sh -> sh.cards.map { it.artwork } + sh.tracks.map { it.artwork } }
             .filter { it.isNotBlank() }.distinct().take(2)

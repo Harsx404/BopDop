@@ -64,6 +64,12 @@ object StreamResolver {
         .apply { t.streamUrl?.let { appendQueryParameter("u", it) } }
         .build()
 
+    /** A still-valid stream already resolved for [t] — or its own JioSaavn url. Never blocks. */
+    fun peek(t: Track): ResolvedStream? {
+        cache[t.id]?.takeIf { it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000 }?.let { return it }
+        return t.streamUrl?.takeIf { t.id.startsWith("sv:") }?.let { ResolvedStream(it, null, if (it.contains("_320")) 320 else 160, "AAC", "JioSaavn", Long.MAX_VALUE) }
+    }
+
     fun invalidate(id: String) {
         val dead = cache.remove(id) ?: return
         if (dead.via != "JioSaavn" && dead.via != "PoToken") YtStreams.reportDirectFailure()
