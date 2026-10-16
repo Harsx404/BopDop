@@ -11,7 +11,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 import com.dopdop.bopdop.playback.PlayerConnection
+import androidx.lifecycle.lifecycleScope
+import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.ui.BopDopRoot
+import com.dopdop.bopdop.ui.applyRefreshRate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import com.dopdop.bopdop.ui.theme.BopDopTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -32,6 +38,9 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         handle(intent)
+        lifecycleScope.launch {
+            LibraryStore.state.map { it.settings.refreshRate }.distinctUntilChanged().collect { applyRefreshRate(it) }
+        }
         setContent {
             BopDopTheme {
                 BopDopRoot(openPlayer, sharedLink)

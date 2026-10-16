@@ -159,6 +159,7 @@ fun SheetHost(app: AppState) {
                     }
                     is Sheet.RenamePlaylist -> NameInput(app, "Rename playlist", "Save", s.name) { name -> LibraryStore.renamePlaylist(s.id, name) }
                     Sheet.SleepTimer -> SleepTimer(app)
+                    Sheet.AudioPipeline -> AudioPipelineSheet()
                     null -> {}
                 }
             }
@@ -378,6 +379,65 @@ fun ToastHost(app: AppState) {
                 last, style = BopType.BodyStrong, color = Bop.Text,
                 modifier = Modifier.glass(RoundedCornerShape(50), emphasis = 1.6f).padding(horizontal = 20.dp, vertical = 12.dp),
             )
+        }
+    }
+}
+
+/** The live signal path, source to speaker, refreshed while open. */
+@Composable
+private fun ColumnScope.AudioPipelineSheet() {
+    val ctx = LocalContext.current
+    val info by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
+    val current by PlayerConnection.current.collectAsState()
+    val quality by com.dopdop.bopdop.playback.StreamResolver.quality.collectAsState()
+    val settings = LibraryStore.state.collectAsState().value.settings
+    val fx by com.dopdop.bopdop.playback.AudioFx.state.collectAsState()
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) { while (true) { delay(500); tick++ } }
+    val leveler = com.dopdop.bopdop.playback.AudioPipeline.leveler
+    val out = remember(tick) { com.dopdop.bopdop.playback.AudioPipeline.output(ctx) }
+    fun khz(hz: Int) = if (hz <= 0) "—" else "%s kHz".format(if (hz % 1000 == 0) "${hz / 1000}" else "%.1f".format(hz / 1000f))
+    val source = when {
+        current?.source == com.dopdop.bopdop.data.model.Source.LOCAL -> "This phone"
+        else -> current?.let { quality[it.id]?.via } ?: "—"
+    }
+    Text("Audio pipeline", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 12.dp)) {
+        PipeStage("Source", listOf(
+            "From" to source, "Format" to info.codec, "Sample rate" to khz(info.sampleRate),
+            "Bitrate" to if (info.bitrateKbps > 0) "${info.bitrateKbps} kbps" else (current?.let { quality[it.id]?.kbps?.takeIf { k -> k > 0 }?.let { k -> "$k kbps" } } ?: "—"),
+            "Channels" to when (info.channels) { 0 -> "—"; 1 -> "Mono"; 2 -> "Stereo"; else -> "${info.channels} ch" },
+        ))
+        PipeStage("Decoder", listOf("Decoder" to info.decoder))
+        PipeStage("Processing", listOf(
+            "Normalization" to when {
+                !settings.normalize -> "Off"
+                leveler == null -> "On"
+                else -> "%+.1f dB (track at %.0f dBFS)".format(leveler.gainDb, leveler.measuredDb.coerceAtLeast(-99f))
+            },
+            "Skip silence" to if (settings.skipSilence) "On" else "Off",
+            "Equalizer" to if (fx.enabled) fx.preset else "Off",
+            "Spatial" to if (fx.enabled && fx.spatial > 0.01f) "${(fx.spatial * 100).toInt()}%" else "Off",
+            "Automix" to if (settings.crossfadeSec > 0) "${settings.crossfadeSec} s crossfade" else "Off",
+        ))
+        PipeStage("Output", listOf(
+            "Device" to out.name, "Route" to out.route,
+            "AudioTrack" to "${info.sinkEncoding} · ${khz(info.sinkRate)}",
+            "Buffer" to if (info.bufferMs > 0) "${info.bufferMs} ms" else "—",
+            "Offload" to if (info.offload) "Yes" else "No",
+        ))
+    }
+}
+
+@Composable
+private fun PipeStage(title: String, rows: List<Pair<String, String>>) {
+    Text(title.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(top = 14.dp, bottom = 6.dp))
+    Column(Modifier.fillMaxWidth().glassLite(RoundedCornerShape(16.dp), alpha = 0.55f).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        rows.forEach { (k, v) ->
+            Row(Modifier.padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
+                Text(k, style = BopType.Body, color = Bop.Text2, modifier = Modifier.width(120.dp))
+                Text(v, style = BopType.BodyStrong, color = Bop.Text)
+            }
         }
     }
 }

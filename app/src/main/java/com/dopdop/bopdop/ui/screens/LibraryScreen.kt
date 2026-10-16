@@ -71,6 +71,12 @@ import com.dopdop.bopdop.ui.components.CardTile
 import com.dopdop.bopdop.ui.components.Load
 import com.dopdop.bopdop.ui.components.rememberLoad
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.ThumbUp
 
@@ -111,6 +117,8 @@ fun LibraryScreen() {
                 ) { if (following.isNotEmpty()) app.seeAll("Following", following) else app.goTab(com.dopdop.bopdop.ui.Routes.SEARCH) }
             }
         }
+
+        item(key = "offline") { DeviceShortcuts() }
 
         if (lib.history.isNotEmpty()) item(key = "recent") {
             val recent = lib.history.take(14)
@@ -167,6 +175,34 @@ fun LibraryScreen() {
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
+    }
+}
+
+/** Music that plays without data: files on the phone and songs kept whole in the cache. */
+@Composable
+private fun DeviceShortcuts() {
+    val app = LocalApp.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lib by LibraryStore.state.collectAsState()
+    val local by com.dopdop.bopdop.data.local.LocalMusic.tracks.collectAsState()
+    var allowed by remember { mutableStateOf(com.dopdop.bopdop.data.local.LocalMusic.hasPermission(ctx)) }
+    val cached by produceState(emptyList<com.dopdop.bopdop.data.model.Track>(), lib.history.size) {
+        value = com.dopdop.bopdop.playback.CachedSongs.list(ctx)
+    }
+    LaunchedEffect(allowed, lib.settings.localFolder, lib.settings.filterNonMusic) { if (allowed) com.dopdop.bopdop.data.local.LocalMusic.refresh(ctx) }
+    val ask = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        allowed = granted
+        if (granted) app.openLocal("device") else app.toast("Allow music access to play songs on this phone")
+    }
+    Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Shortcut(
+            "On this device", if (!allowed) "Tap to allow" else songs(local.size), Icons.Rounded.PhoneAndroid, Modifier.weight(1f),
+            art = { m -> GradientArt(m, Icons.Rounded.PhoneAndroid, listOf(Color(0xFFE0B98A), Color(0xFFB07A45))) },
+        ) { if (allowed) app.openLocal("device") else ask.launch(com.dopdop.bopdop.data.local.LocalMusic.permission) }
+        Shortcut(
+            "Cached songs", if (cached.isEmpty()) "Plays offline" else songs(cached.size), Icons.Rounded.OfflinePin, Modifier.weight(1f),
+            art = { m -> MiniCollage(cached.map { it.artwork }.distinct().take(4), m) },
+        ) { app.openLocal("cached") }
     }
 }
 

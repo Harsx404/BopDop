@@ -108,7 +108,7 @@ private const val EXTRA_TRACK = "bopdop.track"
 
 fun Track.toMediaItem(): MediaItem = MediaItem.Builder()
     .setMediaId(id)
-    .setUri(StreamResolver.playUri(this))
+    .setUri(if (source == com.dopdop.bopdop.data.model.Source.LOCAL && streamUrl != null) Uri.parse(streamUrl) else StreamResolver.playUri(this))
     .setCustomCacheKey(id)
     .setMediaMetadata(
         MediaMetadata.Builder()

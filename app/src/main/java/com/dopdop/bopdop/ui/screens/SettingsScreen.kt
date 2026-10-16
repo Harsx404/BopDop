@@ -1,5 +1,21 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.rounded.FilterAlt
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.dopdop.bopdop.data.local.LocalMusic
+import com.dopdop.bopdop.ui.Sheet
+import com.dopdop.bopdop.ui.refreshRates
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -110,6 +126,16 @@ fun SettingsScreen() {
                 ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
                     LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
                 }
+                ToggleRow(Icons.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
+                    LibraryStore.updateSettings { it.copy(normalize = !it.normalize) }
+                }
+                ToggleRow(Icons.Rounded.VolumeOff, "Skip silence", "Trims gaps of silence inside and between tracks.", s.skipSilence) {
+                    LibraryStore.updateSettings { it.copy(skipSilence = !it.skipSilence) }
+                }
+                RowHead(Icons.Rounded.AutoAwesome, "Automix", "Blends each song into the next. Albums that flow track-to-track stay gapless.")
+                ChipRow(listOf(0, 3, 6, 9, 12), s.crossfadeSec, { if (it == 0) "Off" else "$it s" }) { sec -> LibraryStore.updateSettings { it.copy(crossfadeSec = sec) } }
+                RowHead(Icons.Rounded.Tune, "Output precision", if (s.floatOutput) "Sends 32-bit float to Android's mixer: more headroom after the EQ and leveling." else "16-bit PCM, the standard output.")
+                Segmented(listOf("16-bit PCM", "32-bit float"), if (s.floatOutput) 1 else 0) { i -> LibraryStore.updateSettings { it.copy(floatOutput = i == 1) } }
                 Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.EQ) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconBadge(Icons.Rounded.GraphicEq)
                     Spacer(Modifier.width(14.dp))
@@ -123,6 +149,27 @@ fun SettingsScreen() {
                 }
                 ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
                     LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
+                }
+                val pipe by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
+                NavRow(Icons.Rounded.Insights, "Audio pipeline", if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
+                    app.sheet = Sheet.AudioPipeline
+                }
+            }
+            Group("Local music") {
+                var allowed by remember { mutableStateOf(LocalMusic.hasPermission(ctx)) }
+                val folders by LocalMusic.folders.collectAsState()
+                LaunchedEffect(allowed, s.filterNonMusic) { if (allowed) LocalMusic.refresh(ctx) }
+                val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
+                if (!allowed) {
+                    NavRow(Icons.Rounded.Folder, "Allow music access", "Play songs saved on this phone.") { ask.launch(LocalMusic.permission) }
+                } else {
+                    RowHead(Icons.Rounded.Folder, "Local music folder", s.localFolder ?: "All music folders")
+                    ChipRow(listOf<String?>(null) + folders, s.localFolder, { f -> f?.substringAfterLast('/')?.ifBlank { f } ?: "All" }) { f ->
+                        LibraryStore.updateSettings { it.copy(localFolder = f) }
+                    }
+                }
+                ToggleRow(Icons.Rounded.FilterAlt, "Filter non-music audio", "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds.", s.filterNonMusic) {
+                    LibraryStore.updateSettings { it.copy(filterNonMusic = !it.filterNonMusic) }
                 }
             }
             Group("Music video") {
@@ -152,6 +199,11 @@ fun SettingsScreen() {
                                 .bounceClick { LibraryStore.updateSettings { it.copy(glass = g) } }.padding(vertical = 9.dp),
                         )
                     }
+                }
+                val rates = remember { ctx.refreshRates() }
+                if (rates.size > 1) {
+                    RowHead(Icons.Rounded.Speed, "Refresh rate", if (s.refreshRate == 0) "Auto: Android picks the rate." else "${s.refreshRate} Hz requested. Android may lower it when needed.")
+                    ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
                 }
                 ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
                     LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }
@@ -270,5 +322,50 @@ fun GlassSwitch(on: Boolean) {
     val track by animateColorAsState(if (on) Color(0xFF34C759) else Bop.Ink.copy(alpha = 0.12f), label = "t")
     Box(Modifier.size(52.dp, 32.dp).clip(RoundedCornerShape(50)).background(track)) {
         Box(Modifier.offset(x = x, y = 2.dp).size(28.dp).clip(CircleShape).background(Color.White))
+    }
+}
+
+/** Single-choice pill chips under a [RowHead]. */
+@Composable
+private fun <T> ChipRow(options: List<T>, selected: T, label: (T) -> String, onPick: (T) -> Unit) {
+    FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { o ->
+            val on = o == selected
+            Text(
+                label(o), style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                modifier = Modifier.bounceClick { onPick(o) }.clip(RoundedCornerShape(50))
+                    .background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
+
+/** Mutually exclusive options in one glass track, like the Glass picker. */
+@Composable
+private fun Segmented(options: List<String>, selected: Int, onPick: (Int) -> Unit) {
+    Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "seg")
+            Text(
+                label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text2,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(bg).bounceClick { onPick(i) }.padding(vertical = 9.dp),
+            )
+        }
+    }
+}
+
+/** A row that opens something else. */
+@Composable
+private fun NavRow(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().bounceClick(0.99f, onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconBadge(icon)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = BopType.BodyStrong, color = Bop.Text)
+            Text(sub, style = BopType.Caption, color = Bop.Text2)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Bop.Text3, modifier = Modifier.size(22.dp))
     }
 }

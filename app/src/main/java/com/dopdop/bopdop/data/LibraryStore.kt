@@ -42,11 +42,28 @@ data class Settings(
     val reduceMotion: Boolean = false,
     val showSaavnHome: Boolean = true,
     val videoQuality: VideoQuality = VideoQuality.AUTO,
+    /** Trim gaps of silence inside and between tracks. */
+    val skipSilence: Boolean = false,
+    /** Level every track to the same loudness. */
+    val normalize: Boolean = false,
+    /** Preferred display refresh rate in Hz; 0 leaves it to the system. */
+    val refreshRate: Int = 0,
+    /** Only show music from this folder (MediaStore relative path); null = every folder. */
+    val localFolder: String? = null,
+    /** Hide short clips, voice notes, recordings and system sounds from local music. */
+    val filterNonMusic: Boolean = true,
+    /** Decode to 32-bit float instead of 16-bit PCM. */
+    val floatOutput: Boolean = false,
+    /** Automix: seconds the outgoing and incoming songs overlap; 0 = off. */
+    val crossfadeSec: Int = 0,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
         .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
-        .put("videoQuality", videoQuality.name).put("eq", eq.toJson())
+        .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
+        .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
+        .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec)
+        .put("eq", eq.toJson())
 
     companion object {
         fun fromJson(o: JSONObject?) = if (o == null) Settings() else Settings(
@@ -58,6 +75,13 @@ data class Settings(
             reduceMotion = o.optBoolean("reduceMotion", false),
             showSaavnHome = o.optBoolean("showSaavnHome", true),
             videoQuality = runCatching { VideoQuality.valueOf(o.optString("videoQuality")) }.getOrDefault(VideoQuality.AUTO),
+            skipSilence = o.optBoolean("skipSilence", false),
+            normalize = o.optBoolean("normalize", false),
+            refreshRate = o.optInt("refreshRate", 0),
+            localFolder = o.optString("localFolder").ifEmpty { null },
+            filterNonMusic = o.optBoolean("filterNonMusic", true),
+            floatOutput = o.optBoolean("floatOutput", false),
+            crossfadeSec = o.optInt("crossfadeSec", 0),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

@@ -7,7 +7,7 @@ import org.json.JSONObject
 enum class Source { YTM, SAAVN, LOCAL }
 
 data class Track(
-    /** "yt:<videoId>" or "sv:<saavnId>". */
+    /** "yt:<videoId>", "sv:<saavnId>" or "lc:<MediaStore id>" for a file on this phone. */
     val id: String,
     val title: String,
     val artist: String,
@@ -16,12 +16,16 @@ data class Track(
     val albumId: String? = null,
     val durationSec: Int = 0,
     val artwork: String = "",
-    /** Direct CDN url (JioSaavn only — YouTube urls are resolved at play time). */
+    /** Direct url: JioSaavn's CDN, or a local file's content:// uri. YouTube urls are resolved at play time. */
     val streamUrl: String? = null,
     val bitrate: Int = 0,
     val explicit: Boolean = false,
 ) {
-    val source: Source get() = if (id.startsWith("sv:")) Source.SAAVN else Source.YTM
+    val source: Source get() = when {
+        id.startsWith("sv:") -> Source.SAAVN
+        id.startsWith("lc:") -> Source.LOCAL
+        else -> Source.YTM
+    }
     val rawId: String get() = id.substringAfter(':')
 
     fun toJson(): JSONObject = JSONObject().apply {

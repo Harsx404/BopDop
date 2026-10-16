@@ -17,7 +17,12 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.audio.ToFloatPcmAudioProcessor
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -32,6 +37,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -45,6 +51,9 @@ class PlaybackService : MediaSessionService() {
     private var extending = false
     private val retried = HashSet<String>()
     private var lastTrackId: String? = null
+    private var audioSessionId = C.AUDIO_SESSION_ID_UNSET
+    private lateinit var sources: VideoMediaSourceFactory
+    private lateinit var crossfader: Crossfader
 
     override fun onCreate() {
         super.onCreate()
@@ -58,22 +67,25 @@ class PlaybackService : MediaSessionService() {
             .setCacheKeyFactory { spec -> spec.key ?: spec.uri.getQueryParameter("id") ?: spec.uri.toString() }
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
-        player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(VideoMediaSourceFactory(DefaultMediaSourceFactory(dataSource)))
-            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), true)
-            .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .build()
-        player.addListener(listener)
+        sources = VideoMediaSourceFactory(DefaultMediaSourceFactory(dataSource), DefaultMediaSourceFactory(DefaultDataSource.Factory(this)))
+        // Our own audio session so the equalizer can sit on it from the first note.
+        audioSessionId = androidx.media3.common.util.Util.generateAudioSessionIdV21(this)
+        player = buildPlayer(main = true)
+        crossfader = Crossfader(scope) { buildPlayer(main = false) }
+        crossfader.attach(player)
+        scope.launch {
+            LibraryStore.state.map { it.settings.skipSilence }.distinctUntilChanged().collect { player.skipSilenceEnabled = it }
+        }
+        // The output format is fixed when a player is built: switching precision swaps in a new one.
+        scope.launch {
+            LibraryStore.state.map { it.settings.floatOutput }.distinctUntilChanged().drop(1).collect { rebuildPlayer() }
+        }
         scope.launch {
             LibraryStore.state.map { it.settings.autoplay }.distinctUntilChanged().collect { enabled ->
                 if (enabled) maybeExtendQueue()
             }
         }
-        // Our own audio session so the equalizer can sit on it from the first note.
-        val sessionId = androidx.media3.common.util.Util.generateAudioSessionIdV21(this)
-        player.setAudioSessionId(sessionId)
-        AudioFx.attach(sessionId)
+        AudioFx.attach(audioSessionId)
         scope.launch { AudioFx.state.collect { AudioFx.apply(it) } }
         // Replay: count real listening time, one second at a time.
         scope.launch {
@@ -93,6 +105,71 @@ class PlaybackService : MediaSessionService() {
             .setCallback(SessionCallback)
             .setSessionActivity(open)
             .build()
+    }
+
+    /**
+     * The main player owns audio focus, the notification and the queue. Tail players (Automix's
+     * outgoing song) share its audio session so the equalizer shapes both, and never take focus.
+     */
+    private fun buildPlayer(main: Boolean): ExoPlayer {
+        val float = LibraryStore.settings.floatOutput
+        val leveler = Leveler()
+        if (main) AudioPipeline.leveler = leveler
+        val renderers = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
+                DefaultAudioSink.Builder(context)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessorChain(OutputChain(leveler, float))
+                    .build()
+        }
+        return ExoPlayer.Builder(this, renderers)
+            .setMediaSourceFactory(sources)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MUSIC).build(), main)
+            .setHandleAudioBecomingNoisy(main)
+            .setWakeMode(if (main) C.WAKE_MODE_NETWORK else C.WAKE_MODE_NONE)
+            .build()
+            .also {
+                it.setAudioSessionId(audioSessionId)
+                it.skipSilenceEnabled = LibraryStore.settings.skipSilence
+                if (main) { it.addListener(listener); it.addAnalyticsListener(AudioPipeline.listener) }
+            }
+    }
+
+    /**
+     * Leveler first; silence skipping and speed follow as in the default chain. For 32-bit output
+     * the result is converted to float last, so every stage keeps working and the AudioTrack runs in
+     * float whatever the decoder emits (Android's own AAC/Opus decoders ignore float requests).
+     */
+    private class OutputChain(leveler: Leveler, float: Boolean) : DefaultAudioSink.AudioProcessorChain {
+        private val inner = DefaultAudioSink.DefaultAudioProcessorChain(leveler)
+        private val processors = inner.audioProcessors + listOfNotNull(if (float) ToFloatPcmAudioProcessor() else null)
+        override fun getAudioProcessors(): Array<androidx.media3.common.audio.AudioProcessor> = processors
+        override fun applyPlaybackParameters(playbackParameters: androidx.media3.common.PlaybackParameters) = inner.applyPlaybackParameters(playbackParameters)
+        override fun applySkipSilenceEnabled(skipSilenceEnabled: Boolean) = inner.applySkipSilenceEnabled(skipSilenceEnabled)
+        override fun getMediaDuration(playoutDuration: Long) = inner.getMediaDuration(playoutDuration)
+        override fun getSkippedOutputFrameCount() = inner.getSkippedOutputFrameCount()
+    }
+
+    /** New output precision: carry the queue, position and state over to a freshly built player. */
+    private fun rebuildPlayer() {
+        val old = player
+        crossfader.finish()
+        val items = (0 until old.mediaItemCount).map { old.getMediaItemAt(it) }
+        val next = buildPlayer(main = true)
+        Log.i("PlaybackService", "output precision changed: rebuilt player (float=${LibraryStore.settings.floatOutput})")
+        next.repeatMode = old.repeatMode
+        next.shuffleModeEnabled = old.shuffleModeEnabled
+        if (items.isNotEmpty()) {
+            next.setMediaItems(items, old.currentMediaItemIndex, old.currentPosition)
+            next.prepare()
+        }
+        next.playWhenReady = old.playWhenReady
+        old.removeListener(listener)
+        old.removeAnalyticsListener(AudioPipeline.listener)
+        session?.player = next
+        player = next
+        crossfader.attach(next)
+        old.release()
     }
 
     /** `bopdop://play?...` → real CDN url, carrying the User-Agent the url is bound to. */
@@ -225,6 +302,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        crossfader.release()
         scope.cancel()
         AudioFx.release()
         session?.run {

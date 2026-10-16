@@ -29,6 +29,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
@@ -36,6 +38,8 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -237,6 +241,29 @@ fun LocalCollectionScreen(id: String) {
             onMore = { LibraryStore.clearHistory(); app.toast("History cleared") },
             empty = "Start listening — your history shows up here.",
         )
+        "device" -> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val tracks by com.dopdop.bopdop.data.local.LocalMusic.tracks.collectAsState()
+            LaunchedEffect(lib.settings.localFolder, lib.settings.filterNonMusic) { com.dopdop.bopdop.data.local.LocalMusic.refresh(ctx) }
+            CollectionLayout(
+                title = "On this device", subtitle = lib.settings.localFolder ?: "All music folders", meta = songs(tracks.size),
+                artUrl = tracks.firstOrNull()?.artwork, tracks = tracks, context = "On this device", numbered = false,
+                art = { m -> GradientArt(m, Icons.Rounded.PhoneAndroid, listOf(Color(0xFFE0B98A), Color(0xFFB07A45))) },
+                empty = "No music found on this phone. Pick a folder in Settings › Local music.",
+            )
+        }
+        "cached" -> {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val tracks by produceState(emptyList<com.dopdop.bopdop.data.model.Track>(), lib.history.size) {
+                value = com.dopdop.bopdop.playback.CachedSongs.list(ctx)
+            }
+            CollectionLayout(
+                title = "Cached songs", subtitle = "Plays offline", meta = songs(tracks.size),
+                artUrl = tracks.firstOrNull()?.artwork, tracks = tracks, context = "Cached songs", numbered = false,
+                art = { m -> GradientArt(m, Icons.Rounded.OfflinePin, listOf(Color(0xFF8FC7C2), Color(0xFF3F8A85))) },
+                empty = "Songs you play in full are kept here and play without data.",
+            )
+        }
         else -> {
             val p = lib.playlists.firstOrNull { it.id == id }
             if (p == null) {

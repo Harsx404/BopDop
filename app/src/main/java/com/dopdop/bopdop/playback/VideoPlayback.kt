@@ -74,9 +74,16 @@ internal object VideoResolver {
 }
 
 @OptIn(UnstableApi::class)
-internal class VideoMediaSourceFactory(private val delegate: MediaSource.Factory) : MediaSource.Factory by delegate {
+internal class VideoMediaSourceFactory(
+    private val delegate: MediaSource.Factory,
+    /** Files on the phone: read directly, never through the stream cache. */
+    private val local: MediaSource.Factory,
+) : MediaSource.Factory by delegate {
+    private fun sourceFor(item: MediaItem): MediaSource =
+        if (item.localConfiguration?.uri?.scheme in LOCAL_SCHEMES) local.createMediaSource(item) else delegate.createMediaSource(item)
+
     override fun createMediaSource(mediaItem: MediaItem): MediaSource {
-        val id = mediaItem.videoId ?: return delegate.createMediaSource(mediaItem)
+        val id = mediaItem.videoId ?: return sourceFor(mediaItem)
         val songAt = mediaItem.songStartInVideo
         // The song's stream, but carrying this item's identity: the merged source reports the first
         // child's item as current, and without the video extras the app would think video ended.
@@ -90,7 +97,7 @@ internal class VideoMediaSourceFactory(private val delegate: MediaSource.Factory
             val picture = FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
                 if (songAt > 0) ClippingMediaSource(it, songAt * 1000, C.TIME_END_OF_SOURCE) else it
             }
-            return MergingMediaSource(true, false, delegate.createMediaSource(song), picture)
+            return MergingMediaSource(true, false, sourceFor(song), picture)
         }
         if (!mediaItem.hasSeparateVideoAudio) return delegate.createMediaSource(mediaItem)
         val audio = mediaItem.buildUpon()
@@ -99,3 +106,5 @@ internal class VideoMediaSourceFactory(private val delegate: MediaSource.Factory
         return MergingMediaSource(true, true, delegate.createMediaSource(mediaItem), delegate.createMediaSource(audio))
     }
 }
+
+private val LOCAL_SCHEMES = setOf("content", "file")

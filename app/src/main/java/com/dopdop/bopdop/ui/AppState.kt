@@ -26,6 +26,7 @@ sealed interface Sheet {
     data class NewPlaylist(val tracks: List<Track>) : Sheet
     data class RenamePlaylist(val id: String, val name: String) : Sheet
     data object SleepTimer : Sheet
+    data object AudioPipeline : Sheet
 }
 
 object Routes {
