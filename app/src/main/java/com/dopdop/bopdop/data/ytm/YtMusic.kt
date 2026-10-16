@@ -10,9 +10,14 @@ import com.dopdop.bopdop.data.model.SearchResults
 import com.dopdop.bopdop.data.model.Shelf
 import com.dopdop.bopdop.data.model.ShelfStyle
 import com.dopdop.bopdop.data.model.Track
+import com.dopdop.bopdop.data.model.Source
+import com.dopdop.bopdop.data.model.MusicVideoMatch
+import com.dopdop.bopdop.data.model.VideoSegment
+import com.dopdop.bopdop.data.model.musicVideoMatchScore
 import com.dopdop.bopdop.data.net.Http
 import com.dopdop.bopdop.data.net.TtlCache
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.json.JSONObject
@@ -240,6 +245,72 @@ object YtMusic {
     suspend fun searchSongs(q: String): List<Track> {
         val d = post("search", JSONObject().put("query", q).put("params", java.net.URLDecoder.decode(FILTER_SONGS, "UTF-8")))
         return items(d).tracks()
+    }
+
+    /** Prefer YouTube Music's explicit Song/Video counterpart, then a checked video search. */
+    /**
+     * The official video for a song. YouTube Music's own song/video counterpart wins, with its
+     * timing map so the switch lands on the same bar; otherwise only an official music video
+     * (never a lyric card or fan upload) whose cut runs closest to the song.
+     */
+    suspend fun musicVideoFor(song: Track): MusicVideoMatch? {
+        fun videoType(renderer: JSONObject) = renderer.optJSONObject("navigationEndpoint")?.optJSONObject("watchEndpoint")
+            ?.optJSONObject("watchEndpointMusicSupportedConfigs")?.optJSONObject("watchEndpointMusicConfig")?.optString("musicVideoType")
+        if (song.source == Source.YTM) {
+            val next = try {
+                post("next", JSONObject().put("videoId", song.rawId).put("isAudioOnly", true)
+                    .put("enablePersistentPlaylistPanel", true))
+            } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+            for (node in walk(next)) {
+                val wrapper = node.optJSONObject("playlistPanelVideoWrapperRenderer")
+                val primary = wrapper?.optJSONObject("primaryRenderer")?.optJSONObject("playlistPanelVideoRenderer")
+                if (primary?.optString("videoId") == song.rawId) {
+                    if (videoType(primary) == "MUSIC_VIDEO_TYPE_OMV") return MusicVideoMatch(song.rawId)
+                    val counterpartNode = wrapper.optJSONArray("counterpart")?.optJSONObject(0)
+                    val counterpart = counterpartNode?.optJSONObject("counterpartRenderer")?.optJSONObject("playlistPanelVideoRenderer")
+                    if (counterpart != null && videoType(counterpart) != "MUSIC_VIDEO_TYPE_ATV") {
+                        counterpart.optString("videoId").takeIf { it.isNotBlank() }?.let {
+                            return MusicVideoMatch(it, segments(counterpartNode.optJSONObject("segmentMap")))
+                        }
+                    }
+                }
+                val current = node.optJSONObject("playlistPanelVideoRenderer") ?: continue
+                if (current.optString("videoId") == song.rawId &&
+                    videoType(current) == "MUSIC_VIDEO_TYPE_OMV") return MusicVideoMatch(song.rawId)
+            }
+        }
+        val query = "${song.title} ${song.artist.split(',', '&').first().trim()}"
+        val official = HashSet<String>()
+        val candidates = mutableListOf<Track>()
+        // Videos tab first, then the mixed results, which surface the official video when the tab is crowded with uploads.
+        for (params in listOf("EgWKAQIQAWoMEA4QChADEAQQCRAF", null)) {
+            val results = try {
+                post("search", JSONObject().put("query", query).apply { params?.let { put("params", it) } })
+            } catch (e: CancellationException) { throw e } catch (_: Exception) { continue }
+            for (node in walk(results)) {
+                val r = node.optJSONObject("musicResponsiveListItemRenderer") ?: continue
+                val type = walk(r).firstNotNullOfOrNull { it.optJSONObject("watchEndpointMusicConfig")?.optString("musicVideoType")?.ifEmpty { null } }
+                val id = r.optJSONObject("playlistItemData")?.optString("videoId")?.ifEmpty { null }
+                if (type == "MUSIC_VIDEO_TYPE_OMV" && id != null) official += id
+            }
+            candidates += items(results).tracks()
+        }
+        return candidates.distinctBy { it.rawId }.filter { it.rawId in official }
+            .map { it to musicVideoMatchScore(song, it) }
+            .filter { it.second > 0 }.maxByOrNull { it.second }?.first?.let { MusicVideoMatch(it.rawId) }
+    }
+
+    private fun segments(map: JSONObject?): List<VideoSegment> {
+        val list = map?.optJSONArray("segment") ?: return emptyList()
+        return (0 until list.length()).mapNotNull { i ->
+            val s = list.optJSONObject(i) ?: return@mapNotNull null
+            fun ms(key: String) = s.optString(key).toLongOrNull()
+            VideoSegment(
+                songStartMs = ms("primaryVideoStartTimeMilliseconds") ?: return@mapNotNull null,
+                videoStartMs = ms("counterpartVideoStartTimeMilliseconds") ?: return@mapNotNull null,
+                durationMs = ms("durationMilliseconds")?.takeIf { it > 0 } ?: return@mapNotNull null,
+            )
+        }.sortedBy { it.songStartMs }
     }
 
     suspend fun search(q: String): SearchResults = coroutineScope {

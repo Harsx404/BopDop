@@ -71,6 +71,7 @@ object StreamResolver {
 
     /** Blocking — called on ExoPlayer's loader thread. */
     fun resolve(uri: Uri): ResolvedStream {
+        if (uri.authority == "watch") return VideoResolver.resolve(uri)
         val id = uri.getQueryParameter("id") ?: throw IOException("bad uri")
         cache[id]?.let { if (it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000) return it }
         val s = when {
@@ -128,4 +129,6 @@ fun MediaItem.toTrack(): Track? = mediaMetadata.extras?.getString(EXTRA_TRACK)?.
 }
 
 /** Items arriving from a MediaController lose their uri; rebuild them from the embedded track. */
-fun MediaItem.withPlaybackUri(): MediaItem = toTrack()?.toMediaItem() ?: this
+fun MediaItem.withPlaybackUri(): MediaItem = toTrack()?.toMediaItem()?.let { audio ->
+    videoId?.let { audio.forVideo(it, hasSeparateVideoAudio, videoCap, songStartInVideo) } ?: audio
+} ?: this

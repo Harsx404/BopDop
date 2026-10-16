@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.HighQuality
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.BuildConfig
 import com.dopdop.bopdop.data.GlassLevel
 import com.dopdop.bopdop.data.LibraryStore
+import com.dopdop.bopdop.data.VideoQuality
 import com.dopdop.bopdop.data.account.AccountStore
 import com.dopdop.bopdop.data.ytm.YtMusic
 import com.dopdop.bopdop.ui.Routes
@@ -121,6 +123,20 @@ fun SettingsScreen() {
                 }
                 ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
                     LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
+                }
+            }
+            Group("Music video") {
+                RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.")
+                FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    VideoQuality.entries.forEach { q ->
+                        val on = s.videoQuality == q
+                        Text(
+                            q.label, style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                            modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(videoQuality = q) } }
+                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                    }
                 }
             }
             Group("Look & feel") {

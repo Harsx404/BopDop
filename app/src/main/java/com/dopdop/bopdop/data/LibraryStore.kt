@@ -26,6 +26,11 @@ import java.util.UUID
 
 enum class GlassLevel(val label: String) { CLEAR("Clear"), REGULAR("Regular"), FROSTED("Frosted") }
 
+/** Highest music-video picture to stream; [AUTO] follows the connection. */
+enum class VideoQuality(val label: String, val maxHeight: Int) {
+    AUTO("Auto", 0), UHD("4K", 2160), QHD("1440p", 1440), FHD("1080p", 1080), HD("720p", 720), SD("480p", 480),
+}
+
 data class Settings(
     /** Play YouTube Music tracks from JioSaavn's 320 kbps copy when the same recording exists there. */
     val hiRes: Boolean = true,
@@ -36,10 +41,12 @@ data class Settings(
     val cacheMb: Int = 1024,
     val reduceMotion: Boolean = false,
     val showSaavnHome: Boolean = true,
+    val videoQuality: VideoQuality = VideoQuality.AUTO,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
-        .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome).put("eq", eq.toJson())
+        .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
+        .put("videoQuality", videoQuality.name).put("eq", eq.toJson())
 
     companion object {
         fun fromJson(o: JSONObject?) = if (o == null) Settings() else Settings(
@@ -50,6 +57,7 @@ data class Settings(
             cacheMb = o.optInt("cacheMb", 1024),
             reduceMotion = o.optBoolean("reduceMotion", false),
             showSaavnHome = o.optBoolean("showSaavnHome", true),
+            videoQuality = runCatching { VideoQuality.valueOf(o.optString("videoQuality")) }.getOrDefault(VideoQuality.AUTO),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

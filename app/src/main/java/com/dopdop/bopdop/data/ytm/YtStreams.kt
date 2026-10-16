@@ -6,6 +6,9 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import com.dopdop.bopdop.playback.PictureOption
+import com.dopdop.bopdop.playback.VideoQualityPolicy
+import com.dopdop.bopdop.playback.choosePicture
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.downloader.Downloader
@@ -24,6 +27,8 @@ data class ResolvedStream(
     val expiresAtMs: Long,
     val contentLength: Long = 0,
 )
+
+data class ResolvedVideo(val video: ResolvedStream, val audio: ResolvedStream?, val width: Int, val height: Int)
 
 /**
  * YouTube audio stream resolution. Phones fetch googlevideo directly (no proxy),
@@ -87,6 +92,59 @@ object YtStreams {
     /** A direct-client url died mid-stream: stop trusting direct clients for a while. */
     fun reportDirectFailure() { directBlockedUntil = System.currentTimeMillis() + 20 * 60_000L }
 
+    /** Video and its original soundtrack, resolved together so their timestamps match. [cap] is the tallest picture wanted. */
+    fun resolveVideo(videoId: String, cap: Int): ResolvedVideo {
+        if (System.currentTimeMillis() > directBlockedUntil) {
+            for (i in CLIENTS.indices.sortedBy { if (it == preferred) -1 else it }) {
+                try {
+                    val c = CLIENTS[i]
+                    val formats = playerResponse(c, videoId).optJSONObject("streamingData")
+                        ?.optJSONArray("adaptiveFormats") ?: throw IOException("no video formats")
+                    val all = (0 until formats.length()).mapNotNull { formats.optJSONObject(it) }
+                        .filter { it.optString("url").isNotEmpty() }
+                    val videos = all.filter { it.optString("mimeType").startsWith("video/") }
+                    val picture = choosePicture(videos.map {
+                        PictureOption(it, it.optString("mimeType"), it.optInt("width"), it.optInt("height"), it.optInt("fps"))
+                    }, cap) { VideoQualityPolicy.canDecode(it.mimeType, it.width, it.height, it.fps) } ?: throw IOException("no direct video")
+                    val sound = all.filter { it.optString("mimeType").startsWith("audio/") && !it.optBoolean("isDrc") &&
+                        (it.optJSONObject("audioTrack")?.optBoolean("audioIsDefault", true) != false) }
+                        .maxByOrNull { it.optInt("bitrate") } ?: throw IOException("no video soundtrack")
+                    val video = directStream(picture, c)
+                    val audio = directStream(sound, c)
+                    if (!probe(video) || !probe(audio)) throw IOException("video stream refused")
+                    preferred = i
+                    return ResolvedVideo(video, audio, picture.optInt("width"), picture.optInt("height"))
+                } catch (e: Exception) {
+                    Log.w(TAG, "${CLIENTS[i].name} video failed for $videoId: ${e.message}")
+                }
+            }
+        }
+        check(newPipeReady)
+        val info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=$videoId")
+        val videos = (info.videoOnlyStreams + info.videoStreams).filter { it.isUrl && it.content.isNotBlank() }
+        val best = choosePicture(videos.map {
+            // NewPipe gives the bare codec ("avc1.64001f"); shape it like YouTube's mimeType.
+            PictureOption(it, "video; codecs=\"${it.codec ?: if (it.format?.mimeType?.contains("mp4") == true) "avc1" else ""}\"", it.width, it.height, it.fps)
+        }, cap) { VideoQualityPolicy.canDecode(it.mimeType, it.width, it.height, it.fps) } ?: throw IOException("No playable music video")
+        val sound = if (best.isVideoOnly) info.audioStreams.filter { it.isUrl && it.content.isNotBlank() }
+            .maxByOrNull { it.averageBitrate } ?: throw IOException("No video soundtrack") else null
+        val video = ResolvedStream(best.content, NP_UA, best.bitrate / 1000, "Video", "PoToken", expiresAt(best.content))
+        val audio = sound?.let { ResolvedStream(it.content, NP_UA, it.averageBitrate, "Audio", "PoToken", expiresAt(it.content)) }
+        if (!probe(video) || (audio != null && !probe(audio))) throw IOException("Music video unavailable")
+        return ResolvedVideo(video, audio, best.width, best.height)
+    }
+
+    private fun expiresAt(url: String) = Regex("[?&]expire=(\\d+)").find(url)?.groupValues?.get(1)?.toLongOrNull()?.times(1000)
+        ?: (System.currentTimeMillis() + 3 * 3600_000L)
+
+    private fun directStream(format: JSONObject, client: Client): ResolvedStream {
+        val mime = format.optString("mimeType")
+        val url = format.getString("url")
+        return ResolvedStream(url, client.ua, format.optInt("bitrate") / 1000,
+            if (mime.contains("opus")) "Opus" else if (mime.contains("mp4a")) "AAC" else "Video",
+            client.name, expiresAt(url), format.optString("contentLength").toLongOrNull() ?: 0L)
+    }
+
     /** Reads 1 KB from mid-file; the first ~1 MB is served to anyone, past it a gated url answers 403. */
     private fun probe(s: ResolvedStream): Boolean = runCatching {
         val len = s.contentLength
@@ -96,7 +154,7 @@ object YtStreams {
         Http.client.newCall(req).execute().use { it.code == 206 || it.code == 200 || it.code == 416 }
     }.getOrDefault(false)
 
-    private fun innertube(c: Client, videoId: String): ResolvedStream {
+    private fun playerResponse(c: Client, videoId: String): JSONObject {
         val client = JSONObject().put("hl", "en").put("gl", YtMusic.gl).put("clientName", c.name).put("clientVersion", c.version)
         c.extra.forEach { (k, v) -> client.put(k, v) }
         YtMusic.visitorData?.let { client.put("visitorData", it) }
@@ -115,6 +173,11 @@ object YtStreams {
         }
         val ps = p.optJSONObject("playabilityStatus")
         if (ps?.optString("status") != "OK") throw IOException(ps?.optString("reason")?.ifEmpty { null } ?: ps?.optString("status") ?: "unplayable")
+        return p
+    }
+
+    private fun innertube(c: Client, videoId: String): ResolvedStream {
+        val p = playerResponse(c, videoId)
         val fmts = p.optJSONObject("streamingData")?.optJSONArray("adaptiveFormats") ?: throw IOException("no formats")
         var best: JSONObject? = null
         for (i in 0 until fmts.length()) {

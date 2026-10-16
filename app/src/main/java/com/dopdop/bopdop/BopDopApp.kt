@@ -18,6 +18,7 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.data.account.AccountStore.init(this)
         com.dopdop.bopdop.playback.StreamResolver.init(this)
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
+        com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)

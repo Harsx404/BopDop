@@ -61,6 +61,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -92,6 +93,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.model.formatDuration
@@ -131,6 +135,19 @@ fun NowPlaying(app: AppState) {
     val washDeep by animateColorAsState(palette.washDeep, tween(900), label = "washDeep")
     val haze = rememberHazeState()
     val scope = rememberCoroutineScope()
+    val video by PlayerConnection.video.collectAsState()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) PlayerConnection.setVideoEnabled(false)
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); PlayerConnection.setVideoEnabled(false) }
+    }
+    LaunchedEffect(app.nowPlayingPage) {
+        if (app.nowPlayingPage != NowPlayingPage.ART) PlayerConnection.setVideoEnabled(false)
+    }
+    LaunchedEffect(video.error) { video.error?.let(app::toast) }
     val dim by animateFloatAsState(
         when (app.nowPlayingPage) { NowPlayingPage.ART -> 0f; NowPlayingPage.LYRICS -> 0.42f; NowPlayingPage.QUEUE -> 0.62f }, tween(420), label = "dim",
     )
@@ -219,6 +236,12 @@ fun NowPlaying(app: AppState) {
                             liquidBlur(prog)
                         },
                     ) { art -> KenBurnsArt(art) }
+                    // The music video takes the cover's place; it fades with the swipe like the art does.
+                    AnimatedVisibility(video.active, enter = fadeIn(tween(500)), exit = fadeOut(tween(300))) {
+                        MusicVideoHero(video, Modifier.fillMaxSize().graphicsLayer {
+                            if (swipeFrom == t.id) alpha = 1f - (kotlin.math.abs(swipe.value) / w).coerceIn(0f, 1f)
+                        })
+                    }
                     if (incoming != null) Artwork(
                         incoming,
                         Modifier.fillMaxSize().graphicsLayer {
@@ -373,10 +396,14 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
     val ctxLabel by PlayerConnection.context.collectAsState()
     val lib by LibraryStore.state.collectAsState()
     val quality by StreamResolver.quality.collectAsState()
+    val video by PlayerConnection.video.collectAsState()
     val liked = t.id in lib.likedIds
     val onArt = app.nowPlayingPage == NowPlayingPage.ART
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 14.dp)) {
+        AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            VideoModeSwitch(video, haze, Modifier.padding(bottom = 18.dp))
+        }
         AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Row(Modifier.padding(bottom = 18.dp), verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
@@ -454,10 +481,16 @@ private fun SideDrop(next: Boolean, haze: HazeState, onLong: () -> Unit, onClick
 private fun ProgressPill(t: Track, q: StreamQuality?) {
     val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(200) } }
     val playing by PlayerConnection.isPlaying.collectAsState()
+    val video by PlayerConnection.video.collectAsState()
     WavySeekBar(
         positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
         onSeek = { PlayerConnection.seekTo(it) },
-        caption = q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
+        caption = if (video.active) {
+            // Sound first (where it comes from), then the picture.
+            val res = when { video.height >= 2160 -> "4K"; video.height >= 1440 -> "1440p"; video.height > 0 -> "${video.height}p"; else -> "Video" }
+            val sound = if (video.songAudio) q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label } else "Video audio"
+            listOfNotNull(sound, res).joinToString(" · ")
+        } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
     )
 }
 
