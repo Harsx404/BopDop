@@ -15,9 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,11 +30,11 @@ import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.data.DailyMix
 import com.dopdop.bopdop.data.DailyMixes
 import com.dopdop.bopdop.data.MusicRepository
+import com.dopdop.bopdop.data.model.Shelf
+import com.dopdop.bopdop.ui.components.ShelfSkeleton
 import com.dopdop.bopdop.data.together.Together
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.LocalApp
-import com.dopdop.bopdop.ui.Routes
-import com.dopdop.bopdop.ui.Sheet
 import com.dopdop.bopdop.ui.components.ErrorState
 import com.dopdop.bopdop.ui.components.Load
 import com.dopdop.bopdop.ui.components.SectionHeader
@@ -47,7 +45,10 @@ import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 
-/** Discovery tab: your daily mixes, ways to listen with friends or bring music in, and moods & genres. */
+/**
+ * Discovery tab — music you haven't found yet: daily mixes made from your taste, what's charting,
+ * what's just out, moods & genres, and listening with friends. Your own music lives in Library.
+ */
 @Composable
 fun ExploreScreen() {
     val app = LocalApp.current
@@ -55,8 +56,10 @@ fun ExploreScreen() {
     val room by Together.state.collectAsState()
     LaunchedEffect(Unit) { DailyMixes.refresh() }
     val moods = rememberLoad("moods", 6 * 3600_000L) { MusicRepository.moods() }
+    val charts = rememberLoad("charts", 3 * 3600_000L) { MusicRepository.charts() }
+    val fresh = rememberLoad("explore", 3 * 3600_000L) { MusicRepository.explore() }
 
-    LargeTitleScaffold(title = "Explore", eyebrow = "Mixes, moods & friends") {
+    LargeTitleScaffold(title = "Explore", eyebrow = "Find something new") {
         item(key = "mixes") {
             Column {
                 SectionHeader("Your daily mixes")
@@ -70,24 +73,15 @@ fun ExploreScreen() {
                 }
             }
         }
-        item(key = "actions") {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionTile(
-                        "Listen Together", if (room.live) "In room ${room.code}" else "Same song, same second", Icons.Rounded.Groups,
-                        listOf(Color(0xFFB9A6E8), Color(0xFF7B63C2)), Modifier.weight(1f),
-                    ) { app.nav.navigate("together?code=") }
-                    ActionTile(
-                        "Import playlist", "From Spotify or YouTube", Icons.Rounded.PlaylistAdd,
-                        listOf(Color(0xFF8FD1B0), Color(0xFF3E9A72)), Modifier.weight(1f),
-                    ) { app.sheet = Sheet.ImportPlaylist }
-                }
-                ActionTile(
-                    "Your Replay story", "Your listening, as cards you can share", Icons.Rounded.AutoAwesome,
-                    listOf(Color(0xFFF2B37E), Color(0xFFD9627A)), Modifier.fillMaxWidth(),
-                ) { app.nav.navigate(Routes.WRAPPED) }
-            }
+        item(key = "together") {
+            ActionTile(
+                "Listen Together", if (room.live) "In room ${room.code}" else "Same song, same second, with friends", Icons.Rounded.Groups,
+                listOf(Color(0xFFB9A6E8), Color(0xFF7B63C2)), Modifier.padding(horizontal = 20.dp, vertical = 14.dp).fillMaxWidth(),
+            ) { app.nav.navigate("together?code=") }
         }
+        // What's charting, then what's new: a couple of rows each, the rest a tap away.
+        discoveryShelves(charts.state, "charts", 2)
+        discoveryShelves(fresh.state, "fresh", 2) { !it.title.contains("mood", ignoreCase = true) && !it.title.contains("genre", ignoreCase = true) }
         item(key = "moodsHeader") { SectionHeader("Moods & genres") }
         when (val s = moods.state) {
             is Load.Loading -> item(key = "moodsLoading") {
@@ -107,6 +101,17 @@ fun ExploreScreen() {
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.discoveryShelves(
+    state: Load<List<Shelf>>, key: String, count: Int, keep: (Shelf) -> Boolean = { true },
+) {
+    when (state) {
+        is Load.Loading -> item(key = "${key}Loading") { ShelfSkeleton() }
+        is Load.Failed -> {}
+        is Load.Ready -> state.value.filter { (it.tracks.size + it.cards.size) >= 3 && keep(it) }.take(count)
+            .forEachIndexed { i, sh -> shelf(sh, "$key$i${sh.title}") }
     }
 }
 

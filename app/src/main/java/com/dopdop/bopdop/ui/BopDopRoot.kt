@@ -208,7 +208,6 @@ private fun AppNavHost(app: AppState) {
             MoodScreen(e.arguments!!.getString("title")!!, e.arguments!!.getString("params")!!)
         }
         composable(Routes.SEE_ALL, listOf(str("key"))) { e -> SeeAllScreen(e.arguments!!.getString("key")!!) }
-        composable(Routes.REPLAY) { com.dopdop.bopdop.ui.screens.ReplayScreen() }
         composable(Routes.SIGN_IN) { com.dopdop.bopdop.ui.screens.SignInScreen() }
         composable(Routes.SHARE_QR, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ShareQrScreen(e.arguments!!.getString("key")!!) }
         composable(Routes.IMPORT, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ImportScreen(e.arguments!!.getString("key")!!) }

@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
@@ -55,7 +54,6 @@ import com.dopdop.bopdop.ui.Sheet
 import com.dopdop.bopdop.ui.components.Artwork
 import com.dopdop.bopdop.ui.components.GlassIconButton
 import com.dopdop.bopdop.ui.components.SectionHeader
-import com.dopdop.bopdop.ui.components.TrackTile
 import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.glass.glassEdges
 import com.dopdop.bopdop.ui.glass.glassLite
@@ -79,12 +77,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.PlaylistAdd
 
 @Composable
 fun LibraryScreen() {
     val app = LocalApp.current
     val lib by LibraryStore.state.collectAsState()
-    val current by PlayerConnection.current.collectAsState()
     val savedCollections = lib.saved.filter { it.kind == CardKind.ALBUM || it.kind == CardKind.PLAYLIST }
     val following = lib.saved.filter { it.kind == CardKind.ARTIST }
 
@@ -101,53 +99,39 @@ fun LibraryScreen() {
     ) {
         item(key = "liked") { LikedHero() }
 
-        item(key = "replay") { ReplayBanner { app.nav.navigate(com.dopdop.bopdop.ui.Routes.REPLAY) } }
-
-        if (account != null) item(key = "ytm") { YtMusicLibrary() }
-
+        // Everything you've listened to, kept, or have on the phone: four doors.
         item(key = "shortcuts") {
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Shortcut(
-                    "Recently Played", songs(lib.history.size), Icons.Rounded.History, Modifier.weight(1f),
-                    art = { m -> MiniCollage(lib.history.map { it.artwork }.distinct().take(4), m) },
-                ) { app.openLocal("history") }
-                Shortcut(
-                    "Following", if (following.isEmpty()) "No artists yet" else "${following.size} artists", Icons.Rounded.Person, Modifier.weight(1f),
-                    art = { m -> AvatarStack(following.map { it.artwork }.take(3), m) },
-                ) { if (following.isNotEmpty()) app.seeAll("Following", following) else app.goTab(com.dopdop.bopdop.ui.Routes.EXPLORE) }
-            }
-        }
-
-        item(key = "offline") { DeviceShortcuts() }
-
-        if (lib.history.isNotEmpty()) item(key = "recent") {
-            val recent = lib.history.take(14)
-            Column {
-                SectionHeader("Recently played", action = "See all") { app.openLocal("history") }
-                LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(recent.size) { i ->
-                        val t = recent[i]
-                        TrackTile(t, playing = current?.id == t.id, width = 124.dp, onLongClick = { app.sheet = Sheet.TrackOptions(t) }) {
-                            PlayerConnection.play(recent, i, "Recently played")
-                        }
-                    }
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Shortcut(
+                        "Recently played", songs(lib.history.size), Icons.Rounded.History, Modifier.weight(1f),
+                        art = { m -> MiniCollage(lib.history.map { it.artwork }.distinct().take(4), m) },
+                    ) { app.openLocal("history") }
+                    ReplayShortcut(Modifier.weight(1f)) { app.nav.navigate(com.dopdop.bopdop.ui.Routes.WRAPPED) }
                 }
+                DeviceShortcuts()
             }
         }
 
         item(key = "plHeader") { SectionHeader("Your playlists", action = "New") { app.sheet = Sheet.NewPlaylist(emptyList()) } }
-        val tiles: List<Any> = listOf<Any>("new") + lib.playlists
+        val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists
         val rows = tiles.chunked(2)
         items(rows.size, key = { "pl$it" }) { r ->
             Row(Modifier.padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 rows[r].forEach { item ->
                     Box(Modifier.weight(1f)) {
-                        if (item is UserPlaylist) PlaylistCard(item) else NewPlaylistCard { app.sheet = Sheet.NewPlaylist(emptyList()) }
+                        when (item) {
+                            is UserPlaylist -> PlaylistCard(item)
+                            "import" -> NewPlaylistCard(Icons.Rounded.PlaylistAdd, "Import", "From Spotify or YouTube") { app.sheet = Sheet.ImportPlaylist }
+                            else -> NewPlaylistCard(Icons.Rounded.Add, "New playlist", "Make it yours") { app.sheet = Sheet.NewPlaylist(emptyList()) }
+                        }
                     }
                 }
                 if (rows[r].size == 1) Spacer(Modifier.weight(1f))
             }
         }
+
+        if (account != null) item(key = "ytm") { YtMusicLibrary() }
 
         if (savedCollections.isNotEmpty()) {
             item(key = "savedHeader") { SectionHeader("Saved albums & playlists") }
@@ -194,7 +178,7 @@ private fun DeviceShortcuts() {
         allowed = granted
         if (granted) app.openLocal("device") else app.toast("Allow music access to play songs on this phone")
     }
-    Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Shortcut(
             "On this device", if (!allowed) "Tap to allow" else songs(local.size), Icons.Rounded.PhoneAndroid, Modifier.weight(1f),
             art = { m -> GradientArt(m, Icons.Rounded.PhoneAndroid, listOf(Color(0xFFE0B98A), Color(0xFFB07A45))) },
@@ -297,21 +281,6 @@ private fun MiniCollage(arts: List<String>, modifier: Modifier) {
     } else Collage(arts, modifier, 18.dp)
 }
 
-/** Overlapping circular artist avatars. */
-@Composable
-private fun AvatarStack(arts: List<String>, modifier: Modifier) {
-    Box(modifier, contentAlignment = Alignment.CenterStart) {
-        if (arts.isEmpty()) {
-            Box(Modifier.size(56.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(0xFFB4C8E4), Color(0xFF7E95C2)))), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Person, null, tint = Color.White, modifier = Modifier.size(26.dp))
-            }
-        }
-        arts.forEachIndexed { i, a ->
-            Artwork(a, Modifier.offset(x = (i * 12).dp).size(40.dp).border(2.dp, Color.White, CircleShape), circle = true, size = 160)
-        }
-    }
-}
-
 /** Square collage with a frosted caption bar floating inside the bottom edge. */
 @Composable
 private fun PlaylistCard(p: UserPlaylist) {
@@ -351,52 +320,34 @@ private fun CaptionCard(title: String, sub: String, onLong: () -> Unit, onClick:
 }
 
 @Composable
-private fun NewPlaylistCard(onClick: () -> Unit) {
+private fun NewPlaylistCard(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Column(
         Modifier.fillMaxWidth().aspectRatio(1f).bounceClick(0.97f, onClick = onClick).glassLite(shape, alpha = 0.45f, shadow = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Ink), contentAlignment = Alignment.Center) {
-            Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(28.dp))
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(12.dp))
-        Text("New playlist", style = BopType.BodyStrong, color = Bop.Text)
-        Text("Make it yours", style = BopType.Caption, color = Bop.Text2)
+        Text(title, style = BopType.BodyStrong, color = Bop.Text)
+        Text(sub, style = BopType.Caption, color = Bop.Text2)
     }
 }
 
-/** Spotify-Wrapped-style entry: your top songs and listening trend. */
+/** Replay: your listening told as stories. Shows your most-played covers once there are some. */
 @Composable
-private fun ReplayBanner(onClick: () -> Unit) {
+private fun ReplayShortcut(modifier: Modifier, onClick: () -> Unit) {
     val stats by PlayStats.state.collectAsState()
     val top = remember(stats.events.size) {
         stats.events.takeLast(400).groupingBy { it.id }.eachCount().entries.sortedByDescending { it.value }
-            .mapNotNull { stats.tracks[it.key]?.artwork }.distinct().take(3)
+            .mapNotNull { stats.tracks[it.key]?.artwork }.distinct().take(4)
     }
-    val shape = RoundedCornerShape(30.dp)
-    Row(
-        Modifier.padding(horizontal = 20.dp, vertical = 6.dp).fillMaxWidth().height(96.dp)
-            .bounceClick(0.98f, onClick = onClick)
-            .softShadow(shape, 16.dp, alpha = 0.22f, dy = 5.dp).clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xFF2443C4), Color(0xFF7A45CC), Color(0xFFE2678F))))
-            .glassEdges(shape, 0.9f)
-            .padding(horizontal = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("REPLAY", style = BopType.Micro, color = Color.White.copy(alpha = 0.75f))
-            Text("Your top songs & trends", style = BopType.Headline, color = Color.White, maxLines = 1)
-            Text(if (stats.events.isEmpty()) "Starts counting as you listen" else "${stats.events.size} plays counted", style = BopType.Caption, color = Color.White.copy(alpha = 0.8f))
-        }
-        Box(Modifier.size(width = 104.dp, height = 70.dp)) {
-            top.reversed().forEachIndexed { k, a ->
-                val i = top.size - 1 - k
-                Artwork(a, Modifier.size(60.dp).align(Alignment.CenterEnd).offset(x = (-i * 20).dp).graphicsLayer { rotationZ = 8f - i * 8f }, corner = 14.dp, size = 200, elevation = 10.dp)
-            }
-            if (top.isEmpty()) Icon(Icons.Rounded.Insights, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(52.dp).align(Alignment.CenterEnd))
-        }
-    }
+    Shortcut(
+        "Your Replay", if (stats.events.isEmpty()) "Starts as you listen" else "Your stories", Icons.Rounded.Insights, modifier,
+        art = { m -> if (top.isEmpty()) GradientArt(m, Icons.Rounded.Insights, listOf(Color(0xFF7A45CC), Color(0xFFE2678F))) else Collage(top, m, 18.dp) },
+        onClick = onClick,
+    )
 }
 
 /** The signed-in account's YouTube Music library: Liked Music + their playlists. */

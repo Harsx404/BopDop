@@ -43,7 +43,6 @@ object Routes {
     const val LOCAL = "local?id={id}"
     const val MOOD = "mood?title={title}&params={params}"
     const val SEE_ALL = "seeall?key={key}"
-    const val REPLAY = "replay"
     const val SIGN_IN = "signin"
     const val SHARE_QR = "shareqr?key={key}"
     const val IMPORT = "import?key={key}"

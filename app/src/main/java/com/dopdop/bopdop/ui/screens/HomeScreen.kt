@@ -358,9 +358,9 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
             add(Mix("Discovery Station", "Endless, from ${seed.artist.split(",").first()}", Icons.Rounded.AutoAwesome,
                 listOf(Color(0xFFB9D98A), Color(0xFF3F8A6E)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
         }
-        add(Mix("Your Replay", "Top songs, artists & trends", Icons.Rounded.History,
+        add(Mix("Your Replay", "Your listening, as stories", Icons.Rounded.History,
             listOf(Color(0xFFFFC98E), Color(0xFFD0667A)), history.getOrNull(2)?.artwork) {
-            app.nav.navigate(Routes.REPLAY)
+            app.nav.navigate(Routes.WRAPPED)
         })
         if (liked.size >= 3) add(Mix("Deep Cuts", "Radio from your likes", Icons.Rounded.Shuffle,
             listOf(Color(0xFF9EE3E0), Color(0xFF3E6FB0)), liked.random().artwork) {

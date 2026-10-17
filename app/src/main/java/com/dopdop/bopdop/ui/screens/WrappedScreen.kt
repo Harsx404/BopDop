@@ -64,6 +64,7 @@ import com.dopdop.bopdop.data.PlayStats
 import com.dopdop.bopdop.data.Replay
 import com.dopdop.bopdop.data.ReplayRange
 import com.dopdop.bopdop.data.ReplaySummary
+import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.LocalApp
 import com.dopdop.bopdop.ui.components.Artwork
 import com.dopdop.bopdop.ui.components.bounceClick
@@ -146,6 +147,16 @@ fun WrappedScreen() {
                 }
             }
             Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
+                if (summary.topTracks.isNotEmpty()) {
+                    // Your top songs, straight from the story, any card.
+                    Text(
+                        "Play top songs", style = BopType.BodyStrong, color = Color(0xFF15161B),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White).bounceClick {
+                            PlayerConnection.play(summary.topTracks.map { it.track }, 0, "Your Replay · $range")
+                        }.padding(horizontal = 16.dp, vertical = 10.dp),
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
                 RoundIcon(Icons.Rounded.IosShare, "Share card") {
                     scope.launch { shareBitmap(ctx, layer.toImageBitmap().asAndroidBitmap(), "replay-${page + 1}", "My BopDop Replay", "Share your Replay") }
                 }
