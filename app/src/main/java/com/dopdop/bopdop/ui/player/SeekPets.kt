@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
+import com.dopdop.bopdop.data.Festival
 import com.dopdop.bopdop.data.SeekPet
 import kotlin.math.abs
 import kotlin.math.sin
@@ -24,7 +25,7 @@ private val Ink = Color(0xFF1E1A22)
  * [t] is seconds of animation time; all sizes come from dp so the pet looks the same on any phone.
  * Shapes, not bitmaps, so every seek bar style can host it at any position.
  */
-internal fun DrawScope.drawPet(pet: SeekPet, x: Float, feetY: Float, t: Float, mode: PetMode, facing: Float) {
+internal fun DrawScope.drawPet(pet: SeekPet, x: Float, feetY: Float, t: Float, mode: PetMode, facing: Float, costume: Festival? = null) {
     if (pet == SeekPet.NONE) return
     val u = 1.dp.toPx()
     // A soft shadow keeps it standing on the bar instead of floating over it.
@@ -36,10 +37,48 @@ internal fun DrawScope.drawPet(pet: SeekPet, x: Float, feetY: Float, t: Float, m
             SeekPet.BUNNY -> bunny(x, feetY, t, mode, u)
             SeekPet.DUCK -> duck(x, feetY, t, mode, u)
             SeekPet.DINO -> dino(x, feetY, t, mode, u)
+            SeekPet.PEACOCK -> peacock(x, feetY, t, mode, u)
+            SeekPet.GHOST -> ghost(x, feetY, t, mode, u)
             SeekPet.NONE -> {}
         }
+        // Everyday pets dress up for the festival; festival pets are already dressed.
+        if (costume != null && pet.festival == null) wear(costume, headTop(pet, x, feetY, t, mode, u), u)
     }
     if (mode == PetMode.SIT) sleepyZ(x + 6f * u * facing, feetY - 20f * u, t, u)
+}
+
+/** Top of the pet's head, where a hat or flower crown sits. Mirrors the drawing code below. */
+private fun headTop(pet: SeekPet, x: Float, y: Float, t: Float, mode: PetMode, u: Float): Offset = when (pet) {
+    SeekPet.CAT -> if (mode == PetMode.SIT) Offset(x + 3f * u, y - 17.5f * u)
+        else Offset(x + 7f * u, y - 17.5f * u - abs(if (mode == PetMode.RUN) sin(t * 14f) else 0.6f) * 1.2f * u)
+    SeekPet.BUNNY -> Offset(x + 4f * u, y - 15f * u - (if (mode == PetMode.RUN) abs(sin(t * 7f)) * 5f * u else 0f))
+    SeekPet.DUCK -> Offset(x + 4f * u, y - 18f * u + (if (mode == PetMode.SIT) 2.5f * u else 0f))
+    SeekPet.DINO -> if (mode == PetMode.SIT) Offset(x + 4.5f * u, y - 15f * u) else Offset(x + 5f * u, y - 21f * u)
+    else -> Offset(x, y - 18f * u)
+}
+
+/** A marigold crown for Navaratri, a little witch hat for Halloween. */
+private fun DrawScope.wear(f: Festival, head: Offset, u: Float) {
+    when (f) {
+        Festival.NAVARATRI -> {
+            val flowers = listOf(-3.2f to 0.8f, 0f to -0.4f, 3.2f to 0.8f)
+            flowers.forEachIndexed { i, (dx, dy) ->
+                drawCircle(if (i == 1) Color(0xFFFF8F1F) else Color(0xFFFFC53D), 1.7f * u, Offset(head.x + dx * u, head.y + dy * u))
+                drawCircle(Color(0xFFD9541A), 0.6f * u, Offset(head.x + dx * u, head.y + dy * u))
+            }
+        }
+        Festival.HALLOWEEN -> {
+            val hat = Color(0xFF2B1F3A)
+            drawOval(hat, Offset(head.x - 5.5f * u, head.y - 0.6f * u), Size(11f * u, 2.4f * u))
+            drawPath(Path().apply {
+                moveTo(head.x - 3.5f * u, head.y + 0.2f * u)
+                lineTo(head.x + 3.5f * u, head.y + 0.2f * u)
+                quadraticTo(head.x + 1f * u, head.y - 5f * u, head.x - 2.5f * u, head.y - 8f * u)
+                close()
+            }, hat)
+            drawLine(Color(0xFFFF7A1A), Offset(head.x - 3.2f * u, head.y - 1f * u), Offset(head.x + 3.2f * u, head.y - 1f * u), 1.1f * u)
+        }
+    }
 }
 
 /** Little "z"s drifting up from a napping pet. */
@@ -130,6 +169,84 @@ private fun DrawScope.duck(x: Float, y: Float, t: Float, mode: PetMode, u: Float
         drawPath(Path().apply { moveTo(x + 7.5f * u, y - 14.5f * u + sink); lineTo(x + 11.5f * u, y - 13f * u + sink); lineTo(x + 7.5f * u, y - 11.8f * u + sink); close() }, beak)
         if (mode == PetMode.SIT) drawLine(Ink, Offset(x + 4.2f * u, y - 15f * u + sink), Offset(x + 6.2f * u, y - 15f * u + sink), 0.9f * u, StrokeCap.Round)
         else drawCircle(Ink, 0.95f * u, Offset(x + 5.3f * u, y - 15.2f * u))
+    }
+}
+
+/**
+ * Navaratri's peacock: struts with its train trailing behind, and fans the tail out in a full
+ * display while the music is paused.
+ */
+private fun DrawScope.peacock(x: Float, y: Float, t: Float, mode: PetMode, u: Float) {
+    val blue = Color(0xFF1F5FBF); val green = Color(0xFF2E9E6A); val teal = Color(0xFF22B5A6); val gold = Color(0xFFE8B23A)
+    fun eyeSpot(c: Offset, r: Float) {
+        drawCircle(gold, r, c); drawCircle(teal, r * 0.72f, c); drawCircle(Color(0xFF173A7A), r * 0.4f, c)
+    }
+    if (mode == PetMode.SIT) {
+        // The display: a fan of feathers behind the body.
+        val base = Offset(x - 2f * u, y - 6f * u)
+        for (i in 0..8) {
+            val a = Math.toRadians((200.0 + i * 17.5)).toFloat()
+            val tip = Offset(base.x + kotlin.math.cos(a) * 16f * u, base.y + sin(a) * 16f * u)
+            drawLine(green, base, tip, 2f * u, StrokeCap.Round)
+            eyeSpot(tip, 2.2f * u)
+        }
+        drawOval(blue, Offset(x - 5f * u, y - 11f * u), Size(8f * u, 10f * u))
+        drawCircle(blue, 2.3f * u, Offset(x + 1.5f * u, y - 14f * u))
+        drawLine(Ink, Offset(x + 1.8f * u, y - 14.3f * u), Offset(x + 3.2f * u, y - 14.3f * u), 0.8f * u, StrokeCap.Round)
+        return
+    }
+    val run = if (mode == PetMode.RUN) sin(t * 12f) else 0f
+    val sway = sin(t * 5f) * 1.2f * u
+    // The train: long and closed, with eye spots along it.
+    val train = Path().apply { moveTo(x - 4f * u, y - 9f * u); quadraticTo(x - 11f * u, y - 9f * u + sway, x - 18f * u, y - 5f * u + sway) }
+    drawPath(train, green, style = Stroke(4f * u, cap = StrokeCap.Round))
+    eyeSpot(Offset(x - 11f * u, y - 8.4f * u + sway * 0.6f), 1.6f * u)
+    eyeSpot(Offset(x - 17f * u, y - 5.5f * u + sway), 1.8f * u)
+    leg(x - 2f * u, y - 5f * u, y, 2f * u * run, Color(0xFFB59C7A), u)
+    leg(x + 1f * u, y - 5f * u, y, -2f * u * run, Color(0xFFB59C7A), u)
+    drawOval(blue, Offset(x - 5.5f * u, y - 13f * u), Size(9f * u, 8.5f * u))
+    drawLine(blue, Offset(x + 2.5f * u, y - 10f * u), Offset(x + 4.5f * u, y - 16.5f * u), 2.8f * u, StrokeCap.Round)
+    val head = Offset(x + 5f * u, y - 17.5f * u)
+    drawCircle(blue, 2.3f * u, head)
+    drawPath(Path().apply { moveTo(head.x + 2f * u, head.y - 0.4f * u); lineTo(head.x + 4.2f * u, head.y + 0.4f * u); lineTo(head.x + 2f * u, head.y + 1f * u); close() }, gold)
+    drawCircle(Color.White, 0.7f * u, Offset(head.x + 0.8f * u, head.y - 0.5f * u))
+    drawCircle(Ink, 0.4f * u, Offset(head.x + 0.9f * u, head.y - 0.5f * u))
+    // Crest: three little plumes.
+    for (k in -1..1) {
+        val tip = Offset(head.x + k * 1.2f * u, head.y - 4.6f * u)
+        drawLine(blue, Offset(head.x, head.y - 2f * u), tip, 0.6f * u)
+        drawCircle(teal, 0.7f * u, tip)
+    }
+}
+
+/** Halloween's ghost: floats rather than walks, its hem rippling; dozes off when paused. */
+private fun DrawScope.ghost(x: Float, y: Float, t: Float, mode: PetMode, u: Float) {
+    val float = sin(t * 3f) * 1.4f * u
+    val sheet = Color.White.copy(alpha = if (mode == PetMode.SIT) 0.8f else 0.95f)
+    val top = y - 19f * u + float
+    val hem = y - 3f * u + float
+    val body = Path().apply {
+        moveTo(x - 7f * u, hem)
+        lineTo(x - 7f * u, top + 7f * u)
+        cubicTo(x - 7f * u, top - 2f * u, x + 7f * u, top - 2f * u, x + 7f * u, top + 7f * u)
+        lineTo(x + 7f * u, hem)
+        // Three scallops along the hem, rippling.
+        val ripple = if (mode == PetMode.SIT) 0f else t * 7f
+        for (i in 0 until 3) {
+            val x1 = x + 7f * u - (i + 1) * (14f / 3f) * u
+            val dip = (2.2f + sin(ripple + i * 1.7f)) * u
+            quadraticTo((x1 + x + 7f * u - i * (14f / 3f) * u) / 2f, hem + dip, x1, hem)
+        }
+        close()
+    }
+    drawPath(body, sheet)
+    if (mode == PetMode.SIT) {
+        drawLine(Ink, Offset(x + 0.5f * u, top + 6f * u), Offset(x + 2.5f * u, top + 6f * u), 0.9f * u, StrokeCap.Round)
+        drawLine(Ink, Offset(x + 4f * u, top + 6f * u), Offset(x + 6f * u, top + 6f * u), 0.9f * u, StrokeCap.Round)
+    } else {
+        drawOval(Ink, Offset(x + 0.6f * u, top + 4.5f * u), Size(1.8f * u, 2.6f * u))
+        drawOval(Ink, Offset(x + 4f * u, top + 4.5f * u), Size(1.8f * u, 2.6f * u))
+        drawOval(Ink, Offset(x + 2.3f * u, top + 8.6f * u), Size(1.6f * u, 1.9f * u))
     }
 }
 

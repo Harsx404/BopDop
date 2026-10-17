@@ -1,6 +1,8 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Celebration
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Pets
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -217,6 +219,19 @@ fun SettingsScreen() {
                 }
                 ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
                     LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }
+                }
+            }
+            Group("Festive") {
+                val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
+                val now = festive.festival?.let { f ->
+                    val end = com.dopdop.bopdop.data.Festivals.window(f, java.time.LocalDate.now().year)?.endInclusive
+                    "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
+                }.orEmpty()
+                RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends. Full decorates Home and dresses up your pet; Pet only keeps it to the pet.")
+                ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l -> LibraryStore.updateSettings { it.copy(festiveLevel = l) } }
+                if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
+                    RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.")
+                    ChipRow(com.dopdop.bopdop.data.FestivePick.entries, s.festivePick, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
                 }
             }
             Group("Home feed") {

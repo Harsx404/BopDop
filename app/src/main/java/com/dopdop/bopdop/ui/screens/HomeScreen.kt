@@ -129,6 +129,7 @@ fun HomeScreen() {
     val home = rememberLoad("home") { MusicRepository.home() }
     var filter by rememberSaveable { mutableStateOf(HomeFilter.ALL) }
     val haze = rememberHazeState()
+    val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
     val list = rememberLazyListState()
     val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 1 } }
     val greeting = remember {
@@ -154,6 +155,9 @@ fun HomeScreen() {
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
             item(key = "top") {
+                Box {
+                // The festival's touch hangs behind the header and scrolls away with it.
+                if (festive.decor) festive.festival?.let { com.dopdop.bopdop.ui.festive.FestiveHomeDecor(it, Modifier.matchParentSize()) }
                 Row(
                     Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -167,14 +171,15 @@ fun HomeScreen() {
                         if (account == null) app.nav.navigate(Routes.SIGN_IN) else app.goTab(Routes.LIBRARY)
                     }
                 }
+                }
             }
             item(key = "headline") {
-                Text(
-                    greeting,
-                    style = BopType.Hero.copy(fontWeight = FontWeight(560)),
-                    color = Bop.Text,
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp),
-                )
+                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp)) {
+                    festive.festival?.takeIf { festive.decor }?.let { f ->
+                        Text(f.greeting.uppercase(), style = BopType.Micro, color = com.dopdop.bopdop.ui.festive.FestiveColors.accent(f), modifier = Modifier.padding(bottom = 4.dp))
+                    }
+                    Text(greeting, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
+                }
             }
             item(key = "chips") {
                 LazyRow(

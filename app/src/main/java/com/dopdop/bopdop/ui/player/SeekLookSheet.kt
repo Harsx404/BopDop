@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,9 +83,15 @@ fun ColumnScope.SeekLookSheet() {
         }
     }
     Label("Pet")
-    Row(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SeekPet.entries.forEach { p ->
-            Choice(p.label, p == s.seekPet, Modifier.weight(1f), art = if (p == SeekPet.NONE) null else ({ PetIcon(p) })) {
+    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
+    // Festival pets join the line-up only while their festival is on.
+    val pets = SeekPet.entries.filter { it.festival == null || it.festival == costume }
+    Row(
+        Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        pets.forEach { p ->
+            Choice(p.label, p == s.seekPet.inSeason(costume), Modifier.width(64.dp), art = if (p == SeekPet.NONE) null else ({ PetIcon(p, costume) }), keepArtSpace = true) {
                 LibraryStore.updateSettings { it.copy(seekPet = p) }
             }
         }
@@ -95,26 +103,26 @@ private fun Label(text: String) =
     Text(text.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 22.dp, top = 6.dp, bottom = 8.dp))
 
 @Composable
-private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Composable () -> Unit)? = null, keepArtSpace: Boolean = false, onClick: () -> Unit) {
     val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.6f), label = "choice")
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(bg).bounceClick(0.94f, onClick = onClick).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (art != null) { art(); Spacer(Modifier.height(4.dp)) } else Spacer(Modifier.height(36.dp))
+        if (art != null) { art(); Spacer(Modifier.height(4.dp)) } else if (keepArtSpace) Spacer(Modifier.height(36.dp))
         Text(label, style = BopType.Caption, color = if (on) Color.White else Bop.Text, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
 
 /** The pet, trotting in place. */
 @Composable
-private fun PetIcon(pet: SeekPet) {
+private fun PetIcon(pet: SeekPet, costume: com.dopdop.bopdop.data.Festival?) {
     val t by produceState(0f) {
         val start = withInfiniteAnimationFrameMillis { it }
         while (true) withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
     }
     // On a dusk backing, like the player, so a white bunny shows up on a light sheet too.
     Canvas(Modifier.size(42.dp, 32.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2E2640))) {
-        drawPet(pet, size.width / 2, size.height - 4.dp.toPx(), t, PetMode.RUN, 1f)
+        drawPet(pet, size.width / 2, size.height - 4.dp.toPx(), t, PetMode.RUN, 1f, costume)
     }
 }

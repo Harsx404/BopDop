@@ -60,6 +60,8 @@ data class Settings(
     val lockScreenLyrics: Boolean = false,
     val seekStyle: SeekStyle = SeekStyle.WAVE,
     val seekPet: SeekPet = SeekPet.NONE,
+    val festiveLevel: FestiveLevel = FestiveLevel.FULL,
+    val festivePick: FestivePick = FestivePick.AUTO,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -68,6 +70,7 @@ data class Settings(
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
+        .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name)
         .put("eq", eq.toJson())
 
     companion object {
@@ -90,6 +93,8 @@ data class Settings(
             lockScreenLyrics = o.optBoolean("lockScreenLyrics", false),
             seekStyle = runCatching { SeekStyle.valueOf(o.optString("seekStyle")) }.getOrDefault(SeekStyle.WAVE),
             seekPet = runCatching { SeekPet.valueOf(o.optString("seekPet")) }.getOrDefault(SeekPet.NONE),
+            festiveLevel = runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
+            festivePick = runCatching { FestivePick.valueOf(o.optString("festivePick")) }.getOrDefault(FestivePick.AUTO),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

@@ -62,7 +62,8 @@ fun SeekBar(
 ) {
     val settings by LibraryStore.state.collectAsState()
     val look = style ?: settings.settings.seekStyle
-    val friend = pet ?: settings.settings.seekPet
+    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
+    val friend = (pet ?: settings.settings.seekPet).inSeason(costume)
     val dur = durationMs.coerceAtLeast(1L)
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)
@@ -101,7 +102,7 @@ fun SeekBar(
                 SeekStyle.DOTS -> drawDots(pad, w, cy, x, amp, phase, thumbH)
             }
             val mode = when { drag != null -> PetMode.JUMP; playing -> PetMode.RUN; else -> PetMode.SIT }
-            drawPet(friend, x, top - 1.dp.toPx(), if (reduce) 0f else time, if (reduce && mode != PetMode.SIT) PetMode.RUN else mode, facing)
+            drawPet(friend, x, top - 1.dp.toPx(), if (reduce) 0f else time, if (reduce && mode != PetMode.SIT) PetMode.RUN else mode, facing, costume)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Text(formatDuration((frac * dur / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Caption, color = if (drag != null) Bop.OnMedia else Bop.OnMedia2)

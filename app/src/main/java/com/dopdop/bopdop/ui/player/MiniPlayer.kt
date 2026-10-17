@@ -154,7 +154,8 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
 @Composable
 private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
     val lib by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
-    val pet = lib.settings.seekPet
+    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
+    val pet = lib.settings.seekPet.inSeason(costume)
     if (pet == com.dopdop.bopdop.data.SeekPet.NONE) return
     val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
     // Progress arrives in steps; glide between them so the pet walks instead of teleporting.
@@ -168,7 +169,7 @@ private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
         val px = size.width * x
         val feet = size.height - 1.dp.toPx()
         scale(0.72f, androidx.compose.ui.geometry.Offset(px, feet)) {
-            drawPet(pet, px, feet, time, if (playing) PetMode.RUN else PetMode.SIT, 1f)
+            drawPet(pet, px, feet, time, if (playing) PetMode.RUN else PetMode.SIT, 1f, costume)
         }
     }
 }

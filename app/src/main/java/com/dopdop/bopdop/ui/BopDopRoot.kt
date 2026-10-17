@@ -147,6 +147,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         LocalHaze provides haze,
         LocalGlassLevel provides lib.settings.glass.also { Bop.clear = it == com.dopdop.bopdop.data.GlassLevel.CLEAR },
         LocalReduceMotion provides lib.settings.reduceMotion,
+        com.dopdop.bopdop.ui.festive.LocalFestive provides com.dopdop.bopdop.ui.festive.rememberFestive(lib.settings.festiveLevel, lib.settings.festivePick),
         com.dopdop.bopdop.ui.glass.LocalGlassLight provides com.dopdop.bopdop.ui.glass.rememberTiltLight(!lib.settings.reduceMotion),
         LocalChromePadding provides PaddingValues(bottom = chrome + 12.dp),
     ) {
@@ -173,19 +174,25 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
 private fun AppNavHost(app: AppState) {
     // Short and decisive: the page underneath fades out fast, so both pages (each with
     // its own glass and artwork) only render together for a few frames.
-    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(200, delayMillis = 40))
-    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(140))
-    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(200, delayMillis = 40))
-    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 5 } + fadeOut(tween(140))
+    // No delayed starts: with predictive back the pop runs as you swipe, and a delay reads as a stall.
+    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(220))
+    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(160))
+    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(220))
+    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 5 } + fadeOut(tween(160))
+    val tabIn = fadeIn(tween(220)) + scaleIn(tween(260), 0.985f)
+    val tabOut = fadeOut(tween(180)) + scaleOut(tween(260), 0.985f)
+    fun bothTabs(a: androidx.navigation.NavBackStackEntry, b: androidx.navigation.NavBackStackEntry) =
+        a.destination.route in Routes.tabs && b.destination.route in Routes.tabs
     val str = { name: String -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }
 
     NavHost(
         navController = app.nav,
         startDestination = Routes.HOME,
-        enterTransition = { if (targetState.destination.route in Routes.tabs && initialState.destination.route in Routes.tabs) fadeIn(tween(220)) + scaleIn(tween(260), 0.985f) else enter },
-        exitTransition = { if (targetState.destination.route in Routes.tabs && initialState.destination.route in Routes.tabs) fadeOut(tween(160)) else exit },
-        popEnterTransition = { popEnter },
-        popExitTransition = { popExit },
+        enterTransition = { if (bothTabs(initialState, targetState)) tabIn else enter },
+        exitTransition = { if (bothTabs(initialState, targetState)) tabOut else exit },
+        // Back from Explore or Library to Home: the same crossfade as tapping the tab.
+        popEnterTransition = { if (bothTabs(initialState, targetState)) tabIn else popEnter },
+        popExitTransition = { if (bothTabs(initialState, targetState)) tabOut else popExit },
     ) {
         composable(Routes.HOME) { HomeScreen() }
         composable(Routes.SEARCH) { SearchScreen() }
