@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.view.TextureView
 import androidx.core.content.ContextCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -92,13 +93,14 @@ object PlayerConnection {
         if (video.trackId != item?.mediaId) {
             videoRequest++
             videoJob?.cancel()
-            _video.value = VideoPlaybackState(trackId = item?.mediaId, active = item?.videoId != null)
-        } else {
-            _video.value = video.copy(active = item?.videoId != null)
+            _video.value = (item?.mediaId?.let { videoLooks[it] } ?: VideoPlaybackState()).copy(trackId = item?.mediaId, active = pictureShown(p), loading = false, error = null)
+        } else if (!video.loading) {
+            _video.value = video.copy(active = pictureShown(p))
         }
         _current.value = p.currentMediaItem?.toTrack()
         _isPlaying.value = p.isPlaying
         _buffering.value = p.playbackState == Player.STATE_BUFFERING
+        watchVideoStall(p)
         _index.value = p.currentMediaItemIndex
         _shuffle.value = p.shuffleModeEnabled
         _repeat.value = when (p.repeatMode) { Player.REPEAT_MODE_ONE -> RepeatMode.ONE; Player.REPEAT_MODE_ALL -> RepeatMode.ALL; else -> RepeatMode.OFF }
@@ -128,24 +130,28 @@ object PlayerConnection {
 
     fun playSingle(t: Track, context: String = "") = startRadio(t, context)
 
-    /** Resolve while audio keeps playing, then replace only the current item at its live position. */
+    /**
+     * Song ⇄ Video. While a video plays, the sound already is the song from its own source, so going
+     * back to Song only switches the picture track off: the music never stops, the video stops
+     * downloading, and switching back for the same song is instant. Only the first switch to
+     * Video for a song has to find and load the video.
+     */
     fun setVideoEnabled(enabled: Boolean) = withController { c ->
-        if (enabled && (_video.value.loading || c.currentMediaItem?.videoId != null)) return@withController
-        cancelVideoRequest()
         val item = c.currentMediaItem ?: return@withController
         val track = item.toTrack() ?: return@withController
         if (!enabled) {
+            cancelVideoRequest()
+            if (item.videoId != null) showPicture(c, false)
             _video.value = VideoPlaybackState(trackId = track.id)
-            if (item.videoId != null) {
-                val index = c.currentMediaItemIndex
-                val position = c.currentPosition
-                c.replaceMediaItem(index, track.toMediaItem())
-                c.seekTo(index, position)
-                c.prepare()
-            }
             return@withController
         }
-        if (item.videoId != null) return@withController
+        if (_video.value.loading) return@withController
+        if (item.videoId != null) {
+            showPicture(c, true)
+            _video.value = (videoLooks[track.id] ?: VideoPlaybackState()).copy(trackId = track.id, active = true, loading = false, error = null)
+            return@withController
+        }
+        cancelVideoRequest()
         val request = videoRequest
         val generation = playGeneration
         _video.value = VideoPlaybackState(trackId = track.id, loading = true)
@@ -164,8 +170,9 @@ object PlayerConnection {
                 val position = c.currentPosition
                 _video.value = VideoPlaybackState(track.id, active = true,
                     aspectRatio = if (streams.width > 0 && streams.height > 0) streams.width.toFloat() / streams.height else 16f / 9f,
-                    height = streams.height)
-                c.replaceMediaItem(index, track.toMediaItem().forVideo(match.videoId, streams.audio != null, cap, songAt))
+                    height = streams.height).also { videoLooks[track.id] = it }
+                showPicture(c, true)
+                c.replaceMediaItem(index, track.toMediaItem().forVideo(match.videoId, streams.audio != null, cap, songAt, match.durationSec))
                 c.seekTo(index, position)
                 c.prepare()
             } catch (e: CancellationException) {
@@ -186,6 +193,46 @@ object PlayerConnection {
      */
     private fun songStartInVideo(match: MusicVideoMatch): Long =
         match.segments.singleOrNull()?.let { it.videoStartMs - it.songStartMs }?.coerceAtLeast(0) ?: 0L
+
+    private var stallJob: Job? = null
+    /** Size and resolution of each song's video, so turning the picture back on is instant. */
+    private val videoLooks = HashMap<String, VideoPlaybackState>()
+
+    private fun showPicture(c: Player, on: Boolean) {
+        val params = c.trackSelectionParameters
+        if ((C.TRACK_TYPE_VIDEO !in params.disabledTrackTypes) == on) return
+        c.trackSelectionParameters = params.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, !on).build()
+    }
+
+    /** The current item carries a video and its picture track is switched on. */
+    private fun pictureShown(p: Player) = p.currentMediaItem?.videoId != null && C.TRACK_TYPE_VIDEO !in p.trackSelectionParameters.disabledTrackTypes
+
+    /**
+     * The song comes first: if the picture holds playback up for more than a few seconds, drop back
+     * to the song alone at the same spot rather than leave the music stuck.
+     */
+    private fun watchVideoStall(p: Player) {
+        val stalled = pictureShown(p) && p.playWhenReady && p.playbackState == Player.STATE_BUFFERING
+        if (!stalled) { stallJob?.cancel(); stallJob = null; return }
+        if (stallJob?.isActive == true) return
+        val id = p.currentMediaItem?.mediaId
+        stallJob = scope.launch {
+            delay(4_000)
+            val c = controller ?: return@launch
+            val item = c.currentMediaItem
+            if (item?.mediaId != id || item?.videoId == null || c.playbackState != Player.STATE_BUFFERING) return@launch
+            // Hiding the picture is not enough when the video source itself is stuck: put the
+            // song back on its own so only its audio has to load.
+            val track = item.toTrack() ?: return@launch
+            cancelVideoRequest()
+            val index = c.currentMediaItemIndex
+            val position = c.currentPosition
+            c.replaceMediaItem(index, track.toMediaItem())
+            c.seekTo(index, position)
+            c.prepare()
+            _video.value = VideoPlaybackState(trackId = id, error = "Video was slow, so the song carried on without it.")
+        }
+    }
 
     private fun cancelVideoRequest() {
         videoRequest++

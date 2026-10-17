@@ -31,4 +31,14 @@ class VideoMatchTest {
         assertTrue(musicVideoMatchScore(song, video) > musicVideoMatchScore(song, audio))
         assertTrue(musicVideoMatchScore(song, video) > musicVideoMatchScore(song, extended))
     }
+
+    @Test fun prefersOfficialThenNormalUploadsNeverLyricCards() {
+        val omv = Track("yt:omv", "Chogada Full Video", "T-Series", durationSec = 260)
+        val upload = Track("yt:ugc", "Chogada Video Song | Darshan Raval", "Some Channel", durationSec = 252)
+        val lyric = Track("yt:lyr", "Chogada Lyrical | Darshan Raval", "Lyrics Hub", durationSec = 250)
+        val types = mapOf("omv" to "MUSIC_VIDEO_TYPE_OMV", "ugc" to "MUSIC_VIDEO_TYPE_UGC", "lyr" to "MUSIC_VIDEO_TYPE_UGC")
+        assertEquals("yt:omv", pickMusicVideo(song, listOf(lyric, upload, omv), types)?.id)
+        assertEquals("yt:ugc", pickMusicVideo(song, listOf(lyric, upload), types)?.id)
+        assertEquals(null, pickMusicVideo(song, listOf(lyric), types))
+    }
 }

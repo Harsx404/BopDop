@@ -174,7 +174,7 @@ private fun Header(art: @Composable () -> Unit, title: String, sub: String) {
         art()
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = BopType.Headline, color = Bop.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            com.dopdop.bopdop.ui.components.MarqueeText(title, BopType.Headline, Bop.Text)
             Text(sub, style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }

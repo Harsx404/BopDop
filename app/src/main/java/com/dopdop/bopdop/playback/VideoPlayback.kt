@@ -8,6 +8,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.C
 import androidx.media3.exoplayer.source.ClippingMediaSource
+import androidx.media3.exoplayer.source.ConcatenatingMediaSource2
 import androidx.media3.exoplayer.source.FilteringMediaSource
 import androidx.media3.exoplayer.source.MediaSource
 import androidx.media3.exoplayer.source.MergingMediaSource
@@ -30,6 +31,7 @@ private const val EXTRA_VIDEO_ID = "bopdop.videoId"
 private const val EXTRA_VIDEO_AUDIO = "bopdop.videoAudio"
 private const val EXTRA_VIDEO_CAP = "bopdop.videoCap"
 private const val EXTRA_SONG_AT = "bopdop.songAt"
+private const val EXTRA_VIDEO_SECONDS = "bopdop.videoSeconds"
 
 internal val MediaItem.videoId: String? get() = mediaMetadata.extras?.getString(EXTRA_VIDEO_ID)
 internal val MediaItem.hasSeparateVideoAudio: Boolean get() = mediaMetadata.extras?.getBoolean(EXTRA_VIDEO_AUDIO, true) ?: true
@@ -38,7 +40,10 @@ internal val MediaItem.videoCap: Int get() = mediaMetadata.extras?.getInt(EXTRA_
 /** ms into the video where the song starts, when the song's own audio plays under the picture; else null. */
 internal val MediaItem.songStartInVideo: Long? get() = mediaMetadata.extras?.getLong(EXTRA_SONG_AT, -1L)?.takeIf { it >= 0 }
 
-internal fun MediaItem.forVideo(id: String, separateAudio: Boolean, cap: Int, songAt: Long? = null): MediaItem = buildUpon()
+/** Length of the music video, when known — lets a short video loop under a longer song. */
+internal val MediaItem.videoSeconds: Int get() = mediaMetadata.extras?.getInt(EXTRA_VIDEO_SECONDS, 0) ?: 0
+
+internal fun MediaItem.forVideo(id: String, separateAudio: Boolean, cap: Int, songAt: Long? = null, videoSeconds: Int = 0): MediaItem = buildUpon()
     .setUri(Uri.Builder().scheme(StreamResolver.SCHEME).authority("watch")
         .appendQueryParameter("id", mediaId).appendQueryParameter("video", id).appendQueryParameter("cap", cap.toString()).build())
     .setCustomCacheKey("video:$id:$cap:picture")
@@ -48,6 +53,7 @@ internal fun MediaItem.forVideo(id: String, separateAudio: Boolean, cap: Int, so
             putBoolean(EXTRA_VIDEO_AUDIO, separateAudio)
             putInt(EXTRA_VIDEO_CAP, cap)
             putLong(EXTRA_SONG_AT, songAt ?: -1L)
+            putInt(EXTRA_VIDEO_SECONDS, videoSeconds)
         }).build())
     .build()
 
@@ -94,9 +100,18 @@ internal class VideoMediaSourceFactory(
             // The song plays from its own source; the video gives only its picture (any soundtrack in
             // it is dropped), trimmed so its frame at songAt lands on the song's 0:00.
             // Unclipped durations: the song's own length decides when the item ends.
-            val picture = FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
-                if (songAt > 0) ClippingMediaSource(it, songAt * 1000, C.TIME_END_OF_SOURCE) else it
+            val once = {
+                FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
+                    if (songAt > 0) ClippingMediaSource(it, songAt * 1000, C.TIME_END_OF_SOURCE) else it
+                }
             }
+            // A video shorter than the song plays again from the song's start point, so the picture
+            // never freezes on the last frame while the music carries on.
+            val songMs = (mediaItem.toTrack()?.durationSec ?: 0) * 1000L
+            val clipMs = mediaItem.videoSeconds * 1000L - songAt
+            val loops = if (songMs > 0 && clipMs in 15_000 until songMs - 3_000) ((songMs + clipMs - 1) / clipMs).toInt().coerceIn(2, 6) else 1
+            val picture = if (loops == 1) once() else ConcatenatingMediaSource2.Builder().setMediaItem(mediaItem)
+                .apply { repeat(loops) { add(once(), clipMs) } }.build()
             return MergingMediaSource(true, false, sourceFor(song), picture)
         }
         if (!mediaItem.hasSeparateVideoAudio) return delegate.createMediaSource(mediaItem)

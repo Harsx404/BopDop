@@ -337,7 +337,7 @@ private fun TopResult(top: Any) {
             Artwork(art as String, Modifier.size(92.dp), corner = 14.dp, circle = circle as Boolean, elevation = 12.dp)
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(title as String, style = BopType.Title, color = Bop.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                com.dopdop.bopdop.ui.components.MarqueeText(title as String, BopType.Title, Bop.Text)
                 Spacer(Modifier.height(4.dp))
                 Text(sub as String, style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

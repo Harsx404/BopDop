@@ -165,7 +165,7 @@ private fun NumberOne(top: TrackStat, range: ReplayRange) {
             modifier = Modifier.padding(18.dp).glassLite(RoundedCornerShape(50), alpha = 0.22f).padding(horizontal = 12.dp, vertical = 7.dp),
         )
         Column(Modifier.align(Alignment.BottomStart).padding(22.dp)) {
-            Text(top.track.title, style = BopType.Display.copy(fontSize = 32.sp), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            com.dopdop.bopdop.ui.components.MarqueeText(top.track.title, BopType.Display.copy(fontSize = 28.sp), Color.White)
             Text(top.track.artist, style = BopType.Headline, color = Color.White.copy(alpha = 0.82f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(14.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -253,7 +253,7 @@ private fun HeroCarousel(items: List<Featured>) {
                 verticalAlignment = Alignment.Bottom,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(f.title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 0.92f), color = Bop.OnMedia, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    com.dopdop.bopdop.ui.components.MarqueeText(f.title, BopType.Display, Bop.OnMedia)
                     Spacer(Modifier.height(3.dp))
                     Text(f.subtitle, style = BopType.Body, color = Bop.OnMedia2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }

@@ -84,7 +84,7 @@ fun ArtistScreen(id: String, name: String, art: String) {
                     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.30f), 0.3f to Color.Transparent, 0.55f to Bop.Pearl.copy(alpha = 0f), 0.82f to Bop.Pearl.copy(alpha = 0.82f), 1f to Bop.Pearl)))
                     Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 18.dp)) {
                         Text((page?.subtitle ?: "Artist").uppercase(), style = BopType.Micro, color = Bop.Text2)
-                        Text(title, style = BopType.Hero.copy(fontSize = BopType.Hero.fontSize * 1.2f), color = Bop.Text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        com.dopdop.bopdop.ui.components.MarqueeText(title, BopType.Hero.copy(fontSize = BopType.Hero.fontSize * 1.1f), Bop.Text)
                         Spacer(Modifier.height(14.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                             PillButton("Play", Icons.Rounded.PlayArrow, Modifier.width(112.dp)) { page?.topSongs?.let { PlayerConnection.play(it, 0, title) } }

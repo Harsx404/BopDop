@@ -37,4 +37,20 @@ class QueueTracksTest {
         assertFalse(sameQueueSong(youtube, differentRecording))
         assertEquals(listOf(youtube, differentRecording), uniqueQueueTracks(listOf(youtube, saavn, differentRecording)))
     }
+
+    @Test fun collapsesFilmAndSingleCopiesOfOneSong() {
+        val film = track("yt:a", "Lutt Le Gaya (From \"Dhurandhar\")", "Shashwat Sachdev, Simran Choudhary", 253)
+        val single = track("yt:b", "Lutt Le Gaya", "Simran Choudhary", 248)
+        assertTrue(sameQueueSong(film, single))
+        val crew = track("sv:c", "Naina (From \"Crew\")", "Diljit Dosanjh, Badshah, Raj Ranjodh", 202)
+        val feat = track("yt:d", "Naina (feat. Badshah)", "Diljit Dosanjh", 219)
+        assertTrue(sameQueueSong(crew, feat))
+    }
+
+    @Test fun keepsVersionsAndOtherArtistsApart() {
+        val song = track("yt:a", "Naina", "Diljit Dosanjh", 200)
+        assertFalse(sameQueueSong(song, track("yt:b", "Naina (Slowed + Reverb)", "Diljit Dosanjh", 205)))
+        assertFalse(sameQueueSong(song, track("yt:c", "Naina", "Arijit Singh", 200)))
+        assertFalse(sameQueueSong(song, track("yt:d", "Naina - Lofi Mix", "Diljit Dosanjh", 200)))
+    }
 }

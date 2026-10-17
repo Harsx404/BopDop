@@ -139,7 +139,7 @@ fun CollectionLayout(
                     }
                     if (art != null) art(m) else Artwork(artUrl, m, corner = 18.dp, size = 800, elevation = 28.dp)
                     Spacer(Modifier.height(22.dp))
-                    Text(title, style = BopType.Display, color = Bop.Text, textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    com.dopdop.bopdop.ui.components.MarqueeText(title, BopType.Display, Bop.Text, Modifier.fillMaxWidth(), center = true)
                     if (subtitle.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
                         Text(

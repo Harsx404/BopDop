@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.ui.components
 
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -360,9 +362,36 @@ fun PillButton(text: String, icon: ImageVector?, modifier: Modifier = Modifier, 
     }
 }
 
+/**
+ * One line that glides sideways when it doesn't fit: the app's answer to long titles, instead of
+ * wrapping onto a second line. [center] keeps short text centred.
+ */
 @Composable
-fun MarqueeText(text: String, style: androidx.compose.ui.text.TextStyle, color: Color, modifier: Modifier = Modifier) {
-    Text(text, style = style, color = color, maxLines = 1, modifier = modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 2200, repeatDelayMillis = 2600, velocity = 34.dp))
+fun MarqueeText(text: String, style: androidx.compose.ui.text.TextStyle, color: Color, modifier: Modifier = Modifier, center: Boolean = false) {
+    var boxWidth by remember { mutableIntStateOf(0) }
+    var textWidth by remember(text) { mutableIntStateOf(0) }
+    val overflowing = textWidth > boxWidth && boxWidth > 0
+    // Only text that scrolls gets soft edges, so short titles keep their first letter crisp.
+    val fade = if (!overflowing) Modifier else Modifier
+        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val edge = 14.dp.toPx() / size.width
+            drawRect(
+                androidx.compose.ui.graphics.Brush.horizontalGradient(0f to Color.Transparent, edge to Color.Black, 1f - edge to Color.Black, 1f to Color.Transparent),
+                blendMode = androidx.compose.ui.graphics.BlendMode.DstIn,
+            )
+        }
+    Box(
+        modifier.onSizeChanged { boxWidth = it.width }.then(fade),
+        contentAlignment = if (center) Alignment.Center else Alignment.CenterStart,
+    ) {
+        Text(
+            text, style = style, color = color, maxLines = 1, softWrap = false,
+            onTextLayout = { textWidth = it.size.width },
+            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 2200, repeatDelayMillis = 2600, velocity = 34.dp),
+        )
+    }
 }
 
 // --- Skeletons -----------------------------------------------------------------------

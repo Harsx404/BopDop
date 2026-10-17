@@ -183,8 +183,7 @@ fun ShareQrScreen(key: String) {
         }
         ScanStatus(card, flat)
 
-        Text(req.title, style = BopType.Title, color = Bop.Text, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 2.dp))
+        com.dopdop.bopdop.ui.components.MarqueeText(req.title, BopType.Title, Bop.Text, Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 2.dp), center = true)
         Text(req.subtitle, style = BopType.Body, color = Bop.Text2, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp))
         val p = req.payload

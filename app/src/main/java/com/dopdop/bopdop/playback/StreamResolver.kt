@@ -136,5 +136,5 @@ fun MediaItem.toTrack(): Track? = mediaMetadata.extras?.getString(EXTRA_TRACK)?.
 
 /** Items arriving from a MediaController lose their uri; rebuild them from the embedded track. */
 fun MediaItem.withPlaybackUri(): MediaItem = toTrack()?.toMediaItem()?.let { audio ->
-    videoId?.let { audio.forVideo(it, hasSeparateVideoAudio, videoCap, songStartInVideo) } ?: audio
+    videoId?.let { audio.forVideo(it, hasSeparateVideoAudio, videoCap, songStartInVideo, videoSeconds) } ?: audio
 } ?: this

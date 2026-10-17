@@ -202,7 +202,7 @@ private fun TopSong(art: String, title: String, artist: String, plays: Int) = Co
     LaunchedEffect(Unit) { spin.animateTo(0f, spring(dampingRatio = 0.5f, stiffness = 120f)) }
     Artwork(art, Modifier.size(250.dp).rise(1).graphicsLayer { rotationZ = spin.value }, corner = 22.dp, size = 800, elevation = 24.dp)
     Spacer(Modifier.height(22.dp))
-    Text(title, style = BopType.Display.copy(fontSize = 32.sp), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.rise(2))
+    com.dopdop.bopdop.ui.components.MarqueeText(title, BopType.Display.copy(fontSize = 28.sp), Color.White, Modifier.fillMaxWidth().rise(2), center = true)
     Text(artist, style = BopType.Headline, color = Color.White.copy(alpha = 0.75f), maxLines = 1, modifier = Modifier.rise(3))
     Text("$plays plays", style = BopType.BodyStrong, color = Color.White, modifier = Modifier.padding(top = 10.dp).rise(4))
 }
@@ -213,7 +213,7 @@ private fun TopArtist(art: String, name: String, plays: Int) = Column(Modifier.f
     Spacer(Modifier.height(18.dp))
     Artwork(art, Modifier.size(230.dp).rise(1), circle = true, size = 800, elevation = 24.dp)
     Spacer(Modifier.height(22.dp))
-    Text(name, style = Big.copy(fontSize = 40.sp), color = Color.White, maxLines = 2, modifier = Modifier.rise(2))
+    com.dopdop.bopdop.ui.components.MarqueeText(name, Big.copy(fontSize = 36.sp), Color.White, Modifier.fillMaxWidth().rise(2), center = true)
     Text("$plays plays", style = BopType.BodyStrong, color = Color.White.copy(alpha = 0.85f), modifier = Modifier.rise(3))
 }
 
@@ -277,7 +277,7 @@ private fun Summary(range: String, s: ReplaySummary) = Column(Modifier.fillMaxSi
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier = Modifier) = Column(modifier) {
     Text(label.uppercase(), style = BopType.Micro, color = Color.White.copy(alpha = 0.65f))
-    Text(value, style = BopType.Display.copy(fontSize = 30.sp), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    com.dopdop.bopdop.ui.components.MarqueeText(value, BopType.Display.copy(fontSize = 27.sp), Color.White)
 }
 
 @Composable

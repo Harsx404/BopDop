@@ -90,7 +90,7 @@ private sealed interface LyricState {
     data class Ready(val l: Lyrics) : LyricState
 }
 
-private val LyricStyle = BopType.Lyric.copy(fontSize = 31.sp, lineHeight = 39.sp, fontWeight = FontWeight(760))
+private val LyricStyle = BopType.Lyric.copy(fontSize = 27.sp, lineHeight = 34.sp, fontWeight = FontWeight(760))
 
 /** Tight tracking suits Latin display type but makes Devanagari/Gurmukhi measure wide and wrap early. */
 internal fun androidx.compose.ui.text.TextStyle.forScript(text: String) = if (Romanize.hasIndic(text)) copy(letterSpacing = 0.sp) else this

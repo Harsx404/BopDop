@@ -59,15 +59,16 @@ private fun jakarta(weight: Int) = Font(
 val Jakarta = FontFamily(jakarta(400), jakarta(500), jakarta(600), jakarta(700), jakarta(800))
 
 object BopType {
-    val Hero = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 36.sp, letterSpacing = (-0.035).em, lineHeight = 40.sp)
-    val Display = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 30.sp, letterSpacing = (-0.03).em, lineHeight = 34.sp)
-    val Title = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 21.sp, letterSpacing = (-0.02).em, lineHeight = 26.sp)
-    val Headline = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 17.sp, letterSpacing = (-0.01).em, lineHeight = 22.sp)
-    val Body = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 15.sp, letterSpacing = (-0.005).em, lineHeight = 20.sp)
+    // A compact scale: phones already enlarge text with the system font size.
+    val Hero = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 31.sp, letterSpacing = (-0.035).em, lineHeight = 35.sp)
+    val Display = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 25.sp, letterSpacing = (-0.03).em, lineHeight = 29.sp)
+    val Title = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 18.5.sp, letterSpacing = (-0.02).em, lineHeight = 23.sp)
+    val Headline = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 15.5.sp, letterSpacing = (-0.01).em, lineHeight = 20.sp)
+    val Body = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 14.sp, letterSpacing = (-0.005).em, lineHeight = 19.sp)
     val BodyStrong = Body.copy(fontWeight = FontWeight(600))
-    val Caption = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 13.sp, lineHeight = 17.sp)
-    val Micro = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 10.5.sp, letterSpacing = 0.08.em)
-    val Lyric = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 29.sp, letterSpacing = (-0.03).em, lineHeight = 36.sp)
+    val Caption = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 12.sp, lineHeight = 16.sp)
+    val Micro = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 10.sp, letterSpacing = 0.08.em)
+    val Lyric = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 26.sp, letterSpacing = (-0.03).em, lineHeight = 32.sp)
 }
 
 @Composable

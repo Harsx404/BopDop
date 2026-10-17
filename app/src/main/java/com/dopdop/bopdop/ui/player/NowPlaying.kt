@@ -376,17 +376,36 @@ private fun ArtGestureArea(t: Track, swipe: Animatable<Float, AnimationVector1D>
 @Composable
 private fun TopRow(app: AppState, haze: HazeState) {
     val ctx by PlayerConnection.context.collectAsState()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        MediaCircle(Icons.Rounded.KeyboardArrowDown, "Close", haze, 46.dp) { app.collapsePlayer() }
-        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        MediaCircle(
+            Icons.Rounded.KeyboardArrowDown, "Close", haze, 46.dp,
+            modifier = Modifier.align(Alignment.CenterStart),
+        ) { app.collapsePlayer() }
+        Column(
+            Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 60.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text("PLAYING FROM", style = BopType.Micro, color = Bop.OnMedia3)
-            Text(ctx.ifBlank { "Your queue" }, style = BopType.BodyStrong, color = Bop.OnMedia, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 12.dp))
+            Text(
+                ctx.ifBlank { "Your queue" },
+                style = BopType.BodyStrong,
+                color = Bop.OnMedia,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        androidx.compose.runtime.CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides Color.White) {
-            androidx.media3.cast.MediaRouteButton(Modifier.size(46.dp))
-        }
-        Spacer(Modifier.width(6.dp))
-        MediaCircle(Icons.Rounded.MoreHoriz, "More", haze, 46.dp) { PlayerConnection.current.value?.let { app.sheet = Sheet.TrackOptions(it) } }
+        MediaCircle(
+            Icons.Rounded.MoreHoriz, "More", haze, 46.dp,
+            modifier = Modifier.align(Alignment.CenterEnd),
+        ) { PlayerConnection.current.value?.let { app.sheet = Sheet.TrackOptions(it) } }
     }
 }
 
@@ -406,18 +425,17 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 14.dp)) {
         AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            VideoModeSwitch(video, haze, Modifier.padding(bottom = 18.dp))
+            Box(Modifier.fillMaxWidth().padding(bottom = 14.dp), contentAlignment = Alignment.Center) { VideoModeSwitch(video, haze) }
         }
         AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-            Row(Modifier.padding(bottom = 18.dp), verticalAlignment = Alignment.Bottom) {
+            Row(Modifier.padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     AnimatedContent(t.title, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "title") { title ->
-                        Text(title, style = BopType.Display.copy(fontSize = BopType.Display.fontSize * 1.1f), color = Bop.OnMedia, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        com.dopdop.bopdop.ui.components.MarqueeText(title, BopType.Display, Bop.OnMedia)
                     }
-                    Text(
-                        t.artist, style = BopType.Headline.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(500)), color = Bop.OnMedia2,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp).bounceClick { t.artistId?.let { id -> app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } },
+                    com.dopdop.bopdop.ui.components.MarqueeText(
+                        t.artist, BopType.Body, Bop.OnMedia2,
+                        Modifier.padding(top = 2.dp).bounceClick { t.artistId?.let { id -> app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } },
                     )
                 }
                 Spacer(Modifier.width(12.dp))
@@ -425,13 +443,14 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             }
         }
         ProgressPill(t, quality[t.id])
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TransportCluster(playing, buffering, haze, app) }
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             PageToggle(Icons.Rounded.Lyrics, "Lyrics", app.nowPlayingPage == NowPlayingPage.LYRICS, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.LYRICS) NowPlayingPage.ART else NowPlayingPage.LYRICS
             }
+            CastToggle(haze)
             PageToggle(Icons.Rounded.Bedtime, "Sleep", sleepAt != null, haze) { app.sheet = Sheet.SleepTimer }
             PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", app.nowPlayingPage == NowPlayingPage.QUEUE, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.QUEUE) NowPlayingPage.ART else NowPlayingPage.QUEUE
@@ -492,7 +511,8 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
         caption = if (video.active) {
             // The song's own sound, then the picture.
             val res = when { video.height >= 2160 -> "4K"; video.height >= 1440 -> "1440p"; video.height > 0 -> "${video.height}p"; else -> "Video" }
-            listOfNotNull(q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label }, res).joinToString(" · ")
+            // Short while a video plays: the picture already says a lot.
+            listOfNotNull(q?.let { if (it.hiRes) "Hi-Res" else it.codec }, res).joinToString(" · ")
         } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
     )
 }
@@ -500,10 +520,32 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
 // --- Small pieces ---------------------------------------------------------------------
 
 @Composable
-private fun MediaCircle(icon: ImageVector, desc: String, haze: HazeState, size: Dp, onClick: () -> Unit) {
+private fun MediaCircle(icon: ImageVector, desc: String, haze: HazeState, size: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val press = remember { MutableInteractionSource() }
-    Box(Modifier.size(size).bounceClick(0.88f, interactionSource = press, onClick = onClick).mediaGlass(CircleShape, haze, interactionSource = press, strong = true), contentAlignment = Alignment.Center) {
+    Box(
+        modifier
+            .size(size)
+            .bounceClick(0.88f, interactionSource = press, onClick = onClick)
+            .mediaGlass(CircleShape, haze, interactionSource = press, strong = true),
+        contentAlignment = Alignment.Center,
+    ) {
         Icon(icon, desc, tint = Color.White, modifier = Modifier.size(size * 0.52f))
+    }
+}
+
+@Composable
+private fun CastToggle(haze: HazeState) {
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.material3.LocalContentColor provides Color.White.copy(alpha = 0.92f),
+        ) {
+            androidx.media3.cast.MediaRouteButton(Modifier.size(44.dp))
+        }
     }
 }
 
@@ -572,7 +614,7 @@ private fun SongHeader(t: Track, app: AppState, haze: HazeState) {
         Artwork(t.artwork, Modifier.size(54.dp).bounceClick { app.nowPlayingPage = NowPlayingPage.ART }, corner = 14.dp, size = 300, elevation = 10.dp)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(t.title, style = BopType.Headline, color = Bop.OnMedia, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            com.dopdop.bopdop.ui.components.MarqueeText(t.title, BopType.Headline, Bop.OnMedia)
             Text(t.artist, style = BopType.Body, color = Bop.OnMedia2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         LikeCircle(t, t.id in lib.likedIds, haze, app)
