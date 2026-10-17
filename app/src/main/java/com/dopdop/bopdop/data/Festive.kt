@@ -42,6 +42,28 @@ object Festivals {
         return start.minusDays(LEAD_DAYS)..end
     }
 
+    /** Dussehra (Vijayadashami): the last day of the Navaratri window. */
+    fun isDussehra(today: LocalDate): Boolean = navaratri[today.year]?.second == today
+
+    /**
+     * The line over the greeting on Home: a countdown in the days before the festival, the
+     * day of Navratri while it runs ("Day 4"), and the festival's own greeting on its day.
+     */
+    fun greeting(f: Festival, today: LocalDate): String {
+        val start = when (f) {
+            Festival.NAVARATRI -> navaratri[today.year]?.first
+            Festival.HALLOWEEN -> LocalDate.of(today.year, Month.OCTOBER, 31)
+        } ?: return f.greeting
+        val until = java.time.temporal.ChronoUnit.DAYS.between(today, start)
+        return when {
+            until == 1L -> "${f.label} is tomorrow"
+            until > 1L -> "${f.label} in $until days"
+            f == Festival.NAVARATRI && isDussehra(today) -> "Happy Dussehra"
+            f == Festival.NAVARATRI -> "${f.greeting} · Day ${java.time.temporal.ChronoUnit.DAYS.between(start, today) + 1}"
+            else -> f.greeting
+        }
+    }
+
     /** Festivals whose theme window includes [today]. */
     fun open(today: LocalDate): List<Festival> = Festival.entries.filter { f -> window(f, today.year)?.contains(today) == true }
 

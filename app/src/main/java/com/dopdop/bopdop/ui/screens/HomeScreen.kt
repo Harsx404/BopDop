@@ -176,7 +176,14 @@ fun HomeScreen() {
             item(key = "headline") {
                 Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp)) {
                     festive.festival?.takeIf { festive.decor }?.let { f ->
-                        Text(f.greeting.uppercase(), style = BopType.Micro, color = com.dopdop.bopdop.ui.festive.FestiveColors.accent(f), modifier = Modifier.padding(bottom = 4.dp))
+                        Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            com.dopdop.bopdop.ui.festive.FestiveMark(f, Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                com.dopdop.bopdop.data.Festivals.greeting(f, java.time.LocalDate.now()).uppercase(),
+                                style = BopType.Micro, color = com.dopdop.bopdop.ui.festive.FestiveColors.accent(f),
+                            )
+                        }
                     }
                     Text(greeting, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
                 }

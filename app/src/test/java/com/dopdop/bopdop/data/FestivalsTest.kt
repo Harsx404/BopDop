@@ -29,4 +29,14 @@ class FestivalsTest {
         assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.HALLOWEEN, "US", day(12, 1)))
         assertNull(Festivals.current(FestiveLevel.OFF, FestivePick.ALL, "US", day(10, 30)))
     }
+
+    @Test fun greetingCountsDownThenCountsTheDaysThenSaysDussehra() {
+        assertEquals("Navaratri in 3 days", Festivals.greeting(Festival.NAVARATRI, day(10, 8)))
+        assertEquals("Navaratri is tomorrow", Festivals.greeting(Festival.NAVARATRI, day(10, 10)))
+        assertEquals("Happy Navratri · Day 1", Festivals.greeting(Festival.NAVARATRI, day(10, 11)))
+        assertEquals("Happy Navratri · Day 8", Festivals.greeting(Festival.NAVARATRI, day(10, 18)))
+        assertEquals("Happy Dussehra", Festivals.greeting(Festival.NAVARATRI, day(10, 20)))
+        assertEquals("Halloween in 5 days", Festivals.greeting(Festival.HALLOWEEN, day(10, 26)))
+        assertEquals("Happy Halloween", Festivals.greeting(Festival.HALLOWEEN, day(10, 31)))
+    }
 }

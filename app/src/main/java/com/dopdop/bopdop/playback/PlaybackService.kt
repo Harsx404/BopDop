@@ -88,6 +88,24 @@ class PlaybackService : MediaLibraryService() {
         }
         AudioFx.attach(audioSessionId)
         scope.launch { AudioFx.state.collect { AudioFx.apply(it) } }
+        // With a music video, the song still decides when to move on. The item's length is the
+        // song's own audio (the picture is trimmed to the listed length), so if the real audio ends
+        // a little before the listed length, go to the next song now rather than wait for the picture.
+        scope.launch {
+            var movedFrom: String? = null
+            while (isActive) {
+                delay(200)
+                val item = player.currentMediaItem ?: continue
+                if (item.videoId == null || !player.isPlaying) continue
+                val dur = player.duration
+                if (dur > 0 && player.currentPosition < dur - 1_000) movedFrom = null
+                if (dur > 0 && player.currentPosition >= dur - 150 && movedFrom != item.mediaId && player.hasNextMediaItem() &&
+                    player.repeatMode != Player.REPEAT_MODE_ONE) {
+                    movedFrom = item.mediaId
+                    player.seekToNextMediaItem()
+                }
+            }
+        }
         // Replay: count real listening time, one second at a time.
         scope.launch {
             while (isActive) {

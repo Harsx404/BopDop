@@ -76,10 +76,74 @@ fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
     }
     // Hung just under the status bar, so the clock and icons stay clear.
     val inset = WindowInsets.statusBars.getTop(LocalDensity.current).toFloat()
+    val dussehra = remember { Festivals.isDussehra(LocalDate.now()) }
     Canvas(modifier) {
         when (festival) {
-            Festival.NAVARATRI -> toran(t, inset)
+            Festival.NAVARATRI -> {
+                toran(t, inset)
+                // Fireworks over the toran now and then; Dussehra night gets more of them.
+                fireworks(t, inset, if (dussehra) 3.5f else 8f)
+            }
             Festival.HALLOWEEN -> cobweb(t, inset)
+        }
+    }
+}
+
+/**
+ * Small bursts of saffron, gold and pink sparks below the toran, one at a time, every [every]
+ * seconds, each in a different spot. Quiet enough to sit behind the header.
+ */
+private fun DrawScope.fireworks(t: Float, inset: Float, every: Float) {
+    val u = 1.dp.toPx()
+    val n = (t / every).toInt()
+    val p = (t % every) / 1.6f
+    if (p >= 1f) return
+    // A fixed, varied spot per burst.
+    val seed = (n * 7919) % 1000 / 1000f
+    val c = Offset(size.width * (0.3f + 0.45f * seed), inset + (40f + 22f * ((n * 31) % 7) / 7f) * u)
+    val colors = listOf(FestiveColors.Saffron, FestiveColors.Marigold, Color(0xFFFF5FA2), Color(0xFFFFF1B8))
+    val reach = 20f * u * kotlin.math.sqrt(p)
+    val fade = (1f - p).coerceIn(0f, 1f)
+    for (i in 0 until 12) {
+        val a = i / 12f * 2f * Math.PI.toFloat() + seed
+        val drop = 6f * u * p * p
+        val at = Offset(c.x + cos(a) * reach, c.y + sin(a) * reach + drop)
+        val tailAt = Offset(c.x + cos(a) * reach * 0.7f, c.y + sin(a) * reach * 0.7f + drop * 0.7f)
+        val col = colors[(i + n) % colors.size].copy(alpha = 0.85f * fade)
+        drawLine(col, tailAt, at, 1.4f * u, StrokeCap.Round)
+        drawCircle(col, 1.3f * u * (0.6f + 0.4f * fade), at)
+    }
+}
+
+/** Crossed dandiya sticks for Navratri, a drawn bow and arrow for Dussehra, a pumpkin for Halloween. */
+@Composable
+fun FestiveMark(festival: Festival, modifier: Modifier = Modifier) {
+    val dussehra = remember { Festivals.isDussehra(LocalDate.now()) }
+    Canvas(modifier) {
+        val u = size.minDimension / 16f
+        when {
+            festival == Festival.HALLOWEEN -> {
+                val c = Offset(size.width / 2, size.height * 0.56f)
+                drawOval(FestiveColors.Pumpkin, Offset(c.x - 7f * u, c.y - 5.5f * u), androidx.compose.ui.geometry.Size(14f * u, 11f * u))
+                drawLine(FestiveColors.Leaf, Offset(c.x, c.y - 5f * u), Offset(c.x + 1.5f * u, c.y - 8f * u), 1.6f * u, StrokeCap.Round)
+                drawLine(Color(0xFFB8560F), Offset(c.x, c.y - 4.5f * u), Offset(c.x, c.y + 5f * u), 0.8f * u)
+            }
+            dussehra -> {
+                // Bow drawn, arrow nocked: the victory of Vijayadashami.
+                val bow = Path().apply { moveTo(4f * u, 1f * u); quadraticTo(15f * u, 8f * u, 4f * u, 15f * u) }
+                drawPath(bow, Color(0xFF8A4B1F), style = Stroke(1.6f * u, cap = StrokeCap.Round))
+                drawLine(Color(0xFFB98D5A), Offset(4f * u, 1f * u), Offset(4f * u, 15f * u), 0.7f * u)
+                drawLine(FestiveColors.Saffron, Offset(2f * u, 8f * u), Offset(15f * u, 8f * u), 1.1f * u, StrokeCap.Round)
+                drawPath(Path().apply { moveTo(15.5f * u, 8f * u); lineTo(12.5f * u, 6.3f * u); lineTo(12.5f * u, 9.7f * u); close() }, FestiveColors.Saffron)
+            }
+            else -> {
+                // Two dandiya sticks crossed, with ribbon bands.
+                listOf(Offset(3f * u, 14f * u) to Offset(13f * u, 2f * u), Offset(3f * u, 2f * u) to Offset(13f * u, 14f * u)).forEachIndexed { i, (a, b) ->
+                    drawLine(if (i == 0) FestiveColors.Saffron else Color(0xFFE0457B), a, b, 1.8f * u, StrokeCap.Round)
+                    val m = Offset((a.x + b.x) / 2, (a.y + b.y) / 2)
+                    drawCircle(FestiveColors.Marigold, 1.4f * u, Offset((a.x + m.x) / 2, (a.y + m.y) / 2))
+                }
+            }
         }
     }
 }

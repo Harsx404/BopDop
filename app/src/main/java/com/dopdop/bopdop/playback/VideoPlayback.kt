@@ -99,19 +99,24 @@ internal class VideoMediaSourceFactory(
         if (songAt != null && song != null) {
             // The song plays from its own source; the video gives only its picture (any soundtrack in
             // it is dropped), trimmed so its frame at songAt lands on the song's 0:00.
-            // Unclipped durations: the song's own length decides when the item ends.
-            val once = {
-                FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
-                    if (songAt > 0) ClippingMediaSource(it, songAt * 1000, C.TIME_END_OF_SOURCE) else it
-                }
+            // The song decides when the item ends: the picture is trimmed to the song's length (so
+            // a long video never holds the next song back), and if it is shorter it simply stops
+            // drawing while the music plays on -- it never ends the song early.
+            val songMs = (mediaItem.toTrack()?.durationSec ?: 0) * 1000L
+            fun once(endMs: Long = 0L) = FilteringMediaSource(delegate.createMediaSource(mediaItem), C.TRACK_TYPE_VIDEO).let {
+                val end = if (endMs > 0) (songAt + endMs) * 1000 else C.TIME_END_OF_SOURCE
+                if (songAt > 0 || endMs > 0) ClippingMediaSource(it, songAt * 1000, end) else it
             }
             // A video shorter than the song plays again from the song's start point, so the picture
             // never freezes on the last frame while the music carries on.
-            val songMs = (mediaItem.toTrack()?.durationSec ?: 0) * 1000L
             val clipMs = mediaItem.videoSeconds * 1000L - songAt
-            val loops = if (songMs > 0 && clipMs in 15_000 until songMs - 3_000) ((songMs + clipMs - 1) / clipMs).toInt().coerceIn(2, 6) else 1
-            val picture = if (loops == 1) once() else ConcatenatingMediaSource2.Builder().setMediaItem(mediaItem)
-                .apply { repeat(loops) { add(once(), clipMs) } }.build()
+            val loops = if (songMs > 0 && clipMs in 15_000 until songMs) ((songMs + clipMs - 1) / clipMs).toInt().coerceIn(2, 12) else 1
+            val picture = if (loops == 1) once(songMs) else ConcatenatingMediaSource2.Builder().setMediaItem(mediaItem)
+                .apply {
+                    repeat(loops - 1) { add(once(), clipMs) }
+                    val last = songMs - clipMs * (loops - 1)
+                    add(once(last), last)
+                }.build()
             return MergingMediaSource(true, false, sourceFor(song), picture)
         }
         if (!mediaItem.hasSeparateVideoAudio) return delegate.createMediaSource(mediaItem)

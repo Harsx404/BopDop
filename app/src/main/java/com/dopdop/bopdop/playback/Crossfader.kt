@@ -75,22 +75,33 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
             t.prepare()
             primedFor = key
         }
-        if (left <= fadeMs + 150 && primedFor == key && tail?.playbackState == Player.STATE_READY) {
+        // Too little left to be worth a fade (the tail was slow to load): let the song end normally.
+        if (left <= fadeMs + 150 && left >= 1_500 && primedFor == key && tail?.playbackState == Player.STATE_READY) {
             // Land on the exact fade point rather than the next 100 ms tick.
             fade = scope.launch {
                 delay((left - fadeMs).coerceAtLeast(0))
-                cross(p, tail!!, fadeMs)
+                cross(p, tail!!, dur)
             }
         }
     }
 
-    private suspend fun cross(p: ExoPlayer, t: ExoPlayer, fadeMs: Long) {
-        android.util.Log.i("Automix", "crossing into the next song over $fadeMs ms")
+    private suspend fun cross(p: ExoPlayer, t: ExoPlayer, dur: Long) {
+        // Start the tail exactly where the song is now, so it never repeats what was just heard
+        // (it was primed for the fade point, but may have become ready after it).
+        val from = p.currentPosition
+        val span = (dur - from).coerceAtLeast(1_000)
+        android.util.Log.i("Automix", "crossing into the next song over $span ms")
+        t.seekTo(from)
         t.volume = 1f
         t.play()
         p.volume = 0f
         ownSeek = true
         p.seekToNextMediaItem()
+        // Hold the outgoing song at full volume until the next one is actually playing, so the
+        // fade never runs into silence while the new song is still loading.
+        val waitStart = SystemClock.uptimeMillis()
+        while (!p.isPlaying && SystemClock.uptimeMillis() - waitStart < span / 2) delay(30)
+        val fadeMs = (span - (SystemClock.uptimeMillis() - waitStart)).coerceAtLeast(800)
         val start = SystemClock.uptimeMillis()
         while (true) {
             val x = ((SystemClock.uptimeMillis() - start).toFloat() / fadeMs).coerceIn(0f, 1f)
