@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -66,95 +67,43 @@ import kotlin.math.PI
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-private fun smooth(t: Float) = t * t * (3f - 2f * t)
-
-/** Press, then drag: reports the absolute fraction under the finger (0..1) — no drift, taps seek too. */
+/**
+ * Press, then drag: reports the absolute fraction under the finger (0..1) — no drift, taps seek too.
+ * With [onLongPress], a press held still for the long-press time calls it instead of seeking.
+ */
 @Composable
-private fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: (Float) -> Unit, inset: Dp = 0.dp): Modifier {
+internal fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: (Float) -> Unit, inset: Dp = 0.dp, onLongPress: (() -> Unit)? = null): Modifier {
     val start by rememberUpdatedState(onStart)
     val move by rememberUpdatedState(onMove)
     val end by rememberUpdatedState(onEnd)
-    return pointerInput(inset) {
+    val long by rememberUpdatedState(onLongPress)
+    return pointerInput(inset, onLongPress != null) {
         awaitEachGesture {
             val down = awaitFirstDown()
             val i = inset.toPx()
             fun frac(x: Float) = ((x - i) / (size.width - 2 * i)).coerceIn(0f, 1f)
             var v = frac(down.position.x)
-            start(); move(v)
             down.consume()
-            horizontalDrag(down.id) { c -> v = frac(c.position.x); move(v); if (c.positionChange() != Offset.Zero) c.consume() }
-            end(v)
-        }
-    }
-}
-
-/**
- * Android-style squiggly seek bar: the played part is a travelling sine wave
- * that settles flat when paused (or while you scrub), the rest a quiet line,
- * and a pill thumb marks the playhead.
- */
-@Composable
-fun WavySeekBar(positionMs: Long, durationMs: Long, playing: Boolean, onSeek: (Long) -> Unit, modifier: Modifier = Modifier, caption: String? = null) {
-    val dur = durationMs.coerceAtLeast(1L)
-    var drag by remember { mutableStateOf<Float?>(null) }
-    val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)
-    val reduce = LocalReduceMotion.current
-    val amp by animateFloatAsState(if (playing && drag == null) 1f else 0f, tween(420), label = "amp")
-    val thumbH by animateFloatAsState(if (drag != null) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 700f), label = "thumb")
-    val phase by produceState(0f, playing, reduce) {
-        if (!playing || reduce) return@produceState
-        val start = withInfiniteAnimationFrameMillis { it }
-        val base = value
-        while (true) withInfiniteAnimationFrameMillis { value = base + (it - start) / 1000f * 2f * PI.toFloat() * 0.9f }
-    }
-
-    Column(modifier.fillMaxWidth()) {
-        Canvas(
-            Modifier.fillMaxWidth().height(38.dp)
-                .scrub(onStart = {}, onMove = { drag = it }, onEnd = { onSeek((it * dur).toLong()); drag = null }, inset = 8.dp),
-        ) {
-            val pad = 8.dp.toPx()
-            val w = size.width - 2 * pad
-            val cy = size.height / 2
-            val x = pad + w * frac
-            val stroke = 4.dp.toPx()
-            val wave = 3.2.dp.toPx() * amp
-            val lambda = 30.dp.toPx()
-            val gap = 7.dp.toPx()
-            // Remaining: flat, faint.
-            if (x + gap < pad + w) drawLine(Color.White.copy(alpha = 0.26f), Offset(x + gap, cy), Offset(pad + w, cy), stroke, StrokeCap.Round)
-            // Played: the squiggle (amplitude eases out right before the thumb so it meets it flat).
-            val end = (x - gap).coerceAtLeast(pad)
-            if (end > pad) {
-                val p = Path()
-                var px = pad
-                p.moveTo(px, cy)
-                val step = 1.5.dp.toPx()
-                // A squiggle needs room: short played segments stay (nearly) flat instead of kinking.
-                val room = ((end - pad) / (lambda * 1.6f)).coerceIn(0f, 1f)
-                while (px < end) {
-                    px = (px + step).coerceAtMost(end)
-                    // Ease in from the left cap and out into the thumb, so both ends meet the line smoothly.
-                    val inT = ((px - pad) / (lambda * 0.5f)).coerceIn(0f, 1f)
-                    val outT = ((end - px) / (lambda * 0.5f)).coerceIn(0f, 1f)
-                    val taper = room * smooth(inT) * smooth(outT)
-                    p.lineTo(px, cy + wave * taper * sin((px - pad) / lambda * 2f * PI.toFloat() - phase))
+            var released = false
+            if (long != null) {
+                // Wait to see whether this is a tap, a drag, or a long press held still.
+                val decided = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    while (true) {
+                        val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: continue
+                        if (!c.pressed) { released = true; v = frac(c.position.x); break }
+                        if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) { v = frac(c.position.x); break }
+                    }
+                    true
                 }
-                drawPath(p, Color.White, style = Stroke(stroke, cap = StrokeCap.Round))
+                if (decided == null) {
+                    long?.invoke()
+                    do { val e = awaitPointerEvent(); e.changes.forEach { it.consume() } } while (e.changes.any { it.pressed })
+                    return@awaitEachGesture
+                }
             }
-            val th = (18.dp + 8.dp * thumbH).toPx()
-            val tw = (5.dp + 1.dp * thumbH).toPx()
-            drawRoundRect(Color.White, Offset(x - tw / 2, cy - th / 2), Size(tw, th), CornerRadius(tw / 2))
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-            Text(formatDuration((frac * dur / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Caption, color = if (drag != null) Bop.OnMedia else Bop.OnMedia2)
-            Spacer(Modifier.weight(1f))
-            if (caption != null) Text(caption, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = Bop.OnMedia3)
-            Spacer(Modifier.weight(1f))
-            Text(
-                if (drag != null) "-" + formatDuration(((1f - frac) * dur / 1000).toInt()).ifEmpty { "0:00" } else formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" },
-                style = BopType.Caption, color = Bop.OnMedia2,
-            )
+            start(); move(v)
+            if (!released) horizontalDrag(down.id) { c -> v = frac(c.position.x); move(v); if (c.positionChange() != Offset.Zero) c.consume() }
+            end(v)
         }
     }
 }

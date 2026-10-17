@@ -1,6 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Pets
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -210,6 +211,9 @@ fun SettingsScreen() {
                 if (rates.size > 1) {
                     RowHead(Icons.Rounded.Speed, "Refresh rate", if (s.refreshRate == 0) "Auto: Android picks the rate." else "${s.refreshRate} Hz requested. Android may lower it when needed.")
                     ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
+                }
+                NavRow(Icons.Rounded.Pets, "Seek bar & pet", "${s.seekStyle.label} seek bar${if (s.seekPet == com.dopdop.bopdop.data.SeekPet.NONE) "" else " with a running ${s.seekPet.label.lowercase()}"}. Long-press the seek bar to change it from the player.") {
+                    app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
                 }
                 ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
                     LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }

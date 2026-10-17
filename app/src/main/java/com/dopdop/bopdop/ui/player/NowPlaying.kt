@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -543,9 +544,12 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
     val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(200) } }
     val playing by PlayerConnection.isPlaying.collectAsState()
     val video by PlayerConnection.video.collectAsState()
-    WavySeekBar(
+    val app = com.dopdop.bopdop.ui.LocalApp.current
+    SeekBar(
         positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
         onSeek = { PlayerConnection.seekTo(it) },
+        seed = t.id.hashCode(),
+        onLongPress = { app.sheet = Sheet.SeekBarLook },
         caption = if (video.active) {
             // The song's own sound, then the picture.
             val res = when { video.height >= 2160 -> "4K"; video.height >= 1440 -> "1440p"; video.height > 0 -> "${video.height}p"; else -> "Video" }
@@ -609,21 +613,26 @@ private fun QualityChip(q: StreamQuality, haze: HazeState) {
 @Composable
 private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState) {
     var pop by remember { mutableStateOf(false) }
+    var bursts by remember { mutableStateOf(0) }
     val s by animateFloatAsState(if (pop) 1.35f else 1f, spring(dampingRatio = 0.35f, stiffness = 700f), finishedListener = { pop = false }, label = "pop")
     val press = remember { MutableInteractionSource() }
-    Box(
-        Modifier.size(46.dp).bounceClick(0.85f, interactionSource = press) {
-            val now = LibraryStore.toggleLike(t)
-            if (now) pop = true
-            app.toast(if (now) "Added to Liked Songs" else "Removed from Liked Songs")
-        }.mediaGlass(CircleShape, haze, interactionSource = press, strong = true),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Like",
-            tint = if (liked) Bop.Like else Color.White,
-            modifier = Modifier.size(22.dp).graphicsLayer { scaleX = s; scaleY = s },
-        )
+    Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier.size(46.dp).bounceClick(0.85f, interactionSource = press) {
+                val now = LibraryStore.toggleLike(t)
+                if (now) { pop = true; bursts++ }
+                app.toast(if (now) "Added to Liked Songs" else "Removed from Liked Songs")
+            }.mediaGlass(CircleShape, haze, interactionSource = press, strong = true),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Like",
+                tint = if (liked) Bop.Like else Color.White,
+                modifier = Modifier.size(22.dp).graphicsLayer { scaleX = s; scaleY = s },
+            )
+        }
+        // Hearts fly out when you like it.
+        com.dopdop.bopdop.ui.components.Burst(bursts, Bop.Like, Modifier.requiredSize(120.dp))
     }
 }
 

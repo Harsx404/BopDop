@@ -39,6 +39,7 @@ import com.dopdop.bopdop.ui.components.ErrorState
 import com.dopdop.bopdop.ui.components.Load
 import com.dopdop.bopdop.ui.components.SectionHeader
 import com.dopdop.bopdop.ui.components.bounceClick
+import com.dopdop.bopdop.ui.components.riseIn
 import com.dopdop.bopdop.ui.components.rememberLoad
 import com.dopdop.bopdop.ui.components.shimmer
 import com.dopdop.bopdop.ui.glass.glassLite
@@ -93,7 +94,7 @@ fun ExploreScreen() {
             is Load.Ready -> {
                 val rows = s.value.chunked(2)
                 items(rows.size, key = { "em$it" }) { r ->
-                    Row(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.riseIn(r).padding(horizontal = 20.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         rows[r].forEach { (title, params) -> MoodTile(title, params, wide = false, modifier = Modifier.weight(1f)) { app.openMood(title, params) } }
                         if (rows[r].size == 1) Spacer(Modifier.weight(1f))
                     }

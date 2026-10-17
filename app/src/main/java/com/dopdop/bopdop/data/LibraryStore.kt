@@ -58,6 +58,8 @@ data class Settings(
     val crossfadeSec: Int = 0,
     /** Show the line being sung in the media notification / lock screen. */
     val lockScreenLyrics: Boolean = false,
+    val seekStyle: SeekStyle = SeekStyle.WAVE,
+    val seekPet: SeekPet = SeekPet.NONE,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -65,6 +67,7 @@ data class Settings(
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
+        .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
         .put("eq", eq.toJson())
 
     companion object {
@@ -85,6 +88,8 @@ data class Settings(
             floatOutput = o.optBoolean("floatOutput", false),
             crossfadeSec = o.optInt("crossfadeSec", 0),
             lockScreenLyrics = o.optBoolean("lockScreenLyrics", false),
+            seekStyle = runCatching { SeekStyle.valueOf(o.optString("seekStyle")) }.getOrDefault(SeekStyle.WAVE),
+            seekPet = runCatching { SeekPet.valueOf(o.optString("seekPet")) }.getOrDefault(SeekPet.NONE),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

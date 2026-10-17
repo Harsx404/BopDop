@@ -59,6 +59,8 @@ object PlayerConnection {
     private val _sleepAt = MutableStateFlow<Long?>(null)
     /** Wall-clock ms the sleep timer fires at (Long.MAX_VALUE = end of track). */
     val sleepAt: StateFlow<Long?> = _sleepAt.asStateFlow()
+    /** Volume before a sleep fade began; put back when the timer stops or is cancelled. */
+    private var volumeBeforeFade: Float? = null
     private var sleepJob: Job? = null
 
     val position: Long get() = controller?.currentPosition ?: 0L
@@ -324,32 +326,65 @@ object PlayerConnection {
         }
     }
 
-    /** minutes = 0 → stop at end of the current track. */
-    fun sleepIn(minutes: Int) {
+    /**
+     * minutes = 0 → stop at the end of the current track. Either way the music fades out gently
+     * over the last moments (30 s for a timer, 5 s at the end of a song) instead of cutting off.
+     */
+    fun sleepIn(minutes: Int) = sleepFor(minutes * 60_000L, endOfSong = minutes == 0)
+
+    /** Push a running timer back by [minutes]. */
+    fun extendSleep(minutes: Int) {
+        val at = _sleepAt.value ?: return
+        if (at == Long.MAX_VALUE) return
+        sleepFor((at - System.currentTimeMillis()).coerceAtLeast(0) + minutes * 60_000L)
+    }
+
+    private fun sleepFor(ms: Long, endOfSong: Boolean = false) {
         sleepJob?.cancel()
-        if (minutes == 0) {
+        restoreVolume()
+        if (endOfSong) {
             _sleepAt.value = Long.MAX_VALUE
             sleepJob = scope.launch {
                 val id = _current.value?.id
                 while (true) {
-                    delay(500)
+                    delay(250)
                     val c = controller ?: continue
                     val left = c.duration - c.currentPosition
-                    if (c.currentMediaItem?.mediaId != id || (c.duration > 0 && left < 700)) { c.pause(); break }
+                    if (c.currentMediaItem?.mediaId != id || (c.duration > 0 && left < 400)) { c.pause(); break }
+                    if (c.duration > 0 && left < 5_000) fadeTo(c, left / 5_000f)
                 }
+                restoreVolume()
                 _sleepAt.value = null
             }
             return
         }
-        _sleepAt.value = System.currentTimeMillis() + minutes * 60_000L
+        _sleepAt.value = System.currentTimeMillis() + ms
         sleepJob = scope.launch {
-            delay(minutes * 60_000L)
+            val fade = minOf(30_000L, ms / 4)
+            delay(ms - fade)
+            val steps = 30
+            repeat(steps) { i ->
+                controller?.let { fadeTo(it, 1f - (i + 1) / steps.toFloat()) }
+                delay(fade / steps)
+            }
             controller?.pause()
+            restoreVolume()
             _sleepAt.value = null
         }
     }
 
-    fun cancelSleep() { sleepJob?.cancel(); _sleepAt.value = null }
+    private fun fadeTo(c: Player, level: Float) {
+        val base = volumeBeforeFade ?: c.volume.also { volumeBeforeFade = it }
+        c.volume = base * level.coerceIn(0f, 1f)
+    }
+
+    private fun restoreVolume() {
+        val v = volumeBeforeFade ?: return
+        controller?.volume = v
+        volumeBeforeFade = null
+    }
+
+    fun cancelSleep() { sleepJob?.cancel(); restoreVolume(); _sleepAt.value = null }
 
     fun currentMediaItem(): MediaItem? = controller?.currentMediaItem
 }

@@ -55,6 +55,7 @@ import com.dopdop.bopdop.ui.components.Artwork
 import com.dopdop.bopdop.ui.components.GlassIconButton
 import com.dopdop.bopdop.ui.components.SectionHeader
 import com.dopdop.bopdop.ui.components.bounceClick
+import com.dopdop.bopdop.ui.components.riseIn
 import com.dopdop.bopdop.ui.glass.glassEdges
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.glass.rememberArtPalette
@@ -97,11 +98,11 @@ fun LibraryScreen() {
             GlassIconButton(Icons.Rounded.Add, "New playlist", size = 44.dp) { app.sheet = Sheet.NewPlaylist(emptyList()) }
         },
     ) {
-        item(key = "liked") { LikedHero() }
+        item(key = "liked") { Box(Modifier.riseIn(0)) { LikedHero() } }
 
         // Everything you've listened to, kept, or have on the phone: four doors.
         item(key = "shortcuts") {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.riseIn(1).padding(horizontal = 20.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Shortcut(
                         "Recently played", songs(lib.history.size), Icons.Rounded.History, Modifier.weight(1f),
@@ -117,7 +118,7 @@ fun LibraryScreen() {
         val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists
         val rows = tiles.chunked(2)
         items(rows.size, key = { "pl$it" }) { r ->
-            Row(Modifier.padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(Modifier.riseIn(r + 2).padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 rows[r].forEach { item ->
                     Box(Modifier.weight(1f)) {
                         when (item) {

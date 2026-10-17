@@ -158,7 +158,8 @@ fun SheetHost(app: AppState) {
                         app.toast(if (s.tracks.isEmpty()) "Created “${p.name}”" else "Added to “${p.name}”")
                     }
                     is Sheet.RenamePlaylist -> NameInput(app, "Rename playlist", "Save", s.name) { name -> LibraryStore.renamePlaylist(s.id, name) }
-                    Sheet.SleepTimer -> SleepTimer(app)
+                    Sheet.SleepTimer -> SleepTimerSheet(app)
+                    Sheet.SeekBarLook -> SeekLookSheet()
                     Sheet.AudioPipeline -> AudioPipelineSheet()
                     Sheet.ImportPlaylist -> ImportPlaylistSheet(app)
                     null -> {}
@@ -318,44 +319,6 @@ private fun ColumnScope.NameInput(app: AppState, title: String, cta: String, ini
             .background(if (name.isBlank()) Bop.Ink.copy(alpha = 0.25f) else Bop.Ink),
         contentAlignment = Alignment.Center,
     ) { Text(cta, style = BopType.BodyStrong, color = Color.White) }
-}
-
-@Composable
-private fun ColumnScope.SleepTimer(app: AppState) {
-    val at by PlayerConnection.sleepAt.collectAsState()
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
-    Row(Modifier.padding(horizontal = 22.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.Bedtime, null, tint = Bop.Text)
-        Spacer(Modifier.width(10.dp))
-        Text("Sleep timer", style = BopType.Title, color = Bop.Text, modifier = Modifier.weight(1f))
-        at?.let {
-            Text(
-                if (it == Long.MAX_VALUE) "End of song" else "%d:%02d left".format(((it - now) / 60000).coerceAtLeast(0), ((it - now) / 1000 % 60).coerceAtLeast(0)),
-                style = BopType.BodyStrong, color = Bop.Gold,
-            )
-        }
-    }
-    val opts = listOf(5, 10, 15, 30, 45, 60, 90)
-    Column {
-        opts.chunked(4).forEach { row ->
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { m ->
-                    Box(
-                        Modifier.weight(1f).height(50.dp).bounceClick { PlayerConnection.sleepIn(m); app.toast("Stopping in $m min"); app.sheet = null }
-                            .glassLite(RoundedCornerShape(16.dp), alpha = 0.6f),
-                        contentAlignment = Alignment.Center,
-                    ) { Text("$m min", style = BopType.BodyStrong, color = Bop.Text) }
-                }
-                if (row.size < 4) Box(
-                    Modifier.weight(1f).height(50.dp).bounceClick { PlayerConnection.sleepIn(0); app.toast("Stopping after this song"); app.sheet = null }
-                        .glassLite(RoundedCornerShape(16.dp), alpha = 0.6f),
-                    contentAlignment = Alignment.Center,
-                ) { Text("End of song", style = BopType.Caption, color = Bop.Text) }
-            }
-        }
-    }
-    if (at != null) Action(Icons.Rounded.TimerOff, "Turn off timer", Color(0xFFFF6B8B)) { PlayerConnection.cancelSleep(); app.sheet = null }
 }
 
 @Composable

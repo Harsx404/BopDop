@@ -57,6 +57,7 @@ import com.dopdop.bopdop.ui.components.SectionHeader
 import com.dopdop.bopdop.ui.components.TrackRow
 import com.dopdop.bopdop.ui.components.TrackTile
 import com.dopdop.bopdop.ui.components.bounceClick
+import com.dopdop.bopdop.ui.components.riseIn
 import com.dopdop.bopdop.ui.glass.glass
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
@@ -167,12 +168,15 @@ fun BackButton(haze: dev.chrisbanes.haze.HazeState? = null, onBack: () -> Unit) 
 // --- Shelves -------------------------------------------------------------------------
 
 fun LazyListScope.shelf(shelf: Shelf, key: String) {
-    when (shelf.style) {
-        ShelfStyle.QUICK_PICKS, ShelfStyle.TRACKS -> item(key = key) { QuickPicksShelf(shelf) }
-        ShelfStyle.ARTISTS -> item(key = key) { CardsShelf(shelf, 120.dp) }
-        ShelfStyle.LARGE_CARDS -> item(key = key) { CardsShelf(shelf, 210.dp) }
-        ShelfStyle.CARDS -> item(key = key) {
-            if (shelf.cards.isEmpty() && shelf.tracks.isNotEmpty()) TrackTilesShelf(shelf) else CardsShelf(shelf, 152.dp)
+    // Each shelf rises into place the first time it scrolls into view.
+    item(key = key) {
+        Box(Modifier.riseIn()) {
+            when (shelf.style) {
+                ShelfStyle.QUICK_PICKS, ShelfStyle.TRACKS -> QuickPicksShelf(shelf)
+                ShelfStyle.ARTISTS -> CardsShelf(shelf, 120.dp)
+                ShelfStyle.LARGE_CARDS -> CardsShelf(shelf, 210.dp)
+                ShelfStyle.CARDS -> if (shelf.cards.isEmpty() && shelf.tracks.isNotEmpty()) TrackTilesShelf(shelf) else CardsShelf(shelf, 152.dp)
+            }
         }
     }
 }
