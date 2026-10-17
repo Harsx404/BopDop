@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
@@ -37,7 +35,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -53,12 +49,12 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.AppState
 import com.dopdop.bopdop.ui.components.bounceClick
+import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import kotlinx.coroutines.delay
@@ -70,7 +66,6 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private const val MAX_MIN = 120
-private val Dusk = listOf(Color(0xFF6C5CE7), Color(0xFFB06AB3), Color(0xFFF29E7A), Color(0xFF6C5CE7))
 
 /**
  * Sleep timer as a dial: drag the knob round the ring (5-minute steps, up to two hours) or tap a
@@ -87,7 +82,7 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
     val running = at != null
     val endOfSong = at == Long.MAX_VALUE
     val left = if (running && !endOfSong) (at!! - now).coerceAtLeast(0) else 0L
-    // The ring: what's picked while setting, what's left while running.
+    // The ring: what is picked while setting, what is left while running.
     val ring = when {
         endOfSong -> 1f
         running -> left / 60_000f / MAX_MIN
@@ -95,17 +90,15 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
     }
     val shown by animateFloatAsState(ring.coerceIn(0f, 1f), spring(dampingRatio = 0.8f, stiffness = 300f), label = "ring")
 
-    Row(Modifier.padding(horizontal = 22.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        FloatingMoon()
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("Sleep timer", style = BopType.Title, color = Bop.Text)
-            Text("Fades out gently, then pauses.", style = BopType.Caption, color = Bop.Text2)
-        }
+    Row(Modifier.padding(horizontal = 22.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.Bedtime, null, tint = Bop.Text)
+        Spacer(Modifier.width(10.dp))
+        Text("Sleep timer", style = BopType.Title, color = Bop.Text, modifier = Modifier.weight(1f))
+        if (running) Text("On", style = BopType.BodyStrong, color = Bop.Text2)
     }
-    Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
         Box(
-            Modifier.size(230.dp).pointerInput(running) {
+            Modifier.size(210.dp).pointerInput(running) {
                 // Drag round the dial; tap to jump. Setting while running restarts the timer.
                 fun minutesAt(o: Offset): Int {
                     val a = atan2(o.x - size.width / 2f, -(o.y - size.height / 2f))
@@ -123,27 +116,35 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
             contentAlignment = Alignment.Center,
         ) {
             Canvas(Modifier.fillMaxSize()) {
-                val stroke = 16.dp.toPx()
-                val r = size.minDimension / 2 - stroke
+                val stroke = 8.dp.toPx()
+                val knob = 12.dp.toPx()
+                val r = size.minDimension / 2 - knob - 2.dp.toPx()
                 val c = Offset(size.width / 2, size.height / 2)
+                // A frosted disc inside the ring, like the other glass surfaces.
+                drawCircle(Color.White.copy(alpha = 0.45f), r - stroke, c)
+                drawCircle(Color.White.copy(alpha = 0.7f), r - stroke, c, style = Stroke(1.dp.toPx()))
                 drawCircle(Bop.Ink.copy(alpha = 0.07f), r, c, style = Stroke(stroke))
-                // Hour marks every 15 minutes.
+                // Quarter-hour marks.
                 for (k in 0 until MAX_MIN / 15) {
                     val a = k / (MAX_MIN / 15f) * 2f * Math.PI.toFloat()
-                    val p1 = Offset(c.x + sin(a) * (r - stroke), c.y - cos(a) * (r - stroke))
-                    val p2 = Offset(c.x + sin(a) * (r - stroke - 5.dp.toPx()), c.y - cos(a) * (r - stroke - 5.dp.toPx()))
-                    drawLine(Bop.Ink.copy(alpha = if (k % 4 == 0) 0.35f else 0.15f), p1, p2, 1.5.dp.toPx(), StrokeCap.Round)
+                    val inner = r - stroke - 6.dp.toPx()
+                    val len = if (k % 4 == 0) 6.dp.toPx() else 3.dp.toPx()
+                    drawLine(Bop.Ink.copy(alpha = if (k % 4 == 0) 0.3f else 0.14f),
+                        Offset(c.x + sin(a) * inner, c.y - cos(a) * inner), Offset(c.x + sin(a) * (inner - len), c.y - cos(a) * (inner - len)),
+                        1.2.dp.toPx(), StrokeCap.Round)
                 }
                 if (shown > 0f) rotate(-90f, c) {
-                    drawArc(Brush.sweepGradient(Dusk, c), 0f, 360f * shown, false, Offset(c.x - r, c.y - r), Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(Bop.Ink, 0f, 360f * shown, false, Offset(c.x - r, c.y - r), Size(r * 2, r * 2), style = Stroke(stroke, cap = StrokeCap.Round))
                 }
                 val a = shown * 2f * Math.PI.toFloat()
                 val k = Offset(c.x + sin(a) * r, c.y - cos(a) * r)
-                drawCircle(Color.Black.copy(alpha = 0.12f), stroke * 0.78f, k + Offset(0f, 2.dp.toPx()))
-                drawCircle(Color.White, stroke * 0.72f, k)
+                drawCircle(Color.Black.copy(alpha = 0.10f), knob + 1.dp.toPx(), k + Offset(0f, 2.dp.toPx()))
+                drawCircle(Color.White, knob, k)
+                drawCircle(Bop.Ink.copy(alpha = 0.10f), knob, k, style = Stroke(1.dp.toPx()))
+                drawCircle(Bop.Ink, 3.dp.toPx(), k)
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                val big = BopType.Hero.copy(fontSize = 46.sp, fontWeight = FontWeight(700))
+                val big = BopType.Hero.copy(fontSize = 42.sp)
                 AnimatedContent(
                     when {
                         endOfSong -> "♪"
@@ -155,8 +156,8 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
                 Text(
                     when {
                         endOfSong -> "after this song"
-                        running -> "left · stops ${clock(at!!)}"
-                        else -> "minutes · stops ${clock(now + pick * 60_000L)}"
+                        running -> "until ${clock(at!!)}"
+                        else -> "min · until ${clock(now + pick * 60_000L)}"
                     },
                     style = BopType.Caption, color = Bop.Text2,
                 )
@@ -187,38 +188,23 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
 
 private fun clock(ms: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(ms))
 
+/** Same glass chips as the rest of the sheets; the picked one turns ink. */
 @Composable
 private fun Preset(label: String, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.6f), label = "preset")
-    Box(modifier.height(42.dp).clip(RoundedCornerShape(14.dp)).background(bg).bounceClick(0.94f, onClick = onClick), contentAlignment = Alignment.Center) {
-        Text(label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text, maxLines = 1)
-    }
+    val shape = RoundedCornerShape(16.dp)
+    val ink by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "preset")
+    Box(
+        modifier.height(46.dp).bounceClick(0.94f, onClick = onClick).glassLite(shape, alpha = 0.6f).clip(shape).background(ink),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text, maxLines = 1) }
 }
 
 @Composable
 private fun Pill(label: String, primary: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
     Box(
-        modifier.height(52.dp).clip(RoundedCornerShape(50))
-            .background(if (primary) Brush.linearGradient(Dusk.take(3)) else Brush.linearGradient(listOf(Color.White.copy(alpha = 0.7f), Color.White.copy(alpha = 0.7f))))
-            .bounceClick(0.96f, onClick = onClick),
+        modifier.height(52.dp).bounceClick(0.96f, onClick = onClick)
+            .then(if (primary) Modifier.clip(shape).background(Bop.Ink) else Modifier.glassLite(shape, alpha = 0.6f)),
         contentAlignment = Alignment.Center,
     ) { Text(label, style = BopType.BodyStrong, color = if (primary) Color.White else Bop.Text) }
-}
-
-/** A moon that bobs gently, with a couple of stars twinkling beside it. */
-@Composable
-private fun FloatingMoon() {
-    val t by produceState(0f) {
-        val start = withInfiniteAnimationFrameMillis { it }
-        while (true) withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
-    }
-    Box(Modifier.size(46.dp).clip(CircleShape).background(Brush.linearGradient(Dusk.take(2))), contentAlignment = Alignment.Center) {
-        Icon(Icons.Rounded.Bedtime, null, tint = Color.White, modifier = Modifier.size(22.dp).padding(top = (2f + 2f * sin(t * 1.6f)).dp))
-        Canvas(Modifier.fillMaxSize()) {
-            listOf(Offset(0.25f, 0.28f) to 0f, Offset(0.76f, 0.22f) to 1.7f, Offset(0.72f, 0.74f) to 3.1f).forEach { (p, off) ->
-                val a = 0.35f + 0.65f * ((sin(t * 2.2f + off) + 1f) / 2f)
-                drawCircle(Color.White.copy(alpha = a), 1.4.dp.toPx(), Offset(size.width * p.x, size.height * p.y))
-            }
-        }
-    }
 }

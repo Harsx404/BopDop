@@ -57,6 +57,7 @@ import com.dopdop.bopdop.ui.glass.glass
 import com.dopdop.bopdop.ui.glass.rememberArtPalette
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
+import androidx.compose.ui.graphics.drawscope.scale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -144,6 +145,30 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
         // Progress hairline
         Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.Black.copy(alpha = 0.07f))) {
             Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(palette.wash, palette.washDeep))))
+        }
+        MiniPet(progress, playing, Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp))
+    }
+}
+
+/** The seek bar pet, smaller, trotting along the mini player's progress line. */
+@Composable
+private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
+    val lib by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
+    val pet = lib.settings.seekPet
+    if (pet == com.dopdop.bopdop.data.SeekPet.NONE) return
+    val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
+    // Progress arrives in steps; glide between them so the pet walks instead of teleporting.
+    val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")
+    val time by androidx.compose.runtime.produceState(0f, reduce) {
+        if (reduce) return@produceState
+        val start = androidx.compose.animation.core.withInfiniteAnimationFrameMillis { it }
+        while (true) androidx.compose.animation.core.withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
+    }
+    androidx.compose.foundation.Canvas(modifier.fillMaxWidth().height(22.dp)) {
+        val px = size.width * x
+        val feet = size.height - 1.dp.toPx()
+        scale(0.72f, androidx.compose.ui.geometry.Offset(px, feet)) {
+            drawPet(pet, px, feet, time, if (playing) PetMode.RUN else PetMode.SIT, 1f)
         }
     }
 }
