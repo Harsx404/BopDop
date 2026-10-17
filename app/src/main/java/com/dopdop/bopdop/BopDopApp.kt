@@ -20,6 +20,7 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
         com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)
         com.dopdop.bopdop.data.DailyMixes.init(this)
+        com.dopdop.bopdop.data.CatalogCache.init(this)
         com.dopdop.bopdop.data.together.Together.init(this)
         runCatching { androidx.media3.cast.Cast.getSingletonInstance(this).initialize() }
     }

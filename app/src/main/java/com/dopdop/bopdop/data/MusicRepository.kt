@@ -82,10 +82,14 @@ object MusicRepository {
     }
 
     suspend fun collection(card: Card): Collection = withContext(Dispatchers.IO) {
-        when (card.source) {
-            Source.SAAVN -> if (card.kind == CardKind.ALBUM) SaavnApi.album(card.rawId) else SaavnApi.playlist(card.rawId)
-            else -> YtMusic.collection(card.kind, card.rawId)
+        val load: suspend () -> Collection = {
+            when (card.source) {
+                Source.SAAVN -> if (card.kind == CardKind.ALBUM) SaavnApi.album(card.rawId) else SaavnApi.playlist(card.rawId)
+                else -> YtMusic.collection(card.kind, card.rawId)
+            }
         }
+        // Your own YouTube Music likes change constantly and belong to the account — never cached.
+        if (card.rawId == "LM") load() else CatalogCache.collection(card.id, load)
     }
 
     suspend fun artist(id: String): ArtistPage = withContext(Dispatchers.IO) {

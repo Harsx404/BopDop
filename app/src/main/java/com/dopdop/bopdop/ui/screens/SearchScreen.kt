@@ -354,11 +354,12 @@ private fun TopResult(top: Any) {
 /** Genre tile coloured by its own cover art, with two tilted covers peeking out. */
 @Composable
 internal fun MoodTile(title: String, params: String, wide: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val arts = rememberLoad("moodart:$params", 12 * 3600_000L) {
-        MusicRepository.moodCategory(params).flatMap { sh -> sh.cards.map { it.artwork } + sh.tracks.map { it.artwork } }
-            .filter { it.isNotBlank() }.distinct().take(2)
+    // Covers come from the catalog cache (memory, then disk), so scrolling back never refetches.
+    val known = remember(params) { com.dopdop.bopdop.data.CatalogCache.moodArtNow(params) }
+    val list by androidx.compose.runtime.produceState(known.orEmpty(), params) {
+        if (known == null) value = runCatching { com.dopdop.bopdop.data.CatalogCache.moodArt(params) }.onFailure { android.util.Log.w("MoodTile", "cover load failed", it) }.getOrDefault(emptyList())
     }
-    val list = (arts.state as? Load.Ready)?.value.orEmpty()
+    val loading = known == null && list.isEmpty()
     val palette = com.dopdop.bopdop.ui.glass.rememberArtPalette(list.firstOrNull())
     val fallback = tileColors(title)
     val top by animateColorAsState(if (list.isEmpty()) fallback[0] else androidx.compose.ui.graphics.lerp(palette.wash, Color(0xFF9A9DA4), 0.28f), androidx.compose.animation.core.tween(700), label = "mt")
@@ -379,7 +380,7 @@ internal fun MoodTile(title: String, params: String, wide: Boolean, modifier: Mo
         }
         if (list.isNotEmpty()) {
             Artwork(list[0], Modifier.size(cover).align(Alignment.BottomEnd).offset(cover * 0.12f, cover * 0.16f).graphicsLayer { rotationZ = 12f }, corner = 14.dp, size = 300, elevation = 14.dp)
-        } else if (arts.state is Load.Loading) {
+        } else if (loading) {
             Box(Modifier.size(cover).align(Alignment.BottomEnd).offset(cover * 0.12f, cover * 0.16f).graphicsLayer { rotationZ = 12f }.glassLite(RoundedCornerShape(14.dp), alpha = 0.25f))
         }
         Column(Modifier.padding(16.dp).fillMaxWidth(if (wide) 0.62f else 0.7f)) {

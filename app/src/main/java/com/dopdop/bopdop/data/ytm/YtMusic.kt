@@ -42,17 +42,18 @@ object YtMusic {
     @Volatile var visitorData: String? = null
         private set
 
-    private val cache = TtlCache<String, JSONObject>(10 * 60_000L, 200)
+    /** ~12 MB of response text at most (2 bytes a char). */
+    private val cache = com.dopdop.bopdop.data.net.TextCache(10 * 60_000L, 6_000_000L)
 
     suspend fun post(endpoint: String, body: JSONObject, cacheable: Boolean = true): JSONObject {
         val auth = AccountStore.authHeaders()
         val key = "${auth.isNotEmpty()}|$endpoint|$body"
-        if (cacheable) cache.get(key)?.let { return it }
+        if (cacheable) cache.get(key)?.let { return JSONObject(it) }
         body.put("context", JSONObject().put("client", JSONObject()
             .put("hl", hl).put("gl", gl)
             .put("clientName", "WEB_REMIX").put("clientVersion", WEB_REMIX_VERSION)
             .apply { visitorData?.let { put("visitorData", it) } }))
-        val res = Http.postJson("$API$endpoint?prettyPrint=false", body, buildMap {
+        val text = Http.postText("$API$endpoint?prettyPrint=false", body, buildMap {
             put("User-Agent", WEB_UA)
             put("X-YouTube-Client-Name", "67")
             put("X-YouTube-Client-Version", WEB_REMIX_VERSION)
@@ -61,8 +62,9 @@ object YtMusic {
             visitorData?.let { put("X-Goog-Visitor-Id", it) }
             putAll(auth)
         })
+        val res = JSONObject(text)
         res.optJSONObject("responseContext")?.optString("visitorData")?.takeIf { it.isNotEmpty() }?.let { visitorData = it }
-        if (cacheable) cache.put(key, res)
+        if (cacheable) cache.put(key, text)
         return res
     }
 
