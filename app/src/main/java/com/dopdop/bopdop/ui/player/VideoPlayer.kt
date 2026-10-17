@@ -102,39 +102,13 @@ fun MusicVideoHero(video: VideoPlaybackState, modifier: Modifier = Modifier) {
     LaunchedEffect(video.trackId, view) {
         val tv = view ?: return@LaunchedEffect
         val id = video.trackId ?: return@LaunchedEffect
-        if (id in measuredBars) return@LaunchedEffect
-        var seen: Bars? = null
-        var samples = 0
-        repeat(8) {
-            delay(if (seen == null) 1800 else 2600)
-            if (!PlayerConnection.isPlaying.value) return@repeat
-            val bmp = runCatching { tv.getBitmap(64, 36) }.getOrNull() ?: return@repeat
-            val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
-            val now = detectBars(px, bmp.width, bmp.height)
-            bmp.recycle()
-            if (now == null) return@repeat
-            seen = seen?.intersect(now) ?: now
-            if (++samples >= 2) { bars = seen!!; measuredBars[id] = seen!! }
-        }
+        if (id !in measuredBars) measureBars(tv, { PlayerConnection.isPlaying.value }) { bars = it; measuredBars[id] = it }
     }
     val crop by animateFloatAsState(if (bars == Bars.NONE) 0f else 1f, tween(600), label = "crop")
     BoxWithConstraints(modifier.fillMaxSize().clipToBounds().background(Color.Black), contentAlignment = Alignment.Center) {
-        val ar = video.aspectRatio.coerceIn(0.3f, 3f)
-        // The part of the picture that isn't bar, eased in once measured.
-        val cw = 1f - (bars.left + bars.right) * crop
-        val ch = 1f - (bars.top + bars.bottom) * crop
-        val contentAr = ar * cw / ch
-        // Cover-fit the content: whichever side is short grows until the frame is filled.
-        val contentH = maxOf(maxHeight, maxWidth / contentAr)
-        val picH = contentH / ch
-        val picW = contentH * contentAr / cw
         AndroidView(
             factory = { context -> TextureView(context).also { view = it; PlayerConnection.attachVideoSurface(it) } },
-            modifier = Modifier.requiredSize(picW, picH).offset(
-                // Uneven bars shift the content off-centre; move the picture back the other way.
-                x = picW * (bars.right - bars.left) * crop / 2,
-                y = picH * (bars.bottom - bars.top) * crop / 2,
-            ),
+            modifier = coverPastBars(video.aspectRatio, bars, crop),
             onReset = null,
             onRelease = { it.keepScreenOn = false; PlayerConnection.detachVideoSurface(it); if (view === it) view = null },
             update = { it.keepScreenOn = playing; PlayerConnection.attachVideoSurface(it) },
@@ -143,8 +117,50 @@ fun MusicVideoHero(video: VideoPlaybackState, modifier: Modifier = Modifier) {
     }
 }
 
-/** Bars already measured for each song's video. */
-private val measuredBars = HashMap<String, Bars>()
+/**
+ * Size and place a video view so the picture, minus its [bars] (eased in by [crop]), covers the
+ * whole box like a centre-cropped cover. For a view centred in a clipped [BoxWithConstraints].
+ */
+internal fun androidx.compose.foundation.layout.BoxWithConstraintsScope.coverPastBars(aspectRatio: Float, bars: Bars, crop: Float = 1f): Modifier {
+    val ar = aspectRatio.coerceIn(0.3f, 3f)
+    // The part of the picture that is not bar.
+    val cw = 1f - (bars.left + bars.right) * crop
+    val ch = 1f - (bars.top + bars.bottom) * crop
+    val contentAr = ar * cw / ch
+    // Cover-fit the content: whichever side is short grows until the frame is filled.
+    val contentH = maxOf(maxHeight, maxWidth / contentAr)
+    val picH = contentH / ch
+    val picW = contentH * contentAr / cw
+    return Modifier.requiredSize(picW, picH).offset(
+        // Uneven bars shift the content off-centre; move the picture back the other way.
+        x = picW * (bars.right - bars.left) * crop / 2,
+        y = picH * (bars.bottom - bars.top) * crop / 2,
+    )
+}
+
+/**
+ * Black bars baked into the picture on [tv], from small frames sampled a few times while [live].
+ * Only bars present in every sample count (a dark scene is not a bar). Reports from the second
+ * sample on, each time tighter.
+ */
+internal suspend fun measureBars(tv: TextureView, live: () -> Boolean, first: Long = 1800, every: Long = 2600, onMeasured: (Bars) -> Unit) {
+    var seen: Bars? = null
+    var samples = 0
+    repeat(8) {
+        delay(if (seen == null) first else every)
+        if (!live()) return@repeat
+        val bmp = runCatching { tv.getBitmap(64, 36) }.getOrNull() ?: return@repeat
+        val px = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+        val now = detectBars(px, bmp.width, bmp.height)
+        bmp.recycle()
+        if (now == null) return@repeat
+        seen = seen?.intersect(now) ?: now
+        if (++samples >= 2) onMeasured(seen!!)
+    }
+}
+
+/** Bars already measured for each song's video (the same video at any size has the same bars). */
+internal val measuredBars = HashMap<String, Bars>()
 
 /** Fractions of the frame taken by black bars on each side. */
 internal data class Bars(val top: Float, val bottom: Float, val left: Float, val right: Float) {

@@ -159,6 +159,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             BottomChrome(app, hasTrack = current != null, navBottom = navBottom)
             NowPlaying(app)
             SheetHost(app)
+            app.shareTrack?.let { com.dopdop.bopdop.ui.share.ShareStudio(it) { app.shareTrack = null } }
             ToastHost(app)
         }
     }

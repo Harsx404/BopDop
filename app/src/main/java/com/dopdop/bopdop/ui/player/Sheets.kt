@@ -197,7 +197,7 @@ private fun share(ctx: android.content.Context, text: String) {
     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
-private fun trackLink(t: Track) = if (t.id.startsWith("yt:")) "https://music.youtube.com/watch?v=${t.rawId}"
+internal fun trackLink(t: Track) = if (t.id.startsWith("yt:")) "https://music.youtube.com/watch?v=${t.rawId}"
     else "https://www.jiosaavn.com/search/${android.net.Uri.encode("${t.title} ${t.artist}")}"
 
 @Composable
@@ -218,7 +218,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         if (playlistId != null) Action(Icons.Rounded.RemoveCircleOutline, "Remove from this playlist") { LibraryStore.removeFromPlaylist(playlistId, t.id); close() }
         t.albumId?.let { id -> Action(Icons.Rounded.Album, "Go to album") { close(); app.collapsePlayer(); app.openAlbum(id, t.album, t.artwork) } }
         t.artistId?.let { id -> Action(Icons.Rounded.Person, "Go to artist") { close(); app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } }
-        Action(Icons.Rounded.Share, "Share") { share(ctx, "${t.title} — ${t.artist}\n${trackLink(t)}"); close() }
+        Action(Icons.Rounded.Share, "Share") { close(); app.shareTrack = t }
     }
 }
 

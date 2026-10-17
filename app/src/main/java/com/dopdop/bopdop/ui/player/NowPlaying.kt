@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -91,6 +92,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
@@ -428,6 +430,9 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             Box(Modifier.fillMaxWidth().padding(bottom = 14.dp), contentAlignment = Alignment.Center) { VideoModeSwitch(video, haze) }
         }
         AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            LiveLyricLine(t) { app.nowPlayingPage = NowPlayingPage.LYRICS }
+        }
+        AnimatedVisibility(onArt, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Row(Modifier.padding(bottom = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     AnimatedContent(t.title, transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }, label = "title") { title ->
@@ -455,6 +460,39 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", app.nowPlayingPage == NowPlayingPage.QUEUE, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.QUEUE) NowPlayingPage.ART else NowPlayingPage.QUEUE
             }
+        }
+    }
+}
+
+/**
+ * The line being sung right now, small, just above the title — a glance at the words without
+ * leaving the art. Only for timed lyrics; tap to open the full lyrics. Space is held while the song
+ * has lyrics so the panel doesn't jump between lines and instrumental gaps.
+ */
+@Composable
+private fun LiveLyricLine(t: Track, onOpen: () -> Unit) {
+    val lyrics by produceState<com.dopdop.bopdop.data.model.Lyrics?>(null, t.id) {
+        value = runCatching { com.dopdop.bopdop.data.MusicRepository.lyrics(t) }.getOrNull()
+    }
+    val synced = lyrics?.synced.orEmpty()
+    if (synced.isEmpty()) return
+    val line by produceState("", synced) {
+        while (true) {
+            val pos = PlayerConnection.position
+            value = synced.lastOrNull { it.timeMs <= pos + 150 }?.text?.trim().orEmpty().takeIf { it != "♪" }.orEmpty()
+            delay(250)
+        }
+    }
+    Box(Modifier.fillMaxWidth().height(46.dp).padding(bottom = 10.dp).bounceClick(0.98f, onClick = onOpen), contentAlignment = Alignment.BottomStart) {
+        AnimatedContent(
+            line,
+            transitionSpec = { (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 3 }) togetherWith fadeOut(tween(160)) },
+            label = "liveLyric",
+        ) { text ->
+            Text(
+                text, style = BopType.BodyStrong.copy(fontSize = 15.sp, lineHeight = 18.sp).forScript(text), color = Bop.OnMedia,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

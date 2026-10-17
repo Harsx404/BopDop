@@ -65,6 +65,8 @@ object SeeAllHolder {
 @Stable
 class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     var sheet by mutableStateOf<Sheet?>(null)
+    /** The song open in the share studio, if any. */
+    var shareTrack by mutableStateOf<Track?>(null)
     var toast by mutableStateOf<Pair<Long, String>?>(null)
         private set
     /** 0 = mini player, 1 = full Now Playing. */
