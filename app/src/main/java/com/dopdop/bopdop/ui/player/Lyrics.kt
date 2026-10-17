@@ -92,6 +92,9 @@ private sealed interface LyricState {
 
 private val LyricStyle = BopType.Lyric.copy(fontSize = 31.sp, lineHeight = 39.sp, fontWeight = FontWeight(760))
 
+/** Tight tracking suits Latin display type but makes Devanagari/Gurmukhi measure wide and wrap early. */
+internal fun androidx.compose.ui.text.TextStyle.forScript(text: String) = if (Romanize.hasIndic(text)) copy(letterSpacing = 0.sp) else this
+
 /** Soft fade at the top and bottom so lines dissolve instead of being cut. */
 private fun Modifier.edgeFade(): Modifier = this
     .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -223,7 +226,7 @@ private fun PlainLyrics(
                     .then(if (selecting) Modifier.bounceClick(0.98f) { onToggle(i) } else Modifier)
                     .padding(vertical = 3.dp, horizontal = if (selecting) 8.dp else 0.dp),
             ) {
-                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp), color = Color.White.copy(alpha = 0.9f))
+                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp).forScript(main(i)), color = Color.White.copy(alpha = 0.9f))
                 sub(i)?.let { Text(it, style = BopType.Headline, color = Color.White.copy(alpha = 0.55f)) }
             }
         }
@@ -329,7 +332,7 @@ private fun SyncedLyrics(
                         val text = main(row.src)
                         Text(
                             if (on && !selecting) karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f)) else AnnotatedString(text),
-                            style = LyricStyle.copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
+                            style = LyricStyle.forScript(text).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
                             color = Color.White,
                         )
                         sub(row.src)?.let { Text(it, style = BopType.Headline.copy(fontWeight = FontWeight(560)), color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(top = 4.dp)) }

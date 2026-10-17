@@ -80,6 +80,16 @@
         <!-- Android Auto: BopDop is a media app the car can browse. -->
         <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
 
+        <!-- Play from a headset, the car or the system media card after BopDop was closed:
+             Media3 routes it to onPlaybackResumption. -->
+        <receiver
+            android:name="androidx.media3.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".playback.NowPlayingWidget"
             android:exported="false"

@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
  */
 @OptIn(UnstableApi::class)
 internal class LockScreenLyrics(private val scope: CoroutineScope, private val player: () -> ExoPlayer) {
-    private var lyricsFor: String? = null
+    private var current: String? = null
+    private var fetchedFor: String? = null
     private var lines: List<LyricLine> = emptyList()
     private var shown: String? = null
 
@@ -36,22 +37,21 @@ internal class LockScreenLyrics(private val scope: CoroutineScope, private val p
         val item = p.currentMediaItem ?: return
         val track = item.toTrack() ?: return
         val on = LibraryStore.settings.lockScreenLyrics && item.videoId == null
-        if (track.id != lyricsFor) {
-            lyricsFor = track.id
-            lines = emptyList()
-            shown = null
-            if (on) scope.launch { lines = runCatching { MusicRepository.lyrics(track) }.getOrNull()?.synced.orEmpty() }
-            return
+        if (track.id != current) { current = track.id; lines = emptyList(); shown = null; fetchedFor = null }
+        // Fetch once per song, whenever the setting is (or becomes) on.
+        if (on && fetchedFor != track.id) {
+            fetchedFor = track.id
+            val id = track.id
+            scope.launch {
+                val synced = runCatching { MusicRepository.lyrics(track) }.getOrNull()?.synced.orEmpty()
+                if (current == id) lines = synced
+            }
         }
-        if (on && lines.isEmpty() && shown == null) return
-        val line = if (!on || !p.isPlaying && shown == null) null
+        val line = if (!on || !p.isPlaying) null
             else lines.lastOrNull { it.timeMs <= p.currentPosition + 200 }?.text?.trim()?.takeIf { it.isNotEmpty() && it != "♪" }
-        val want = line ?: track.artist
-        if (want == (shown ?: track.artist)) return
+        if (line == shown) return
         shown = line
-        val meta = item.mediaMetadata.buildUpon().setArtist(want).setSubtitle(if (line != null) track.title else null).build()
+        val meta = item.mediaMetadata.buildUpon().setArtist(line ?: track.artist).build()
         p.replaceMediaItem(p.currentMediaItemIndex, item.buildUpon().setMediaMetadata(meta).build())
-        // Turned off mid-song: lyrics will be fetched again if it comes back on.
-        if (!on) lyricsFor = null
     }
 }

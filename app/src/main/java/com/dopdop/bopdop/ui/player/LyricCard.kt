@@ -105,7 +105,7 @@ private fun StoryCard(t: Track, palette: ArtPalette, lines: List<String>) {
                 }
                 Spacer(Modifier.height(18.dp))
                 lines.forEach { line ->
-                    Text(line, style = BopType.Lyric.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight(760)), color = Color.White,
+                    Text(line, style = BopType.Lyric.copy(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight(760)).forScript(line), color = Color.White,
                         modifier = Modifier.padding(vertical = 3.dp))
                 }
             }

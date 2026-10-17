@@ -42,26 +42,11 @@ internal object WidgetUpdater {
     private var bg: Bitmap? = null
     private var artFor: String? = null
 
+    /** Always remembers the latest state, so a widget added later shows it straight away. */
     fun update(context: Context, t: Track?, isPlaying: Boolean) {
-        val ctx = context.applicationContext
-        if (!hasWidgets(ctx)) return
-        val changedTrack = t?.id != track?.id
         track = t
         playing = isPlaying
-        if (changedTrack && t != null && t.artwork != artFor) {
-            artFor = t.artwork
-            scope.launch {
-                val bmp = runCatching {
-                    SingletonImageLoader.get(ctx).execute(
-                        ImageRequest.Builder(ctx).data(t.artwork).size(300).allowHardware(false).build(),
-                    ).image?.toBitmap()
-                }.getOrNull()
-                art = bmp?.let(::rounded)
-                bg = backdrop(bmp)
-                redraw(ctx)
-            }
-        }
-        redraw(ctx)
+        redraw(context)
     }
 
     fun redraw(context: Context) {
@@ -69,8 +54,9 @@ internal object WidgetUpdater {
         val manager = AppWidgetManager.getInstance(ctx)
         val ids = manager.getAppWidgetIds(ComponentName(ctx, NowPlayingWidget::class.java))
         if (ids.isEmpty()) return
-        val v = RemoteViews(ctx.packageName, R.layout.widget_now_playing)
         val t = track
+        if (t != null && t.artwork != artFor) loadArt(ctx, t.artwork)
+        val v = RemoteViews(ctx.packageName, R.layout.widget_now_playing)
         v.setTextViewText(R.id.widget_title, t?.title ?: "BopDop")
         v.setTextViewText(R.id.widget_artist, t?.artist ?: "Tap to play something")
         v.setImageViewResource(R.id.widget_toggle, if (playing) R.drawable.ic_w_pause else R.drawable.ic_w_play)
@@ -88,8 +74,20 @@ internal object WidgetUpdater {
         manager.updateAppWidget(ids, v)
     }
 
-    private fun hasWidgets(ctx: Context) =
-        AppWidgetManager.getInstance(ctx).getAppWidgetIds(ComponentName(ctx, NowPlayingWidget::class.java)).isNotEmpty()
+    private fun loadArt(ctx: Context, url: String) {
+        artFor = url
+        scope.launch {
+            val bmp = runCatching {
+                SingletonImageLoader.get(ctx).execute(
+                    ImageRequest.Builder(ctx).data(url).size(300).allowHardware(false).build(),
+                ).image?.toBitmap()
+            }.getOrNull()
+            if (artFor != url) return@launch
+            art = bmp?.let(::rounded)
+            bg = backdrop(bmp)
+            redraw(ctx)
+        }
+    }
 
     /** The same media-button intent a headset sends; the session service handles it, even from cold. */
     private fun mediaButton(ctx: Context, code: Int): PendingIntent {
