@@ -134,9 +134,12 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
             }
             is LyricState.Ready -> {
                 val texts = remember(s.l) { if (s.l.isSynced) s.l.synced.map { it.text } else s.l.plain.orEmpty().trim().lines() }
-                val indic = remember(texts) { texts.any(Romanize::hasIndic) }
+                // Anything not already in Latin letters can be shown romanized: Hindi, Tamil, Korean, Japanese…
+                val indic = remember(texts) { texts.any(Romanize::canRomanize) }
                 val mode = LyricPrefs.mode.takeIf { it != LyricMode.ROMANIZED || indic } ?: LyricMode.ORIGINAL
-                val romanized = remember(texts, indic) { if (indic) texts.map(Romanize::line) else texts }
+                val romanized = remember(texts, indic) {
+                    if (!indic) texts else Romanize.isJapanese(texts).let { jp -> texts.map { Romanize.line(it, jp) } }
+                }
                 val translated by produceState<List<String?>>(emptyList(), t.id, mode) {
                     if (mode == LyricMode.TRANSLATED) value = runCatching { LyricsTranslate.translate(t.id, texts) }.getOrDefault(emptyList())
                 }

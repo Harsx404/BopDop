@@ -1,6 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Pets
@@ -295,6 +296,25 @@ fun SettingsScreen() {
             Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("BopDop", style = BopType.Title, color = Bop.Text)
                 Text("v${BuildConfig.VERSION_NAME} · DopDop music engine", style = BopType.Caption, color = Bop.Text3)
+                // Updates: what's newer on GitHub, or a check on demand.
+                val update by com.dopdop.bopdop.data.Updates.available.collectAsState()
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                val u = update
+                Text(
+                    if (u != null) "Get ${u.title}" else "Check for updates",
+                    style = BopType.BodyStrong, color = if (u != null) Color.White else Bop.Text,
+                    modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
+                        .background(if (u != null) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                        .bounceClick {
+                            if (u != null) com.dopdop.bopdop.ui.components.openUpdate(ctx, u)
+                            else scope.launch {
+                                app.toast("Checking for updates…")
+                                val found = com.dopdop.bopdop.data.Updates.check(force = true)
+                                app.toast(if (found != null) "${found.title} is available" else "You're on the latest version")
+                            }
+                        }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                )
                 Text("YouTube Music catalogue · JioSaavn 320 kbps · LRCLIB lyrics", style = BopType.Caption, color = Bop.Text3)
             }
         }

@@ -65,7 +65,8 @@ object FestiveColors {
  */
 @Composable
 fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
-    val reduce = LocalReduceMotion.current
+    // Still while reduced motion is on, or while Home is hidden under another tab or page.
+    val reduce = LocalReduceMotion.current || !com.dopdop.bopdop.ui.LocalTabActive.current
     val t by produceState(0f, reduce) {
         if (reduce) return@produceState
         val start = withInfiniteAnimationFrameMillis { it }

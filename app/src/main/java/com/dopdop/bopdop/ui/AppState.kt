@@ -32,6 +32,8 @@ sealed interface Sheet {
 }
 
 object Routes {
+    /** The navigation root: the three tabs live under it, outside the back stack. */
+    const val TABS = "tabs"
     const val HOME = "home"
     const val SEARCH = "search"
     const val EXPLORE = "explore"
@@ -65,6 +67,8 @@ object SeeAllHolder {
 @Stable
 class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     var sheet by mutableStateOf<Sheet?>(null)
+    /** Which tab (Home, Explore, Library) shows under any pushed pages. */
+    var tab by mutableStateOf(Routes.HOME)
     /** The song open in the share studio, if any. */
     var shareTrack by mutableStateOf<Track?>(null)
     var toast by mutableStateOf<Pair<Long, String>?>(null)
@@ -139,12 +143,10 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
         }
     }
 
+    /** Show a tab, closing any pages open over the tabs. */
     fun goTab(route: String) {
-        nav.navigate(route) {
-            popUpTo(Routes.HOME) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
-        }
+        tab = route
+        nav.popBackStack(Routes.TABS, inclusive = false)
     }
 }
 

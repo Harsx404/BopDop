@@ -181,6 +181,7 @@ fun HomeScreen() {
                     Text(greeting, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
                 }
             }
+            item(key = "update") { com.dopdop.bopdop.ui.components.UpdateBanner() }
             item(key = "chips") {
                 LazyRow(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 18.dp),
@@ -372,7 +373,7 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
             PlayerConnection.startRadio(liked.random(), "Deep Cuts")
         })
     }
-    val time = rememberSilkTime(!LocalReduceMotion.current)
+    val time = rememberSilkTime(!LocalReduceMotion.current && com.dopdop.bopdop.ui.LocalTabActive.current)
     Column {
         SectionHeader("Made for you")
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

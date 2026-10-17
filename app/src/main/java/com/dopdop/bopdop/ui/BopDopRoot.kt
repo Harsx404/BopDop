@@ -44,6 +44,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.layout.layout
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -154,6 +157,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 LiquidMetalBackground(palette, Modifier.fillMaxSize())
+                TabsHost(app)
                 AppNavHost(app)
             }
 
@@ -165,8 +169,81 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         }
     }
 
+    // A quiet look for a newer release, once the app has settled.
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(4_000); com.dopdop.bopdop.data.Updates.check() }
+
     BackHandler(enabled = app.sheet != null || app.player.targetValue > 0.5f) {
         if (app.sheet != null) app.sheet = null else app.collapsePlayer()
+    }
+}
+
+/** Whether the tab this content belongs to is on screen; hidden tabs pause their idle animations. */
+val LocalTabActive = androidx.compose.runtime.compositionLocalOf { true }
+
+/**
+ * Home, Explore and Library, kept alive under the navigation stack. A page opened from a tab is
+ * pushed over them; closing it (back button or gesture) just reveals the tab that was there,
+ * already built and scrolled where you left it, so the close animation never stalls while a page
+ * rebuilds. Tabs are built the first time they're opened and then kept; only the shown one (and
+ * one fading out) is laid out, drawn and touchable.
+ */
+@Composable
+private fun TabsHost(app: AppState) {
+    val entry by app.nav.currentBackStackEntryAsState()
+    val visible by app.nav.visibleEntries.collectAsState()
+    val onTabs = (entry?.destination?.route ?: Routes.TABS) == Routes.TABS
+    val tabsVisible = visible.any { it.destination.route == Routes.TABS }
+    // Show the tabs while they're the current page, and while a back gesture or pop is
+    // revealing them; hide them as soon as a page is pushed over them.
+    var shown by remember { androidx.compose.runtime.mutableStateOf(true) }
+    var wasOnTabs by remember { androidx.compose.runtime.mutableStateOf(true) }
+    LaunchedEffect(onTabs, tabsVisible) {
+        shown = when {
+            onTabs -> true
+            !tabsVisible -> false
+            else -> !wasOnTabs
+        }
+        wasOnTabs = onTabs
+    }
+    val reveal by androidx.compose.animation.core.animateFloatAsState(
+        if (shown) 1f else 0f, if (shown) spring(dampingRatio = 0.9f, stiffness = 380f) else tween(160), label = "tabsReveal",
+    )
+    val opened = remember { androidx.compose.runtime.mutableStateListOf(Routes.HOME) }
+    if (app.tab !in opened) opened += app.tab
+
+    BackHandler(enabled = onTabs && app.tab != Routes.HOME && app.sheet == null && app.player.targetValue < 0.5f) {
+        app.tab = Routes.HOME
+    }
+
+    Box(
+        Modifier.fillMaxSize().graphicsLayer {
+            alpha = reveal
+            // Coming back, the tab settles up from slightly smaller, under the closing page.
+            val s = 0.96f + 0.04f * reveal
+            scaleX = s; scaleY = s
+        },
+    ) {
+        opened.forEach { route ->
+            val selected = route == app.tab
+            val a by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, tween(if (selected) 220 else 160), label = "tab")
+            val live = a > 0f && reveal > 0f
+            androidx.compose.runtime.key(route) {
+                CompositionLocalProvider(LocalTabActive provides (selected && shown)) {
+                    Box(
+                        Modifier.fillMaxSize()
+                            // Kept composed but not placed while hidden: no drawing, no touches.
+                            .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (live) p.place(0, 0) } }
+                            .graphicsLayer { alpha = a; val s = 0.985f + 0.015f * a; scaleX = s; scaleY = s },
+                    ) {
+                        when (route) {
+                            Routes.HOME -> HomeScreen()
+                            Routes.EXPLORE -> com.dopdop.bopdop.ui.screens.ExploreScreen()
+                            Routes.LIBRARY -> LibraryScreen()
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -178,28 +255,24 @@ private fun AppNavHost(app: AppState) {
     val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(220))
     val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(160))
     val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(220))
-    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 5 } + fadeOut(tween(160))
-    val tabIn = fadeIn(tween(220)) + scaleIn(tween(260), 0.985f)
-    val tabOut = fadeOut(tween(180)) + scaleOut(tween(260), 0.985f)
-    fun bothTabs(a: androidx.navigation.NavBackStackEntry, b: androidx.navigation.NavBackStackEntry) =
-        a.destination.route in Routes.tabs && b.destination.route in Routes.tabs
+    // Closing a page: it slides off to the right, shrinking a touch, as the tabs come back underneath.
+    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(200)) + scaleOut(tween(260), 0.96f)
+    fun fromTabs(e: androidx.navigation.NavBackStackEntry) = e.destination.route == Routes.TABS
     val str = { name: String -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }
 
     NavHost(
         navController = app.nav,
-        startDestination = Routes.HOME,
-        enterTransition = { if (bothTabs(initialState, targetState)) tabIn else enter },
-        exitTransition = { if (bothTabs(initialState, targetState)) tabOut else exit },
-        // Back from Explore or Library to Home: the same crossfade as tapping the tab.
-        popEnterTransition = { if (bothTabs(initialState, targetState)) tabIn else popEnter },
-        popExitTransition = { if (bothTabs(initialState, targetState)) tabOut else popExit },
+        startDestination = Routes.TABS,
+        // The tabs root is an empty page: the tabs themselves are drawn by TabsHost underneath.
+        enterTransition = { if (fromTabs(targetState)) EnterTransition.None else enter },
+        exitTransition = { if (fromTabs(initialState)) ExitTransition.None else exit },
+        popEnterTransition = { if (fromTabs(targetState)) EnterTransition.None else popEnter },
+        popExitTransition = { popExit },
     ) {
-        composable(Routes.HOME) { HomeScreen() }
+        composable(Routes.TABS) { Box(Modifier.fillMaxSize()) }
         composable(Routes.SEARCH) { SearchScreen() }
-        composable(Routes.EXPLORE) { com.dopdop.bopdop.ui.screens.ExploreScreen() }
         composable(Routes.TOGETHER, listOf(str("code"))) { e -> com.dopdop.bopdop.ui.screens.TogetherScreen(e.arguments!!.getString("code")!!) }
         composable(Routes.WRAPPED) { com.dopdop.bopdop.ui.screens.WrappedScreen() }
-        composable(Routes.LIBRARY) { LibraryScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
         composable(Routes.EQ) { com.dopdop.bopdop.ui.screens.EqualizerScreen() }
         composable(Routes.COLLECTION, listOf(str("id"), str("kind"), str("title"), str("sub"), str("art"))) { e ->
@@ -270,12 +343,8 @@ private fun TabBar(app: AppState) {
     val tabs = remember {
         listOf(Tab(Routes.HOME, "Home", Icons.Rounded.Home), Tab(Routes.EXPLORE, "Explore", Icons.Rounded.Explore), Tab(Routes.LIBRARY, "Library", Icons.Rounded.LibraryMusic))
     }
-    val entry by app.nav.currentBackStackEntryAsState()
-    val route = entry?.destination?.route
-    // Remember the last tab root we were under so pushed pages keep their tab lit.
-    val lastTab = remember { androidx.compose.runtime.mutableStateOf(Routes.HOME) }
-    if (route in Routes.tabs) lastTab.value = route!!
-    val selected = tabs.indexOfFirst { it.route == lastTab.value }.coerceAtLeast(0)
+    // The tab under any pushed pages stays lit.
+    val selected = tabs.indexOfFirst { it.route == app.tab }.coerceAtLeast(0)
     val lens = remember { Animatable(selected.toFloat()) }
     var dragging by remember { androidx.compose.runtime.mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -293,8 +362,7 @@ private fun TabBar(app: AppState) {
     }
 
     fun go(i: Int) {
-        val t = tabs[i]
-        if (route == t.route) app.nav.popBackStack(t.route, inclusive = false) else app.goTab(t.route)
+        app.goTab(tabs[i].route)
     }
 
     BoxWithConstraints(
@@ -318,7 +386,7 @@ private fun TabBar(app: AppState) {
                         dragging = false
                         val i = lens.value.roundToInt().coerceIn(tabs.indices)
                         scope.launch { lens.animateTo(i.toFloat(), spring(dampingRatio = 0.6f, stiffness = 420f)) }
-                        if (i != selected || route != tabs[i].route) go(i)
+                        go(i)
                     },
                     onDragCancel = { dragging = false; scope.launch { lens.animateTo(selected.toFloat(), spring(dampingRatio = 0.6f, stiffness = 420f)) } },
                 ) { change, d ->

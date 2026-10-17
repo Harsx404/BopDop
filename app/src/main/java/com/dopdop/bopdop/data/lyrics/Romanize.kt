@@ -1,15 +1,54 @@
 package com.dopdop.bopdop.data.lyrics
 
 /**
- * Offline Devanagari (Hindi) and Gurmukhi (Punjabi) → Latin, the way the songs are usually
- * typed: "तुम ही हो" → "tum hi ho", "ਤੇਰੇ ਨਾਲ" → "tere naal". Inherent vowels are dropped at
- * word ends and between a vowel-consonant and a consonant-vowel (Hindi schwa deletion), so
+ * Lyrics in any script → Latin letters, offline.
+ *
+ * Hindi (Devanagari) and Punjabi (Gurmukhi) use our own rules, written the way the songs are
+ * usually typed: "तुम ही हो" → "tum hi ho", "ਤੇਰੇ ਨਾਲ" → "tere naal". Inherent vowels are dropped
+ * at word ends and between a vowel-consonant and a consonant-vowel (Hindi schwa deletion), so
  * "समझना" reads "samajhna", not "samajhanaa".
+ *
+ * Every other script (Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Odia, Urdu and
+ * Arabic, Korean, Chinese, Japanese kana, Cyrillic, Greek, Thai, Hebrew…) goes through Android's
+ * built-in ICU transliterator, with accents stripped so it reads like typed lyrics. In Japanese
+ * songs kanji are left as they are: a Chinese reading of them would be wrong.
  */
 object Romanize {
     fun hasIndic(text: String) = text.any { it in 'ऀ'..'ॿ' || it in '਀'..'੿' }
 
-    fun line(text: String): String = Regex("[\\u0900-\\u097F\\u0A00-\\u0A7F]+").replace(text) { word(it.value) }
+    /** True when the text has letters outside the Latin alphabet, so there is something to romanize. */
+    fun canRomanize(text: String) = text.any(::isForeign)
+
+    /** Japanese lyrics: hiragana or katakana anywhere in them. */
+    fun isJapanese(lines: List<String>) = lines.any { l -> l.any { it in '\u3040'..'\u30FF' } }
+
+    fun line(text: String, japanese: Boolean = false): String {
+        val ours = Regex("[\\u0900-\\u097F\\u0A00-\\u0A7F]+").replace(text) { word(it.value) }
+        if (!ours.any(::isForeign)) return ours
+        return transliterate(ours, japanese) ?: ours
+    }
+
+    private fun isForeign(c: Char): Boolean {
+        if (!Character.isLetter(c)) return false
+        return when (Character.UnicodeScript.of(c.code)) {
+            Character.UnicodeScript.LATIN, Character.UnicodeScript.COMMON, Character.UnicodeScript.INHERITED -> false
+            else -> true
+        }
+    }
+
+    private val anyLatin by lazy { icu("Any-Latin; Latin-ASCII") }
+    private val kanaLatin by lazy { icu("[^\\p{Han}] Any-Latin; Latin-ASCII") }
+
+    private fun icu(id: String): android.icu.text.Transliterator? =
+        if (android.os.Build.VERSION.SDK_INT < 29) null else runCatching { android.icu.text.Transliterator.getInstance(id) }.getOrNull()
+
+    private fun transliterate(text: String, japanese: Boolean): String? = runCatching {
+        val t = (if (japanese) kanaLatin else anyLatin) ?: return null
+        // Some scripts come back with doubled spaces around joined marks; tidy them.
+        val latin = t.transliterate(text).replace(Regex("\\s+"), " ").trim()
+        // Korean comes back with hyphens between syllables ("sajin-eul"); lyrics are typed without them.
+        if (text.any { it in '가'..'힣' }) latin.replace(Regex("(?<=[A-Za-z])-(?=[A-Za-z])"), "") else latin
+    }.getOrNull()
 
     /** A unit is one consonant (with or without its own vowel), or a standalone vowel. */
     private class Unit(var cons: String?, var vowel: String?, var inherent: Boolean, var nasal: String = "")
