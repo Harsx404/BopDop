@@ -123,7 +123,9 @@ object YtMusic {
     fun resize(u: String, size: Int): String = when {
         u.contains("googleusercontent.com") || u.contains("ggpht.com") ->
             u.replace(Regex("=w\\d+-h\\d+[^=]*$"), "=w$size-h$size-l90-rj").replace(Regex("=s\\d+[^=]*$"), "=s$size")
-        u.contains("i.ytimg.com") -> u.replace(Regex("/(default|mqdefault|hqdefault|sddefault)\\.jpg"), "/maxresdefault.jpg")
+        // hqdefault exists for every video; maxresdefault only for HD uploads, so it is asked for
+        // only where the picture is big, and Artwork falls back to hqdefault when it is missing.
+        u.contains("i.ytimg.com") -> u.replace(Regex("/(default|mqdefault|hqdefault|sddefault|maxresdefault)\\.jpg"), if (size > 480) "/maxresdefault.jpg" else "/hqdefault.jpg")
         else -> u
     }
 

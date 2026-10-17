@@ -123,10 +123,13 @@ fun Artwork(
     ) {
         Icon(Icons.Rounded.MusicNote, null, tint = Bop.Text.copy(alpha = 0.14f), modifier = Modifier.fillMaxSize(0.38f))
         if (!url.isNullOrBlank()) {
+            // Not every YouTube video has an HD thumbnail; drop to the one that always exists.
+            var small by remember(url) { mutableStateOf(false) }
             AsyncImage(
-                model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, size)).build(),
+                model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, if (small) 480 else size)).build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                onError = { if (!small && "i.ytimg.com" in url) small = true },
                 modifier = Modifier.fillMaxSize(),
             )
         }

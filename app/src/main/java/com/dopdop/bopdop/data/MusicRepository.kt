@@ -9,7 +9,6 @@ import com.dopdop.bopdop.data.model.HomeFeed
 import com.dopdop.bopdop.data.model.Lyrics
 import com.dopdop.bopdop.data.model.SearchResults
 import com.dopdop.bopdop.data.model.Shelf
-import com.dopdop.bopdop.data.model.ShelfStyle
 import com.dopdop.bopdop.data.model.Source
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.model.matchKey
@@ -39,18 +38,7 @@ object MusicRepository {
             }
             val y = yt.await(); val s = sv.await()
             if (y.isFailure && s.isFailure) throw y.exceptionOrNull() ?: IOException("Offline")
-            val ys = y.getOrDefault(emptyList()).toMutableList()
-            val ss = s.getOrDefault(emptyList()).toMutableList()
-            // Interleave: lead with YouTube's personal-feeling shelves, weave JioSaavn's editorial ones in.
-            val out = mutableListOf<Shelf>()
-            ys.firstOrNull { it.style == ShelfStyle.QUICK_PICKS }?.let { out += it; ys.remove(it) }
-            ss.firstOrNull { it.style == ShelfStyle.LARGE_CARDS }?.let { out += it; ss.remove(it) }
-            while (ys.isNotEmpty() || ss.isNotEmpty()) {
-                if (ys.isNotEmpty()) out += ys.removeAt(0)
-                if (ys.isNotEmpty()) out += ys.removeAt(0)
-                if (ss.isNotEmpty()) out += ss.removeAt(0)
-            }
-            HomeFeed(out.filter { it.tracks.isNotEmpty() || it.cards.isNotEmpty() })
+            mergeHomeRecommendations(y.getOrDefault(emptyList()), s.getOrDefault(emptyList()))
         }
     }
 

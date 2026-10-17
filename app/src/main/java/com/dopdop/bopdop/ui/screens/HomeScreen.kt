@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -80,9 +82,12 @@ import com.dopdop.bopdop.ui.components.TrackTile
 import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.components.rememberLoad
 import com.dopdop.bopdop.ui.components.shimmer
+import com.dopdop.bopdop.ui.glass.LocalReduceMotion
+import com.dopdop.bopdop.ui.glass.SilkGradient
 import com.dopdop.bopdop.ui.glass.glassEdges
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.glass.rememberArtPalette
+import com.dopdop.bopdop.ui.glass.rememberSilkTime
 import com.dopdop.bopdop.ui.glass.softShadow
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
@@ -110,6 +115,12 @@ private enum class HomeFilter(val label: String) {
 /** One page of the hero carousel: a track (plays its radio) or a collection (opens / plays). */
 private data class Featured(val key: String, val title: String, val subtitle: String, val art: String, val track: Track?, val card: Card?, val all: List<Track>)
 
+/** The hero's pages and the shelf they were taken from, so that shelf doesn't repeat them below. */
+private class HeroPick(val pages: List<Featured>, val from: Shelf?)
+
+/** Most shelves shown under All; the filters reach the rest. */
+private const val ALL_SHELVES = 6
+
 @Composable
 fun HomeScreen() {
     val app = LocalApp.current
@@ -129,8 +140,16 @@ fun HomeScreen() {
         }
     }
     val feed = (home.state as? Load.Ready<HomeFeed>)?.value
-    val shelves = feed?.shelves.orEmpty().filter(filter::accepts)
-    val featured = remember(shelves) { featuredFrom(shelves) }
+    val matching = feed?.shelves.orEmpty().filter(filter::accepts)
+    val hero = remember(matching) { featuredFrom(matching) }
+    val featured = hero.pages
+    // Below the hero: its shelf minus what the hero already shows, no near-empty rows, and under
+    // All only the first few shelves so the page stays calm.
+    val shelves = remember(matching, hero, filter) {
+        matching.map { sh -> if (sh === hero.from) sh.copy(tracks = sh.tracks.drop(featured.size)) else sh }
+            .filter { it.tracks.size + it.cards.size >= 3 }
+            .let { if (filter == HomeFilter.ALL) it.take(ALL_SHELVES) else it }
+    }
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
@@ -150,19 +169,16 @@ fun HomeScreen() {
                 }
             }
             item(key = "headline") {
-                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 26.dp)) {
-                    Text(greeting.uppercase(), style = BopType.Micro, color = Bop.Text3)
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "Music That Truly\nMoves With You.",
-                        style = BopType.Hero.copy(fontSize = BopType.Hero.fontSize * 1.06f, fontWeight = FontWeight(560)),
-                        color = Bop.Text,
-                    )
-                }
+                Text(
+                    greeting,
+                    style = BopType.Hero.copy(fontWeight = FontWeight(560)),
+                    color = Bop.Text,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp),
+                )
             }
             item(key = "chips") {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     items(HomeFilter.entries.toList()) { f -> Chip(f.label, f == filter) { filter = f } }
@@ -170,12 +186,14 @@ fun HomeScreen() {
             }
             item(key = "hero") {
                 when {
-                    home.state is Load.Loading -> Box(Modifier.padding(horizontal = 36.dp).fillMaxWidth().height(440.dp).shimmer(40.dp))
+                    home.state is Load.Loading -> Box(Modifier.padding(horizontal = 36.dp).fillMaxWidth().height(HERO_HEIGHT).shimmer(40.dp))
                     featured.isNotEmpty() -> HeroCarousel(featured)
                 }
             }
+            // Under All, Quick picks carries straight on from the hero; your own rows follow, then the catalogue.
+            val lead = if (filter == HomeFilter.ALL) shelves.firstOrNull { it.style == ShelfStyle.QUICK_PICKS } else null
+            lead?.let { shelf(it, "lead${it.title}") }
             if (filter == HomeFilter.ALL) {
-                item(key = "mixes") { MadeForYou(lib.liked, lib.history) }
                 if (lib.history.isNotEmpty()) item(key = "recent") {
                     val recent = lib.history.take(16)
                     Column {
@@ -190,6 +208,7 @@ fun HomeScreen() {
                         }
                     }
                 }
+                item(key = "mixes") { MadeForYou(lib.liked, lib.history) }
             }
             when (val s = home.state) {
                 is Load.Loading -> items(3) { ShelfSkeleton() }
@@ -198,7 +217,7 @@ fun HomeScreen() {
                     if (shelves.isEmpty()) item {
                         Text("Nothing in ${filter.label} right now.", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(28.dp))
                     }
-                    shelves.forEachIndexed { i, sh -> shelf(sh, "shelf$i${sh.title}") }
+                    shelves.forEachIndexed { i, sh -> if (sh !== lead) shelf(sh, "shelf$i${sh.title}") }
                 }
             }
             item { Spacer(Modifier.height(20.dp)) }
@@ -207,14 +226,16 @@ fun HomeScreen() {
     }
 }
 
-private fun featuredFrom(shelves: List<Shelf>): List<Featured> {
+private val HERO_HEIGHT = 380.dp
+
+private fun featuredFrom(shelves: List<Shelf>): HeroPick {
     val trackShelf = shelves.firstOrNull { it.tracks.size >= 3 }
     if (trackShelf != null) {
-        val ts = trackShelf.tracks.take(10)
-        return ts.map { Featured("t" + it.id, it.title, it.artist, it.artwork, it, null, trackShelf.tracks) }
+        val ts = trackShelf.tracks.take(6)
+        return HeroPick(ts.map { Featured("t" + it.id, it.title, it.artist, it.artwork, it, null, trackShelf.tracks) }, trackShelf)
     }
-    val cards = shelves.flatMap { it.cards }.filter { it.kind == CardKind.ALBUM || it.kind == CardKind.PLAYLIST }.take(10)
-    return cards.map { Featured("c" + it.id, it.title, it.subtitle, it.artwork, null, it, emptyList()) }
+    val cards = shelves.flatMap { it.cards }.filter { it.kind == CardKind.ALBUM || it.kind == CardKind.PLAYLIST }.take(6)
+    return HeroPick(cards.map { Featured("c" + it.id, it.title, it.subtitle, it.artwork, null, it, emptyList()) }, null)
 }
 
 @Composable
@@ -235,7 +256,7 @@ private fun HeroCarousel(items: List<Featured>) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(440.dp)
+                .height(HERO_HEIGHT)
                 .graphicsLayer {
                     val s = 1f - (offset * 0.08f).coerceAtMost(0.08f)
                     scaleX = s; scaleY = s
@@ -329,55 +350,58 @@ private fun MadeForYou(liked: List<Track>, history: List<Track>) {
     val mixes = buildList {
         add(Mix(
             "Liked Songs", if (liked.isEmpty()) "Tap ♥ on anything" else "${liked.size} songs · shuffle",
-            Icons.Rounded.Favorite, listOf(Color(0xFF9FB8D8), Color(0xFF7E95C2)), liked.firstOrNull()?.artwork,
+            Icons.Rounded.Favorite, listOf(Color(0xFFF2A7C3), Color(0xFF7C6FD6)), liked.firstOrNull()?.artwork,
         ) {
             if (liked.isEmpty()) app.openLocal("liked") else PlayerConnection.play(liked, context = "Liked Songs", shuffle = true)
         })
         history.firstOrNull()?.let { seed ->
             add(Mix("Discovery Station", "Endless, from ${seed.artist.split(",").first()}", Icons.Rounded.AutoAwesome,
-                listOf(Color(0xFF9DB56A), Color(0xFF6F8B3C)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
+                listOf(Color(0xFFB9D98A), Color(0xFF3F8A6E)), seed.artwork) { PlayerConnection.startRadio(seed, "Discovery Station") })
         }
         add(Mix("Your Replay", "Top songs, artists & trends", Icons.Rounded.History,
-            listOf(Color(0xFFE4B48C), Color(0xFFC98A6A)), history.getOrNull(2)?.artwork) {
+            listOf(Color(0xFFFFC98E), Color(0xFFD0667A)), history.getOrNull(2)?.artwork) {
             app.nav.navigate(Routes.REPLAY)
         })
         if (liked.size >= 3) add(Mix("Deep Cuts", "Radio from your likes", Icons.Rounded.Shuffle,
-            listOf(Color(0xFF8FC7C1), Color(0xFF5E9E98)), liked.random().artwork) {
+            listOf(Color(0xFF9EE3E0), Color(0xFF3E6FB0)), liked.random().artwork) {
             PlayerConnection.startRadio(liked.random(), "Deep Cuts")
         })
     }
+    val time = rememberSilkTime(!LocalReduceMotion.current)
     Column {
         SectionHeader("Made for you")
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(mixes, key = { it.title }) { m -> MixCard(m) }
+            itemsIndexed(mixes, key = { _, m -> m.title }) { i, m -> MixCard(m, time, i.toFloat()) }
         }
     }
 }
 
 @Composable
-private fun MixCard(m: Mix) {
-    val shape = RoundedCornerShape(30.dp)
+private fun MixCard(m: Mix, time: State<Float>, seed: Float) {
+    val shape = RoundedCornerShape(28.dp)
     Box(
-        Modifier.size(250.dp, 150.dp).bounceClick(onClick = m.play)
-            .softShadow(shape, 16.dp, alpha = 0.18f, dy = 6.dp)
-            .clip(shape)
-            .background(Brush.linearGradient(m.colors))
-            .glassEdges(shape, 0.9f, light = true),
+        Modifier.size(232.dp, 140.dp).bounceClick(onClick = m.play)
+            .softShadow(shape, 16.dp, color = m.colors.last(), alpha = 0.32f, dy = 6.dp)
+            .clip(shape),
     ) {
+        SilkGradient(m.colors, time, seed, Modifier.fillMaxSize())
         if (m.art != null) {
             Artwork(
                 m.art,
-                Modifier.size(132.dp).align(Alignment.BottomEnd).offset(30.dp, 26.dp).graphicsLayer { rotationZ = -12f },
-                corner = 22.dp, size = 300, elevation = 18.dp,
+                Modifier.size(122.dp).align(Alignment.BottomEnd).offset(28.dp, 24.dp).graphicsLayer { rotationZ = -12f },
+                corner = 20.dp, size = 300, elevation = 18.dp,
             )
         }
-        Column(Modifier.padding(18.dp).fillMaxSize()) {
-            Box(Modifier.size(38.dp).softShadow(CircleShape, 8.dp, alpha = 0.12f, dy = 2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
-                Icon(m.icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
+        // Keeps the white title readable over the bright patches of the silk.
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.22f))))
+        Box(Modifier.matchParentSize().glassEdges(shape, 0.9f, light = true))
+        Column(Modifier.padding(16.dp).fillMaxSize()) {
+            Box(Modifier.size(34.dp).softShadow(CircleShape, 8.dp, alpha = 0.12f, dy = 2.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.94f)), contentAlignment = Alignment.Center) {
+                Icon(m.icon, null, tint = m.colors.last(), modifier = Modifier.size(17.dp))
             }
             Spacer(Modifier.weight(1f))
             Text(m.title, style = BopType.Title, color = Color.White, maxLines = 1)
-            Text(m.subtitle, style = BopType.Caption, color = Color.White.copy(alpha = 0.85f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(160.dp))
+            Text(m.subtitle, style = BopType.Caption, color = Color.White.copy(alpha = 0.88f), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(150.dp))
         }
     }
 }
