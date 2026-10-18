@@ -118,7 +118,7 @@ fun Artwork(
         modifier
             .then(if (elevation > 0.dp) Modifier.shadow(elevation, shape, ambientColor = Color.Black, spotColor = Color.Black) else Modifier)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(Color(0xFFEDEFF2), Color(0xFFD3D8DF)))),
+            .background(Brush.linearGradient(if (Bop.dark) listOf(Color(0xFF2A2B33), Color(0xFF1E1F25)) else listOf(Color(0xFFEDEFF2), Color(0xFFD3D8DF)))),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Rounded.MusicNote, null, tint = Bop.Text.copy(alpha = 0.14f), modifier = Modifier.fillMaxSize(0.38f))
@@ -335,9 +335,9 @@ fun GlassIconButton(
     Box(
         modifier.size(size).bounceClick(0.9f, onClick = onClick)
             .then(if (onMedia) Modifier.glassLite(CircleShape, alpha = if (active) 0.42f else 0.2f)
-            else Modifier.glassLite(CircleShape, tint = if (active) Bop.Ink else Color.White, alpha = if (active) 0.92f else 0.6f, shadow = 10.dp)),
+            else Modifier.glassLite(CircleShape, tint = if (active) Bop.Ink else Bop.Veil, alpha = if (active) 0.92f else 0.6f, shadow = 10.dp)),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, contentDescription, tint = if (active && !onMedia) Color.White else if (onMedia) Color.White else tint, modifier = Modifier.size(size * 0.5f)) }
+    ) { Icon(icon, contentDescription, tint = if (active && !onMedia) Bop.OnInk else if (onMedia) Color.White else tint, modifier = Modifier.size(size * 0.5f)) }
 }
 
 @Composable
@@ -359,7 +359,7 @@ fun PillButton(text: String, icon: ImageVector?, modifier: Modifier = Modifier, 
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        val c = when { onMedia && filled -> Bop.Ink; onMedia -> Color.White; filled -> Color.White; else -> Bop.Text }
+        val c = when { onMedia && filled -> Bop.Graphite; onMedia -> Color.White; filled -> Bop.OnInk; else -> Bop.Text }
         if (icon != null) { Icon(icon, null, tint = c, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(6.dp)) }
         Text(text, style = BopType.BodyStrong, color = c, maxLines = 1, softWrap = false)
     }

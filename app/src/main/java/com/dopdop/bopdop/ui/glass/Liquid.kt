@@ -123,7 +123,8 @@ fun liquidStyle(
     chromaticAberrationStrength(if (level == GlassLevel.CLEAR) 0.22f else 0.14f)
     chromaticAberrationMode(ChromaticAberrationMode.Simple)
     contrast(if (onMedia) 0.06f else 0.04f)
-    whitePoint(if (clear) 0f else if (onMedia) 0.05f else 0.45f)
+    // Light panes lift toward white; dark panes stay smoked.
+    whitePoint(if (clear) 0f else if (onMedia) 0.05f else if (com.dopdop.bopdop.ui.theme.Bop.dark) 0f else 0.45f)
     chromaMultiplier(if (clear) 1f else if (onMedia) 1.15f else 1.25f)
     if (clear) contrast(0f)
     contentNormalBlend(0.15f)

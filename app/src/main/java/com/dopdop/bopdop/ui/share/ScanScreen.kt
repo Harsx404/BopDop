@@ -193,7 +193,7 @@ private fun Circle(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: 
     Box(
         Modifier.size(46.dp).bounceClick(0.88f, onClick = onClick).glassLite(CircleShape, tint = if (active) Color.White else Color.White, alpha = if (active) 0.9f else 0.18f),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, desc, tint = if (active) Bop.Ink else Color.White, modifier = Modifier.size(22.dp)) }
+    ) { Icon(icon, desc, tint = if (active) Bop.Graphite else Color.White, modifier = Modifier.size(22.dp)) }
 }
 
 /** zxing-android-embedded's bare camera view — no stock UI, decoding QR only. */

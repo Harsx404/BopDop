@@ -168,7 +168,7 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
             Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Artwork(t.artwork, Modifier.size(pillH - 10.dp), circle = true, size = 120)
                 Spacer(Modifier.weight(1f))
-                Bars(model.playing, Modifier.size(pillH - 14.dp))
+                Bars(model.playing, Modifier.padding(end = 6.dp).size(width = pillH * 0.42f, height = pillH * 0.38f))
             }
         }
         AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {

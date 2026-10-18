@@ -18,6 +18,8 @@ import com.dopdop.bopdop.ui.applyRefreshRate
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.dopdop.bopdop.ui.theme.BopDopTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -44,6 +46,14 @@ class MainActivity : ComponentActivity() {
             LibraryStore.state.map { it.settings.refreshRate }.distinctUntilChanged().collect { applyRefreshRate(it) }
         }
         setContent {
+            // Light or dark, from Settings (Auto follows the phone); set before anything reads the tokens.
+            val mode by LibraryStore.state.map { it.settings.themeMode }.collectAsState(LibraryStore.settings.themeMode)
+            val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            com.dopdop.bopdop.ui.theme.Bop.dark = when (mode) {
+                com.dopdop.bopdop.data.ThemeMode.DARK -> true
+                com.dopdop.bopdop.data.ThemeMode.LIGHT -> false
+                com.dopdop.bopdop.data.ThemeMode.SYSTEM -> systemDark
+            }
             BopDopTheme {
                 BopDopRoot(openPlayer, sharedLink, quick)
             }

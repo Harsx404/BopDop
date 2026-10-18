@@ -274,9 +274,9 @@ private fun Label(text: String) =
 
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (selected) Bop.Ink else Color.White.copy(alpha = 0.7f), label = "chip")
+    val bg by animateColorAsState(if (selected) Bop.Ink else Bop.Veil.copy(alpha = 0.7f), label = "chip")
     Text(
-        label, style = BopType.BodyStrong, color = if (selected) Color.White else Bop.Text,
+        label, style = BopType.BodyStrong, color = if (selected) Bop.OnInk else Bop.Text,
         modifier = Modifier.bounceClick(0.94f, onClick = onClick).clip(RoundedCornerShape(50)).background(bg)
             .glassEdges(RoundedCornerShape(50), if (selected) 0f else 1f, true).padding(horizontal = 16.dp, vertical = 9.dp),
     )

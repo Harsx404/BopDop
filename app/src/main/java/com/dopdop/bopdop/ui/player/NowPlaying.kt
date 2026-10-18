@@ -514,8 +514,8 @@ private fun TransportCluster(playing: Boolean, buffering: Boolean, haze: HazeSta
                 .clip(CircleShape).background(Color.White),
             contentAlignment = Alignment.Center,
         ) {
-            LinePlayPause(playing, Modifier.size(26.dp), color = Bop.Ink, stroke = 2.4.dp)
-            if (buffering) androidx.compose.material3.CircularProgressIndicator(Modifier.size(72.dp), color = Bop.Ink.copy(alpha = 0.25f), strokeWidth = 1.5.dp)
+            LinePlayPause(playing, Modifier.size(26.dp), color = Bop.Graphite, stroke = 2.4.dp)
+            if (buffering) androidx.compose.material3.CircularProgressIndicator(Modifier.size(72.dp), color = Bop.Graphite.copy(alpha = 0.25f), strokeWidth = 1.5.dp)
         }
         SideDrop(next = true, haze = haze,
             onLong = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); PlayerConnection.seekTo(PlayerConnection.position + 10_000); app.toast("+10 seconds") },

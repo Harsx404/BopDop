@@ -147,14 +147,15 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             ?.let(com.dopdop.bopdop.data.account.AccountStore::setProfile)
     }
 
-    // Graphite status-bar icons on metal; white ones over the Now Playing artwork.
+    // Graphite status-bar icons on light metal; white ones on dark metal and over the artwork.
     val view = androidx.compose.ui.platform.LocalView.current
     val overMedia = app.player.value > 0.5f
-    LaunchedEffect(overMedia) {
+    val darkTheme = Bop.dark
+    LaunchedEffect(overMedia, darkTheme) {
         val window = (view.context as? android.app.Activity)?.window ?: return@LaunchedEffect
         androidx.core.view.WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = !overMedia
-            isAppearanceLightNavigationBars = !overMedia
+            isAppearanceLightStatusBars = !overMedia && !darkTheme
+            isAppearanceLightNavigationBars = !overMedia && !darkTheme
         }
     }
 

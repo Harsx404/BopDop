@@ -246,15 +246,15 @@ private fun lerpSpectrum(t: Float): Color {
 
 @Composable
 private fun PresetCard(name: String, gains: List<Float>, on: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f), label = "pc")
+    val bg by animateColorAsState(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f), label = "pc")
     Column(
         Modifier.width(112.dp).bounceClick(0.94f, onClick = onClick)
             .softShadow(RoundedCornerShape(20.dp), 10.dp, alpha = if (on) 0.22f else 0.08f)
             .clip(RoundedCornerShape(20.dp)).background(bg).padding(14.dp),
     ) {
-        EqMini(gains, true, Modifier.fillMaxWidth().height(30.dp), color = if (on) Color.White else Bop.Ink)
+        EqMini(gains, true, Modifier.fillMaxWidth().height(30.dp), color = if (on) Bop.OnInk else Bop.Ink)
         Spacer(Modifier.height(10.dp))
-        Text(name, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text, maxLines = 1)
+        Text(name, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text, maxLines = 1)
     }
 }
 

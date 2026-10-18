@@ -249,9 +249,9 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(Filter.entries.toList()) { f ->
                     val on = f == filter
-                    val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f), label = "f")
+                    val bg by animateColorAsState(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f), label = "f")
                     Text(
-                        f.label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text,
+                        f.label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text,
                         modifier = Modifier.bounceClick { onFilter(f) }.clip(RoundedCornerShape(50)).background(bg)
                             .glassEdges(RoundedCornerShape(50), if (on) 0f else 1f, true)
                             .padding(horizontal = 16.dp, vertical = 9.dp),
@@ -346,7 +346,7 @@ private fun TopResult(top: Any) {
                     if (top is Card) app.playStationOrArtist(top) else PlayerConnection.startRadio(top as Track, "Top result")
                 }.clip(CircleShape).background(Bop.Ink),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(28.dp)) }
+            ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Bop.OnInk, modifier = Modifier.size(28.dp)) }
         }
     }
 }

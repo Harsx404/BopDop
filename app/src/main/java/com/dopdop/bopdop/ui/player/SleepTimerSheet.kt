@@ -121,8 +121,8 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
                 val r = size.minDimension / 2 - knob - 2.dp.toPx()
                 val c = Offset(size.width / 2, size.height / 2)
                 // A frosted disc inside the ring, like the other glass surfaces.
-                drawCircle(Color.White.copy(alpha = 0.45f), r - stroke, c)
-                drawCircle(Color.White.copy(alpha = 0.7f), r - stroke, c, style = Stroke(1.dp.toPx()))
+                drawCircle(Bop.Veil.copy(alpha = 0.45f), r - stroke, c)
+                drawCircle(Bop.Veil.copy(alpha = 0.7f), r - stroke, c, style = Stroke(1.dp.toPx()))
                 drawCircle(Bop.Ink.copy(alpha = 0.07f), r, c, style = Stroke(stroke))
                 // Quarter-hour marks.
                 for (k in 0 until MAX_MIN / 15) {
@@ -139,7 +139,7 @@ fun ColumnScope.SleepTimerSheet(app: AppState) {
                 val a = shown * 2f * Math.PI.toFloat()
                 val k = Offset(c.x + sin(a) * r, c.y - cos(a) * r)
                 drawCircle(Color.Black.copy(alpha = 0.10f), knob + 1.dp.toPx(), k + Offset(0f, 2.dp.toPx()))
-                drawCircle(Color.White, knob, k)
+                drawCircle(Bop.Veil, knob, k)
                 drawCircle(Bop.Ink.copy(alpha = 0.10f), knob, k, style = Stroke(1.dp.toPx()))
                 drawCircle(Bop.Ink, 3.dp.toPx(), k)
             }
@@ -196,7 +196,7 @@ private fun Preset(label: String, on: Boolean, modifier: Modifier, onClick: () -
     Box(
         modifier.height(46.dp).bounceClick(0.94f, onClick = onClick).glassLite(shape, alpha = 0.6f).clip(shape).background(ink),
         contentAlignment = Alignment.Center,
-    ) { Text(label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text, maxLines = 1) }
+    ) { Text(label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text, maxLines = 1) }
 }
 
 @Composable
@@ -206,5 +206,5 @@ private fun Pill(label: String, primary: Boolean, modifier: Modifier, onClick: (
         modifier.height(52.dp).bounceClick(0.96f, onClick = onClick)
             .then(if (primary) Modifier.clip(shape).background(Bop.Ink) else Modifier.glassLite(shape, alpha = 0.6f)),
         contentAlignment = Alignment.Center,
-    ) { Text(label, style = BopType.BodyStrong, color = if (primary) Color.White else Bop.Text) }
+    ) { Text(label, style = BopType.BodyStrong, color = if (primary) Bop.OnInk else Bop.Text) }
 }

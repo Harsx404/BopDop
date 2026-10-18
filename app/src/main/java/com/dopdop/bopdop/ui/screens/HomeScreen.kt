@@ -299,7 +299,7 @@ private fun HeroCarousel(items: List<Featured>) {
                         else f.card?.let { app.playStationOrArtist(it) }
                     }.softShadow(CircleShape, 14.dp, color = Color.Black, alpha = 0.22f, dy = 3.dp).clip(CircleShape).background(Color.White),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Bop.Ink, modifier = Modifier.size(28.dp)) }
+                ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Bop.Graphite, modifier = Modifier.size(28.dp)) }
             }
         }
     }
@@ -308,11 +308,11 @@ private fun HeroCarousel(items: List<Featured>) {
 @Composable
 private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    val bg by animateColorAsState(if (selected) Color.White else Color.White.copy(alpha = 0.42f), label = "chip")
+    val bg by animateColorAsState(if (selected) Bop.Chip else Bop.Veil.copy(alpha = 0.42f), label = "chip")
     Text(
         label,
         style = BopType.BodyStrong.copy(fontWeight = if (selected) FontWeight(650) else FontWeight(500)),
-        color = if (selected) Bop.Text else Bop.Text2,
+        color = if (selected) Bop.Graphite else Bop.Text2,
         modifier = Modifier
             .bounceClick(0.94f, onClick = onClick)
             .softShadow(shape, if (selected) 14.dp else 8.dp, alpha = if (selected) 0.16f else 0.08f, dy = 4.dp)

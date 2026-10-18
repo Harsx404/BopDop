@@ -65,7 +65,7 @@ private fun spec(level: GlassLevel) = when (level) {
 fun Modifier.glass(
     shape: Shape,
     state: HazeState? = LocalHaze.current,
-    tint: Color = Color.White,
+    tint: Color = Bop.Veil,
     emphasis: Float = 1f,
     shadow: Dp = 14.dp,
     rim: Boolean = true,
@@ -99,7 +99,7 @@ fun Modifier.glass(
     }
     m = m.clip(shape)
     m = if (state != null) m.hazeBlur(HazeInput.Sources(state), blur) else m.background(tint.copy(alpha = (alpha + 0.3f).coerceAtMost(0.92f)))
-    return m.glassEdges(shape, if (rim) 1f else 0f, light = true)
+    return m.glassEdges(shape, if (rim) (if (Bop.dark) 0.45f else 1f) else 0f, light = !Bop.dark)
 }
 
 /** Glass for controls over photos / colour washes: near-clear, strong lensing, brighter specular. */
@@ -129,7 +129,7 @@ fun Modifier.mediaGlass(shape: Shape, state: HazeState?, emphasis: Float = 1f, i
 
 /** Translucent glass without backdrop sampling — for chips inside scrolling content. */
 @Composable
-fun Modifier.glassLite(shape: Shape, tint: Color = Color.White, alpha: Float = 0.55f, shadow: Dp = 0.dp): Modifier {
+fun Modifier.glassLite(shape: Shape, tint: Color = Bop.Veil, alpha: Float = 0.55f, shadow: Dp = 0.dp): Modifier {
     val clearWhite = LocalGlassLevel.current == GlassLevel.CLEAR && tint.luminanceIsLight() && alpha < 0.9f
     return (if (shadow > 0.dp && !clearWhite) this.softShadow(shape, shadow) else this)
         .clip(shape).background(tint.copy(alpha = if (clearWhite) 0f else alpha)).glassEdges(shape, 1f, light = tint.luminanceIsLight())

@@ -70,7 +70,7 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(40.dp).clip(CircleShape).background(Bop.Ink), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.SystemUpdate, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.SystemUpdate, null, tint = Bop.OnInk, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -78,7 +78,7 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
                 Text("A new BopDop is ready to install", style = BopType.Caption, color = Bop.Text2, maxLines = 1)
             }
             Text(
-                "Update", style = BopType.BodyStrong, color = Color.White,
+                "Update", style = BopType.BodyStrong, color = Bop.OnInk,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick { openUpdate(ctx, u) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )

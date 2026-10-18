@@ -250,9 +250,9 @@ private fun HeroButton(icon: ImageVector, label: String, filled: Boolean, onClic
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (filled) Bop.Ink else Color.White, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = if (filled) Bop.Graphite else Color.White, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
-        Text(label, style = BopType.BodyStrong, color = if (filled) Bop.Ink else Color.White)
+        Text(label, style = BopType.BodyStrong, color = if (filled) Bop.Graphite else Color.White)
     }
 }
 
@@ -328,7 +328,7 @@ private fun NewPlaylistCard(icon: ImageVector, title: String, sub: String, onCli
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.size(56.dp).clip(CircleShape).background(Bop.Ink), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = Color.White, modifier = Modifier.size(28.dp))
+            Icon(icon, null, tint = Bop.OnInk, modifier = Modifier.size(28.dp))
         }
         Spacer(Modifier.height(12.dp))
         Text(title, style = BopType.BodyStrong, color = Bop.Text)

@@ -26,6 +26,9 @@ import java.util.UUID
 
 enum class GlassLevel(val label: String) { CLEAR("Clear"), REGULAR("Regular"), FROSTED("Frosted") }
 
+/** Light or dark look; [SYSTEM] follows the phone. */
+enum class ThemeMode(val label: String) { SYSTEM("Auto"), LIGHT("Light"), DARK("Dark") }
+
 /** Highest music-video picture to stream; [AUTO] follows the connection. */
 enum class VideoQuality(val label: String, val maxHeight: Int) {
     AUTO("Auto", 0), UHD("4K", 2160), QHD("1440p", 1440), FHD("1080p", 1080), HD("720p", 720), SD("480p", 480),
@@ -73,6 +76,7 @@ data class Settings(
     val islandOverlay: Boolean = false,
     /** Android 16 Live Update: what's playing in the phone's own island / status chip. */
     val liveUpdate: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -82,7 +86,7 @@ data class Settings(
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
-        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).apply { islandInApp?.let { put("islandInApp", it) } }
+        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
     companion object {
@@ -111,6 +115,7 @@ data class Settings(
             islandInApp = if (o.has("islandInApp")) o.optBoolean("islandInApp") else null,
             islandOverlay = o.optBoolean("islandOverlay", false),
             liveUpdate = o.optBoolean("liveUpdate", true),
+            themeMode = runCatching { ThemeMode.valueOf(o.optString("themeMode")) }.getOrDefault(ThemeMode.SYSTEM),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

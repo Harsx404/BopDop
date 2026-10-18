@@ -18,20 +18,34 @@ import androidx.compose.ui.unit.sp
 import com.dopdop.bopdop.R
 
 /**
- * Light, airy "soft glass on liquid metal" palette: graphite text on a pearl /
- * silver backdrop, white glass, photos carry the colour.
+ * "Soft glass on liquid metal". Light: graphite text on a pearl / silver backdrop, white glass.
+ * Dark: soft white text on a deep gunmetal backdrop, smoked glass. Photos carry the colour in
+ * both. The tokens read [dark], so everything drawn with them follows the theme.
  */
 object Bop {
-    /** Graphite — primary text and solid buttons. */
-    val Ink = Color(0xFF15161B)
-    val Text = Color(0xFF15161B)
+    /** Dark theme on; set by the root from Settings (or the system). */
+    var dark by androidx.compose.runtime.mutableStateOf(false)
     /** Clear glass lets the backdrop through, so secondary text firms up to stay readable. */
     var clear by androidx.compose.runtime.mutableStateOf(false)
-    val Text2 get() = if (clear) Color(0xE015161B) else Color(0x9E15161B)
-    val Text3 get() = if (clear) Color(0xB815161B) else Color(0x6615161B)
-    val Hairline = Color(0x1415161B)
+
+    /** Always graphite: icons and text on white discs and pills, whatever the theme. */
+    val Graphite = Color(0xFF15161B)
+    private val Snow = Color(0xFFF2F2F5)
+
+    /** Primary text and solid buttons: graphite in light, soft white in dark. */
+    val Ink get() = if (dark) Snow else Graphite
+    /** Text and icons on an [Ink] surface. */
+    val OnInk get() = if (dark) Graphite else Color.White
+    val Text get() = Ink
+    val Text2 get() = if (dark) (if (clear) Color(0xE0F2F2F5) else Color(0xA8F2F2F5)) else if (clear) Color(0xE015161B) else Color(0x9E15161B)
+    val Text3 get() = if (dark) (if (clear) Color(0xB8F2F2F5) else Color(0x70F2F2F5)) else if (clear) Color(0xB815161B) else Color(0x6615161B)
+    val Hairline get() = if (dark) Color(0x1FF2F2F5) else Color(0x1415161B)
     /** Base of the metal backdrop (also the window background). */
-    val Pearl = Color(0xFFDCDFE4)
+    val Pearl get() = if (dark) Color(0xFF101116) else Color(0xFFDCDFE4)
+    /** The tint glass and chips are made of: white in light, smoked graphite in dark. */
+    val Veil get() = if (dark) Color(0xFF2A2B33) else Color.White
+    /** A selected light chip (graphite text on it in both themes). */
+    val Chip get() = if (dark) Snow else Color.White
     /** Text / icons sitting on photos and colour washes. */
     val OnMedia = Color.White
     val OnMedia2 = Color(0xCCFFFFFF)
@@ -43,8 +57,8 @@ object Bop {
     val Sky = Color(0xFF8FB3D9)
     val Gold = Color(0xFFFFD36B)
     val Like = Color(0xFFFF3B6B)
-    /** Active / primary accent on light glass. */
-    val Accent = Color(0xFF15161B)
+    /** Active / primary accent on glass. */
+    val Accent get() = Ink
     val Danger = Color(0xFFE5484D)
     val Brand = Brush.linearGradient(listOf(Sky, Sage))
 }
@@ -74,8 +88,13 @@ object BopType {
 @Composable
 fun BopDopTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Bop.Ink, onPrimary = Color.White,
+        colorScheme = if (Bop.dark) androidx.compose.material3.darkColorScheme(
+            primary = Bop.Ink, onPrimary = Bop.OnInk,
+            secondary = Bop.Sage, background = Bop.Pearl, surface = Color(0xFF1A1B21),
+            onBackground = Bop.Text, onSurface = Bop.Text,
+            surfaceVariant = Color(0xFF24252C), onSurfaceVariant = Bop.Text2,
+        ) else lightColorScheme(
+            primary = Bop.Ink, onPrimary = Bop.OnInk,
             secondary = Bop.Sage, background = Bop.Pearl, surface = Color(0xFFF2F3F5),
             onBackground = Bop.Text, onSurface = Bop.Text,
             surfaceVariant = Color(0xFFE6E8EC), onSurfaceVariant = Bop.Text2,

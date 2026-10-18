@@ -36,6 +36,7 @@ uniform float time;
 uniform float3 tintA;
 uniform float3 tintB;
 uniform float strength;
+uniform float dark;
 
 float hash(float2 p) { return fract(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
 
@@ -73,6 +74,9 @@ half4 main(float2 frag) {
     float3 col = mix(grey, chrome, strength);
     float spec = pow(clamp(dot(n, normalize(float3(-0.35, -0.55, 0.76))), 0.0, 1.0), 42.0);
     col += spec * 0.22;
+    // Dark theme: the same flowing metal, as deep gunmetal. Squaring keeps the highlights
+    // brighter than the troughs, so it still reads as polished, just at night.
+    col = mix(col, col * col * 0.30 + 0.025, dark);
     col += (hash(frag) - 0.5) * 0.016;
     return half4(half3(clamp(col, 0.0, 1.0)), 1.0);
 }
@@ -106,7 +110,8 @@ fun LiquidMetalBackground(
     if (Build.VERSION.SDK_INT >= 33) ShaderMetal(modifier, time, a, b, strength)
     else Canvas(modifier) {
         val t = time.value
-        drawRect(Brush.verticalGradient(listOf(lerpTint(Color(0xFFEDEFF2), a, strength * 0.6f), lerpTint(Bop.Pearl, b, strength * 0.6f))))
+        if (Bop.dark) drawRect(Brush.verticalGradient(listOf(lerpTint(Color(0xFF22242C), a, strength * 0.3f), lerpTint(Bop.Pearl, b, strength * 0.3f))))
+        else drawRect(Brush.verticalGradient(listOf(lerpTint(Color(0xFFEDEFF2), a, strength * 0.6f), lerpTint(Bop.Pearl, b, strength * 0.6f))))
         // Drifting satin bands
         for (i in 0 until 4) {
             val y = size.height * (0.15f + i * 0.25f) + sin(t * 0.4f + i) * 60f
@@ -144,6 +149,7 @@ private fun ShaderMetal(modifier: Modifier, time: State<Float>, a: Color, b: Col
         shader.setFloatUniform("tintA", a.red, a.green, a.blue)
         shader.setFloatUniform("tintB", b.red, b.green, b.blue)
             shader.setFloatUniform("strength", strength)
+            shader.setFloatUniform("dark", if (Bop.dark) 1f else 0f)
             drawRect(brush)
         }
     }

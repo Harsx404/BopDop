@@ -107,7 +107,7 @@ private fun Live(code: String) {
             }
             Spacer(Modifier.width(12.dp))
             Text(m.name + if (m.id == room.meId) " (you)" else "", style = BopType.Body, color = Bop.Text, modifier = Modifier.weight(1f))
-            if (m.host) Text("HOST", style = BopType.Micro, color = Bop.Ink, modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Gold).padding(horizontal = 8.dp, vertical = 4.dp))
+            if (m.host) Text("HOST", style = BopType.Micro, color = Bop.Graphite, modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Gold).padding(horizontal = 8.dp, vertical = 4.dp))
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -146,13 +146,13 @@ private fun Pill(label: String, filled: Boolean, onClick: () -> Unit) {
         Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50))
             .background(if (filled) Bop.Ink else Bop.Ink.copy(alpha = 0.12f)).bounceClick(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { Text(label, style = BopType.BodyStrong, color = if (filled) Color.White else Bop.Text) }
+    ) { Text(label, style = BopType.BodyStrong, color = if (filled) Bop.OnInk else Bop.Text) }
 }
 
 @Composable
 private fun Choice(label: String, on: Boolean, onClick: () -> Unit) {
-    Text(label, style = BopType.Caption, color = if (on) Color.White else Bop.Text,
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f)).bounceClick(onClick = onClick)
+    Text(label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f)).bounceClick(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp))
 }
 

@@ -74,7 +74,7 @@ fun ColumnScope.SeekLookSheet() {
         Box(
             Modifier.size(38.dp).clip(CircleShape).background(Color.White).bounceClick(0.9f) { playing = !playing },
             contentAlignment = Alignment.Center,
-        ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause preview" else "Play preview", tint = Bop.Ink, modifier = Modifier.size(20.dp)) }
+        ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause preview" else "Play preview", tint = Bop.Graphite, modifier = Modifier.size(20.dp)) }
     }
     Label("Style")
     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -104,13 +104,13 @@ private fun Label(text: String) =
 
 @Composable
 private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Composable () -> Unit)? = null, keepArtSpace: Boolean = false, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) Bop.Ink else Color.White.copy(alpha = 0.6f), label = "choice")
+    val bg by animateColorAsState(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.6f), label = "choice")
     Column(
         modifier.clip(RoundedCornerShape(16.dp)).background(bg).bounceClick(0.94f, onClick = onClick).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (art != null) { art(); Spacer(Modifier.height(4.dp)) } else if (keepArtSpace) Spacer(Modifier.height(36.dp))
-        Text(label, style = BopType.Caption, color = if (on) Color.White else Bop.Text, textAlign = TextAlign.Center, maxLines = 1)
+        Text(label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text, textAlign = TextAlign.Center, maxLines = 1)
     }
 }
 

@@ -175,7 +175,7 @@ fun VolumeSlider(modifier: Modifier = Modifier) {
                 if (fw > 0f) drawRoundRect(Color.White, Offset(0f, top), Size(fw, h), r)
             }
             if (touching) Text(
-                "${(step * 100f / max).roundToInt()}%", style = BopType.Micro, color = Bop.Ink,
+                "${(step * 100f / max).roundToInt()}%", style = BopType.Micro, color = Bop.Graphite,
                 modifier = Modifier.align(Alignment.CenterStart).padding(start = 10.dp).graphicsLayer { alpha = if (shown > 0.14f) grow else 0f },
             )
         }

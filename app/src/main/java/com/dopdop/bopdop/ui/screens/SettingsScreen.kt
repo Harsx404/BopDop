@@ -1,6 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Contactless
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Celebration
@@ -189,22 +190,24 @@ fun SettingsScreen() {
                     VideoQuality.entries.forEach { q ->
                         val on = s.videoQuality == q
                         Text(
-                            q.label, style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                            q.label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
                             modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(videoQuality = q) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
                 }
             }
             Group("Look & feel") {
+                RowHead(Icons.Rounded.DarkMode, "Theme", "Auto follows your phone's light or dark setting.")
+                ChipRow(com.dopdop.bopdop.data.ThemeMode.entries, s.themeMode, { it.label }) { m -> LibraryStore.updateSettings { it.copy(themeMode = m) } }
                 RowHead(Icons.Rounded.WaterDrop, "Glass", "How much the background shows through.")
                 Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
                     GlassLevel.entries.forEach { g ->
                         val on = g == s.glass
                         val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "g")
                         Text(
-                            g.label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text2,
+                            g.label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text2,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             modifier = Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(bg)
                                 .bounceClick { LibraryStore.updateSettings { it.copy(glass = g) } }.padding(vertical = 9.dp),
@@ -270,14 +273,14 @@ fun SettingsScreen() {
                     LANGS.forEach { l ->
                         val on = l in chosen
                         Text(
-                            l.replaceFirstChar { it.uppercase() }, style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                            l.replaceFirstChar { it.uppercase() }, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
                             modifier = Modifier.bounceClick {
                                 val next = if (on) chosen - l else chosen + l
                                 if (next.isNotEmpty()) {
                                     LibraryStore.updateSettings { it.copy(languages = next.joinToString(",")) }
                                     ScreenCache.put("home", null)
                                 }
-                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
@@ -289,9 +292,9 @@ fun SettingsScreen() {
                     listOf(512, 1024, 2048, 4096).forEach { mb ->
                         val on = s.cacheMb == mb
                         Text(
-                            if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                            if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
                             modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                                 .padding(horizontal = 12.dp, vertical = 7.dp),
                         )
                     }
@@ -326,9 +329,9 @@ fun SettingsScreen() {
                 val u = update
                 Text(
                     if (u != null) "Get ${u.title}" else "Check for updates",
-                    style = BopType.BodyStrong, color = if (u != null) Color.White else Bop.Text,
+                    style = BopType.BodyStrong, color = if (u != null) Bop.OnInk else Bop.Text,
                     modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
-                        .background(if (u != null) Bop.Ink else Color.White.copy(alpha = 0.55f))
+                        .background(if (u != null) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                         .bounceClick {
                             if (u != null) com.dopdop.bopdop.ui.components.openUpdate(ctx, u)
                             else scope.launch {
@@ -353,7 +356,7 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
 
 @Composable
 private fun IconBadge(icon: ImageVector) {
-    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Color.White.copy(alpha = 0.9f)).glassEdges(RoundedCornerShape(10.dp), 0.8f, true), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Bop.Veil.copy(alpha = 0.9f)).glassEdges(RoundedCornerShape(10.dp), 0.8f, true), contentAlignment = Alignment.Center) {
         Icon(icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
     }
 }
@@ -401,9 +404,9 @@ private fun <T> ChipRow(options: List<T>, selected: T, label: (T) -> String, onP
         options.forEach { o ->
             val on = o == selected
             Text(
-                label(o), style = BopType.Caption, color = if (on) Color.White else Bop.Text,
+                label(o), style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
                 modifier = Modifier.bounceClick { onPick(o) }.clip(RoundedCornerShape(50))
-                    .background(if (on) Bop.Ink else Color.White.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 7.dp),
+                    .background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
     }
@@ -417,7 +420,7 @@ private fun Segmented(options: List<String>, selected: Int, onPick: (Int) -> Uni
             val on = i == selected
             val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "seg")
             Text(
-                label, style = BopType.BodyStrong, color = if (on) Color.White else Bop.Text2,
+                label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text2,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(bg).bounceClick { onPick(i) }.padding(vertical = 9.dp),
             )
