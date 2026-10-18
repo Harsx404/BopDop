@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.layout
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.EnterTransition
@@ -109,7 +110,7 @@ import kotlin.math.roundToInt
 val LocalChromePadding = compositionLocalOf { PaddingValues(0.dp) }
 
 @Composable
-fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.MutableStateFlow<String?>) {
+fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.MutableStateFlow<String?>, quick: kotlinx.coroutines.flow.MutableStateFlow<String?>) {
     val nav = rememberNavController()
     val scope = rememberCoroutineScope()
     val app = remember { AppState(nav, scope) }
@@ -124,6 +125,21 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     // bopdop://share/… opened from a camera app, a chat, or the browser.
     val link by sharedLink.collectAsState()
     LaunchedEffect(link) { link?.let { sharedLink.value = null; app.collapsePlayer(); app.openShared(it) } }
+    // Quick mixes widget: start the mix (and show the player) or open the page.
+    val quickAction by quick.collectAsState()
+    LaunchedEffect(quickAction) {
+        val q = quickAction ?: return@LaunchedEffect
+        quick.value = null
+        val library = com.dopdop.bopdop.data.LibraryStore.state.value
+        when (q) {
+            com.dopdop.bopdop.MainActivity.QUICK_LIKED ->
+                if (library.liked.isEmpty()) app.toast("Like a few songs first") else { PlayerConnection.play(library.liked, context = "Liked Songs", shuffle = true); app.expandPlayer() }
+            com.dopdop.bopdop.MainActivity.QUICK_DISCOVER ->
+                library.history.firstOrNull()?.let { PlayerConnection.startRadio(it, "Discovery Station"); app.expandPlayer() } ?: app.goTab(Routes.EXPLORE)
+            com.dopdop.bopdop.MainActivity.QUICK_REPLAY -> { app.collapsePlayer(); app.nav.navigate(Routes.WRAPPED) }
+            com.dopdop.bopdop.MainActivity.QUICK_SEARCH -> { app.collapsePlayer(); app.nav.navigate(Routes.SEARCH) }
+        }
+    }
 
     // Keep the signed-in profile (name / photo) fresh.
     LaunchedEffect(Unit) {
@@ -166,6 +182,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             SheetHost(app)
             app.shareTrack?.let { com.dopdop.bopdop.ui.share.ShareStudio(it) { app.shareTrack = null } }
             ToastHost(app)
+            InAppIsland(app, lib.settings.islandInApp ?: true)
         }
     }
 
@@ -175,6 +192,31 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     BackHandler(enabled = app.sheet != null || app.player.targetValue > 0.5f) {
         if (app.sheet != null) app.sheet = null else app.collapsePlayer()
     }
+}
+
+/**
+ * The now-playing island around the camera, while the full player is closed. Only on screens
+ * with a camera cutout at the top; tap to expand, tap outside to shrink, long-press to open the
+ * player.
+ */
+@Composable
+private fun InAppIsland(app: AppState, enabled: Boolean) {
+    if (!enabled) return
+    val cut = com.dopdop.bopdop.ui.island.rememberCutout() ?: return
+    val track by PlayerConnection.current.collectAsState()
+    val playing by PlayerConnection.isPlaying.collectAsState()
+    val t = track ?: return
+    if (app.player.value > 0.02f) return
+    var expanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (expanded) Box(
+        Modifier.fillMaxSize().clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, null) { expanded = false },
+    )
+    val model = com.dopdop.bopdop.ui.island.IslandModel(
+        t, playing, { PlayerConnection.position }, { PlayerConnection.duration },
+        toggle = { PlayerConnection.toggle() }, next = { PlayerConnection.next() }, previous = { PlayerConnection.previous() },
+        open = { expanded = false; app.expandPlayer() },
+    )
+    com.dopdop.bopdop.ui.island.IslandPill(model, cut, expanded, { expanded = it }, androidx.compose.ui.platform.LocalView.current.rootView.width)
 }
 
 /** Whether the tab this content belongs to is on screen; hidden tabs pause their idle animations. */

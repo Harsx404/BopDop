@@ -26,6 +26,8 @@ class MainActivity : ComponentActivity() {
     val openPlayer = MutableStateFlow(0)
     /** A `bopdop://share/…` link waiting for the UI to open it. */
     val sharedLink = MutableStateFlow<String?>(null)
+    /** A quick action from the Quick mixes widget, waiting for the UI. */
+    val quick = MutableStateFlow<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -43,9 +45,19 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             BopDopTheme {
-                BopDopRoot(openPlayer, sharedLink)
+                BopDopRoot(openPlayer, sharedLink, quick)
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        com.dopdop.bopdop.playback.AppVisibility.set(true)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        com.dopdop.bopdop.playback.AppVisibility.set(false)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -55,10 +67,16 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         if (intent?.getBooleanExtra(EXTRA_OPEN_PLAYER, false) == true) openPlayer.value++
+        intent?.getStringExtra(EXTRA_QUICK)?.let { quick.value = it }
         intent?.data?.takeIf { it.scheme == "bopdop" && (it.host == "share" || it.host == "together") }?.let { sharedLink.value = it.toString() }
     }
 
     companion object {
         const val EXTRA_OPEN_PLAYER = "open_player"
+        const val EXTRA_QUICK = "quick"
+        const val QUICK_LIKED = "liked"
+        const val QUICK_DISCOVER = "discover"
+        const val QUICK_REPLAY = "replay"
+        const val QUICK_SEARCH = "search"
     }
 }

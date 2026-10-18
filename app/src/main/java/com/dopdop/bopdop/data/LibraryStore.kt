@@ -64,6 +64,15 @@ data class Settings(
     val festivePick: FestivePick = FestivePick.AUTO,
     /** An update the user waved away; the next newer one is offered again. */
     val skippedUpdate: String = "",
+    /**
+     * Now-playing island around the camera cutout, inside the app. Unset means the default: on,
+     * except on phones that already have their own island (see NativeIsland).
+     */
+    val islandInApp: Boolean? = null,
+    /** The same island over other apps (needs "display over other apps"). */
+    val islandOverlay: Boolean = false,
+    /** Android 16 Live Update: what's playing in the phone's own island / status chip. */
+    val liveUpdate: Boolean = true,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -73,6 +82,7 @@ data class Settings(
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
+        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
     companion object {
@@ -98,6 +108,9 @@ data class Settings(
             festiveLevel = runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
             festivePick = runCatching { FestivePick.valueOf(o.optString("festivePick")) }.getOrDefault(FestivePick.AUTO),
             skippedUpdate = o.optString("skippedUpdate"),
+            islandInApp = if (o.has("islandInApp")) o.optBoolean("islandInApp") else null,
+            islandOverlay = o.optBoolean("islandOverlay", false),
+            liveUpdate = o.optBoolean("liveUpdate", true),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

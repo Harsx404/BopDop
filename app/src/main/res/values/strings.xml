@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">BopDop</string>
-    <string name="widget_description">Now playing, with play, pause and skip</string>
+    <string name="widget_description">Now playing with controls. Resize it for a square cover, a wide bar or a big player</string>
+    <string name="widget_up_next_description">What is playing and the next songs; tap one to jump to it</string>
+    <string name="widget_quick_description">One tap to Liked shuffle, a discovery station, Replay or search</string>
 </resources>

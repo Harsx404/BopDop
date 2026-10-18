@@ -1,0 +1,241 @@
+package com.dopdop.bopdop.ui.island
+
+import android.graphics.Rect
+import android.os.Build
+import android.view.View
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import com.dopdop.bopdop.data.model.Track
+import com.dopdop.bopdop.data.model.formatDuration
+import com.dopdop.bopdop.ui.components.Artwork
+import com.dopdop.bopdop.ui.theme.BopType
+import kotlin.math.roundToInt
+import kotlin.math.sin
+
+/**
+ * The camera hole the island wraps around, in screen pixels: a punch-hole or notch at the top
+ * edge, the centred one if there are several. Null when the screen has none (or Android < 9).
+ */
+fun topCutout(rects: List<Rect>, screenWidth: Int): Rect? =
+    rects.filter { it.top <= 8 && it.height() in 1..300 && it.width() < screenWidth * 0.6 }
+        .minByOrNull { kotlin.math.abs(it.centerX() - screenWidth / 2) }
+
+/**
+ * The camera hole itself. The bounding box Android reports for a punch-hole runs from the top
+ * edge of the screen down to the hole, so on Android 12+ the cutout's real outline is used to
+ * centre the island on the camera.
+ */
+fun cameraHole(cutout: android.view.DisplayCutout, screenWidth: Int): Rect? {
+    if (Build.VERSION.SDK_INT >= 31) cutout.cutoutPath?.let { path ->
+        val b = android.graphics.RectF()
+        path.computeBounds(b, true)
+        if (!b.isEmpty && b.top < 400f && b.width() < screenWidth * 0.6f) {
+            return Rect(b.left.toInt(), b.top.toInt(), kotlin.math.ceil(b.right).toInt(), kotlin.math.ceil(b.bottom).toInt())
+        }
+    }
+    return topCutout(cutout.boundingRects, screenWidth)
+}
+
+/**
+ * The camera cutout of the window this view is in. Re-read whenever Compose sees the cutout
+ * insets change (they aren't known until the window is laid out).
+ */
+@Composable
+fun rememberCutout(): Rect? {
+    val view = LocalView.current
+    val top = androidx.compose.foundation.layout.WindowInsets.displayCutout.getTop(LocalDensity.current)
+    return remember(top, view.rootView.width) { readCutout(view) }
+}
+
+private fun readCutout(view: View): Rect? {
+    if (Build.VERSION.SDK_INT < 28) return null
+    val cutout = view.rootWindowInsets?.displayCutout ?: return null
+    return cameraHole(cutout, view.rootView.width.takeIf { it > 0 } ?: view.resources.displayMetrics.widthPixels)
+}
+
+/** Height of the invisible tab under the collapsed pill that catches taps the status bar would eat. */
+val TAP_ZONE = 22.dp
+
+/** Where the collapsed island sits on screen, tap tab included, in pixels. */
+fun collapsedBounds(cut: Rect, density: Float, screenWidthPx: Int): Rect {
+    val pillH = maxOf(cut.height() + 10 * density, 34 * density)
+    val w = cut.width() + pillH * 2.4f
+    val minLeft = (10 * density).roundToInt()
+    val left = (cut.centerX() - w / 2).roundToInt().coerceIn(minLeft, maxOf(minLeft, (screenWidthPx - w - 10 * density).roundToInt()))
+    val top = (cut.centerY() - pillH / 2).roundToInt().coerceAtLeast(0)
+    return Rect(left, top, (left + w).roundToInt(), (top + pillH + TAP_ZONE.value * density).roundToInt())
+}
+
+/** What the island shows, and what its buttons do; the app and the overlay each supply their own. */
+class IslandModel(
+    val track: Track?,
+    val playing: Boolean,
+    val positionMs: () -> Long,
+    val durationMs: () -> Long,
+    val toggle: () -> Unit,
+    val next: () -> Unit,
+    val previous: () -> Unit,
+    val open: () -> Unit,
+)
+
+/**
+ * A Dynamic-Island-style pill around the camera [cut]: the cover on the left of the camera and
+ * a little equaliser on the right. Tap it to grow into a card with the song, a progress line and
+ * the controls; tap again (or outside, see [onExpandedChange]) to shrink back. Black, so the
+ * camera disappears into it.
+ *
+ * The status bar sits above apps and takes every tap in its strip, so a collapsed pill there
+ * can't be tapped; a thin invisible tab hangs just below it ([TAP_ZONE]) to catch the tap.
+ * [windowLeftPx] is where the hosting window starts on screen (the overlay's window is only as
+ * wide as the pill).
+ */
+@Composable
+fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChange: (Boolean) -> Unit, screenWidthPx: Int, windowLeftPx: Int = 0) {
+    val t = model.track ?: return
+    val d = LocalDensity.current
+    val cutW = with(d) { cut.width().toDp() }
+    val cutH = with(d) { cut.height().toDp() }
+    val pillH = maxOf(cutH + 10.dp, 34.dp)
+    val screenW = with(d) { screenWidthPx.toDp() }
+    val w by animateDpAsState(if (expanded) screenW - 20.dp else cutW + pillH * 2.4f, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandW")
+    val h by animateDpAsState(if (expanded) 168.dp else pillH, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandH")
+    val corner by animateDpAsState(if (expanded) 34.dp else pillH / 2, spring(dampingRatio = 0.85f, stiffness = 420f), label = "islandR")
+    val topPx = (cut.centerY() - with(d) { pillH.toPx() } / 2).roundToInt().coerceAtLeast(0)
+    // The spring overshoots while opening, so the right-hand limit can briefly pass the left one.
+    val minLeft = with(d) { 10.dp.roundToPx() }
+    val maxLeft = maxOf(minLeft, screenWidthPx - with(d) { (w + 10.dp).roundToPx() })
+    val leftPx = (cut.centerX() - with(d) { w.toPx() } / 2).roundToInt().coerceIn(minLeft, maxLeft) - windowLeftPx
+    val shape = RoundedCornerShape(corner)
+    if (!expanded) Box(
+        Modifier.offset { IntOffset(leftPx, topPx + with(d) { pillH.roundToPx() }) }.width(w).height(TAP_ZONE)
+            .pointerInput(Unit) { detectTapGestures(onTap = { onExpandedChange(true) }, onLongPress = { model.open() }) },
+    )
+    Box(
+        Modifier.offset { IntOffset(leftPx, topPx) }.width(w).height(h).clip(shape).background(Color.Black)
+            .pointerInput(expanded) { detectTapGestures(onTap = { onExpandedChange(!expanded) }, onLongPress = { model.open() }) },
+    ) {
+        // Collapsed: cover · camera · bars.
+        AnimatedVisibility(!expanded, enter = fadeIn(), exit = fadeOut()) {
+            Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Artwork(t.artwork, Modifier.size(pillH - 10.dp), circle = true, size = 120)
+                Spacer(Modifier.weight(1f))
+                Bars(model.playing, Modifier.size(pillH - 14.dp))
+            }
+        }
+        AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {
+            Expanded(model, t, pillH)
+        }
+    }
+}
+
+@Composable
+private fun Expanded(model: IslandModel, t: Track, pillH: Dp) {
+    val pos by produceState(model.positionMs(), model.playing) { while (true) { value = model.positionMs(); kotlinx.coroutines.delay(500) } }
+    val dur = model.durationMs().coerceAtLeast(1)
+    Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = pillH + 2.dp, bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.clickable(remember { MutableInteractionSource() }, null) { model.open() }) {
+                Artwork(t.artwork, Modifier.size(52.dp), corner = 12.dp, size = 200)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(t.title, style = BopType.BodyStrong, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.artist, style = BopType.Caption, color = Color.White.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Bars(model.playing, Modifier.size(22.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(formatDuration((pos / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
+            Box(Modifier.weight(1f).padding(horizontal = 8.dp).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f))) {
+                Box(Modifier.fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(Color.White))
+            }
+            Text(formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            Control(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { model.previous() }
+            Control(if (model.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (model.playing) "Pause" else "Play", 38.dp) { model.toggle() }
+            Control(Icons.Rounded.SkipNext, "Next", 30.dp) { model.next() }
+        }
+    }
+}
+
+@Composable
+private fun Control(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, size: Dp, onClick: () -> Unit) {
+    Box(
+        Modifier.size(size + 12.dp).clip(CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size)) }
+}
+
+/** Four little equaliser bars that dance while music plays and rest low when paused. */
+@Composable
+private fun Bars(playing: Boolean, modifier: Modifier) {
+    val t by produceState(0f, playing) {
+        if (!playing) return@produceState
+        val start = withInfiniteAnimationFrameMillis { it }
+        while (true) withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
+    }
+    Canvas(modifier) {
+        val n = 4
+        val gap = size.width / (n * 2f)
+        val bw = gap
+        for (i in 0 until n) {
+            val f = if (playing) 0.3f + 0.7f * ((sin(t * (6f + i * 1.7f) + i) + 1f) / 2f) else 0.25f
+            val h = size.height * f
+            val x = gap / 2 + i * (bw + gap) + bw / 2
+            drawLine(Color(0xFF7CF5B0), androidx.compose.ui.geometry.Offset(x, size.height / 2 - h / 2),
+                androidx.compose.ui.geometry.Offset(x, size.height / 2 + h / 2), bw, StrokeCap.Round)
+        }
+    }
+}

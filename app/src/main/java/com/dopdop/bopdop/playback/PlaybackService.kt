@@ -54,6 +54,8 @@ class PlaybackService : MediaLibraryService() {
     private var audioSessionId = C.AUDIO_SESSION_ID_UNSET
     private lateinit var sources: VideoMediaSourceFactory
     private lateinit var crossfader: Crossfader
+    private lateinit var island: IslandOverlay
+    private lateinit var liveUpdate: LiveUpdate
 
     override fun onCreate() {
         super.onCreate()
@@ -106,6 +108,29 @@ class PlaybackService : MediaLibraryService() {
                 }
             }
         }
+        // The island over other apps follows the setting and whether BopDop itself is on screen.
+        island = IslandOverlay(this) { player }
+        running = this
+        // Widgets show progress; refresh them now and then while music plays.
+        scope.launch {
+            while (isActive) {
+                delay(15_000)
+                if (player.isPlaying) pushWidgets()
+            }
+        }
+        liveUpdate = LiveUpdate(this)
+        // The Live Update's progress bar moves on its own clock; nudge it every few seconds.
+        scope.launch {
+            while (isActive) {
+                delay(5_000)
+                if (player.isPlaying) liveUpdate.update(player.currentMediaItem?.toTrack(), true, player.currentPosition, player.duration)
+            }
+        }
+        scope.launch { LibraryStore.state.map { it.settings.liveUpdate }.distinctUntilChanged().collect {
+            liveUpdate.update(player.currentMediaItem?.toTrack(), player.isPlaying, player.currentPosition, player.duration)
+        } }
+        scope.launch { AppVisibility.foreground.collect { island.refresh() } }
+        scope.launch { LibraryStore.state.map { it.settings.islandOverlay }.distinctUntilChanged().collect { island.refresh() } }
         // Replay: count real listening time, one second at a time.
         scope.launch {
             while (isActive) {
@@ -220,7 +245,9 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onEvents(player: Player, events: Player.Events) {
             if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_TIMELINE_CHANGED)) {
-                WidgetUpdater.update(this@PlaybackService, player.currentMediaItem?.toTrack(), player.isPlaying)
+                pushWidgets()
+                island.update(player.currentMediaItem?.toTrack(), player.isPlaying)
+                liveUpdate.update(player.currentMediaItem?.toTrack(), player.isPlaying, player.currentPosition, player.duration)
             }
             if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_TIMELINE_CHANGED)) {
                 val from = player.currentMediaItemIndex
@@ -327,7 +354,24 @@ class PlaybackService : MediaLibraryService() {
         if (p == null || !p.playWhenReady || p.mediaItemCount == 0) stopSelf()
     }
 
+    /** Hand the widgets the song, its progress and the next few songs. */
+    private fun pushWidgets() {
+        val tl = player.currentTimeline
+        val w = androidx.media3.common.Timeline.Window()
+        val next = ArrayList<Pair<Int, com.dopdop.bopdop.data.model.Track>>()
+        var i = player.currentMediaItemIndex
+        while (next.size < 4 && !tl.isEmpty) {
+            i = tl.getNextWindowIndex(i, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+            if (i == C.INDEX_UNSET) break
+            tl.getWindow(i, w).mediaItem.toTrack()?.let { next += i to it }
+        }
+        WidgetUpdater.update(this, player.currentMediaItem?.toTrack(), player.isPlaying, player.currentPosition, player.duration.coerceAtLeast(0), next)
+    }
+
     override fun onDestroy() {
+        running = null
+        island.release()
+        liveUpdate.cancel()
         crossfader.release()
         scope.cancel()
         AudioFx.release()
@@ -341,6 +385,15 @@ class PlaybackService : MediaLibraryService() {
 
     companion object {
         @Volatile private var simpleCache: SimpleCache? = null
+        @Volatile private var running: PlaybackService? = null
+
+        /** Jump to a song in the queue (from the Up Next widget). */
+        fun jumpTo(index: Int) {
+            val s = running ?: return
+            if (index < 0 || index >= s.player.mediaItemCount) return
+            s.player.seekTo(index, 0L)
+            s.player.play()
+        }
 
         fun cache(ctx: android.content.Context): SimpleCache = simpleCache ?: synchronized(this) {
             simpleCache ?: SimpleCache(

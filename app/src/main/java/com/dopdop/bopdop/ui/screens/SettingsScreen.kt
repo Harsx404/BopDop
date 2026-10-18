@@ -1,6 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Contactless
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Public
@@ -233,6 +234,29 @@ fun SettingsScreen() {
                 if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
                     RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.")
                     ChipRow(com.dopdop.bopdop.data.FestivePick.entries, s.festivePick, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
+                }
+            }
+            Group("Island") {
+                val native = com.dopdop.bopdop.ui.island.NativeIsland.name
+                ToggleRow(Icons.Rounded.Contactless, "Island in BopDop", "What's playing in a pill around your camera, while you browse the app. Tap it for controls.", s.islandInApp ?: true) {
+                    LibraryStore.updateSettings { it.copy(islandInApp = !(it.islandInApp ?: true)) }
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 36) {
+                    ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
+                        (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
+                        LibraryStore.updateSettings { it.copy(liveUpdate = !it.liveUpdate) }
+                    }
+                }
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    ToggleRow(Icons.Rounded.Contactless, "Island over other apps", "BopDop's own island while you use other apps. Asks to display over other apps.", s.islandOverlay) {
+                        val turnOn = !s.islandOverlay
+                        if (turnOn && !android.provider.Settings.canDrawOverlays(ctx)) {
+                            runCatching {
+                                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
+                            }
+                        }
+                        LibraryStore.updateSettings { it.copy(islandOverlay = turnOn) }
+                    }
                 }
             }
             Group("Home feed") {

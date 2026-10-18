@@ -11,7 +11,7 @@ enum class SeekStyle(val label: String) {
  */
 enum class SeekPet(val label: String, val festival: Festival? = null) {
     NONE("None"), CAT("Cat"), BUNNY("Bunny"), DUCK("Duck"), DINO("Dino"),
-    PEACOCK("Peacock", Festival.NAVARATRI), GHOST("Ghost", Festival.HALLOWEEN);
+    PEACOCK("Peacock", Festival.NAVARATRI), RAVANA("Ravana", Festival.NAVARATRI), GHOST("Ghost", Festival.HALLOWEEN);
 
     /** The pet to actually show today: a festival pet out of season hands over to the cat. */
     fun inSeason(now: Festival?): SeekPet = if (festival == null || festival == now) this else CAT

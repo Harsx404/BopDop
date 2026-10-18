@@ -38,6 +38,7 @@ internal fun DrawScope.drawPet(pet: SeekPet, x: Float, feetY: Float, t: Float, m
             SeekPet.DUCK -> duck(x, feetY, t, mode, u)
             SeekPet.DINO -> dino(x, feetY, t, mode, u)
             SeekPet.PEACOCK -> peacock(x, feetY, t, mode, u)
+            SeekPet.RAVANA -> ravana(x, feetY, t, mode, u)
             SeekPet.GHOST -> ghost(x, feetY, t, mode, u)
             SeekPet.NONE -> {}
         }
@@ -216,6 +217,59 @@ private fun DrawScope.peacock(x: Float, y: Float, t: Float, mode: PetMode, u: Fl
         val tip = Offset(head.x + k * 1.2f * u, head.y - 4.6f * u)
         drawLine(blue, Offset(head.x, head.y - 2f * u), tip, 0.6f * u)
         drawCircle(teal, 0.7f * u, tip)
+    }
+}
+
+/**
+ * Dussehra's Ravana effigy: ten crowned heads on a tall robed frame, marching stiffly on its
+ * bamboo legs. When the music pauses it stands still and a few sparks fly off it, as the
+ * effigies do on Dussehra night.
+ */
+private fun DrawScope.ravana(x: Float, y: Float, t: Float, mode: PetMode, u: Float) {
+    val robe = Color(0xFFC62D2D); val trim = Color(0xFFF2B33D); val skin = Color(0xFF6B8FD9); val bamboo = Color(0xFFB98D5A)
+    val stride = if (mode == PetMode.RUN) sin(t * 10f) * 1.6f * u else 0f
+    // Bamboo legs.
+    drawLine(bamboo, Offset(x - 2f * u, y - 6f * u), Offset(x - 2f * u + stride, y), 1.6f * u, StrokeCap.Round)
+    drawLine(bamboo, Offset(x + 2f * u, y - 6f * u), Offset(x + 2f * u - stride, y), 1.6f * u, StrokeCap.Round)
+    // Robe: a flared tunic with a gold hem and belt.
+    drawPath(Path().apply {
+        moveTo(x - 3.5f * u, y - 15f * u); lineTo(x + 3.5f * u, y - 15f * u)
+        lineTo(x + 5.5f * u, y - 6f * u); lineTo(x - 5.5f * u, y - 6f * u); close()
+    }, robe)
+    drawLine(trim, Offset(x - 5.3f * u, y - 6.4f * u), Offset(x + 5.3f * u, y - 6.4f * u), 1f * u)
+    drawLine(trim, Offset(x - 3.8f * u, y - 11f * u), Offset(x + 3.8f * u, y - 11f * u), 0.9f * u)
+    // Arms out, holding a little sword on the right.
+    drawLine(robe, Offset(x - 3.5f * u, y - 14f * u), Offset(x - 7f * u, y - 10.5f * u), 1.6f * u, StrokeCap.Round)
+    drawLine(robe, Offset(x + 3.5f * u, y - 14f * u), Offset(x + 7f * u, y - 10.5f * u), 1.6f * u, StrokeCap.Round)
+    drawLine(Color(0xFFD8DEE8), Offset(x + 7f * u, y - 10.5f * u), Offset(x + 9.5f * u, y - 16f * u), 0.9f * u, StrokeCap.Round)
+    // Ten heads in a row: the main one in the middle, four to the left and five to the right.
+    val headY = y - 18.5f * u
+    for (k in -4..5) {
+        if (k == 0) continue
+        val hx = x + k * 2.5f * u
+        val hy = headY + kotlin.math.abs(k) * 0.35f * u
+        drawCircle(skin, 1.4f * u, Offset(hx, hy))
+        drawPath(Path().apply { moveTo(hx - 1.2f * u, hy - 1f * u); lineTo(hx, hy - 3f * u); lineTo(hx + 1.2f * u, hy - 1f * u); close() }, trim)
+    }
+    drawCircle(skin, 2.6f * u, Offset(x, headY))
+    // Main crown, eyes and moustache.
+    drawPath(Path().apply {
+        moveTo(x - 2.4f * u, headY - 1.6f * u); lineTo(x - 1.6f * u, headY - 5f * u); lineTo(x, headY - 3.4f * u)
+        lineTo(x + 1.6f * u, headY - 5f * u); lineTo(x + 2.4f * u, headY - 1.6f * u); close()
+    }, trim)
+    drawCircle(Ink, 0.45f * u, Offset(x - 0.9f * u, headY - 0.3f * u))
+    drawCircle(Ink, 0.45f * u, Offset(x + 0.9f * u, headY - 0.3f * u))
+    drawPath(Path().apply {
+        moveTo(x - 1.8f * u, headY + 1.6f * u); quadraticTo(x, headY + 0.6f * u, x + 1.8f * u, headY + 1.6f * u)
+    }, Ink, style = Stroke(0.6f * u, cap = StrokeCap.Round))
+    if (mode == PetMode.SIT) {
+        // Dussehra night: sparks rising off the effigy.
+        for (i in 0 until 5) {
+            val p = ((t * 0.8f + i * 0.21f) % 1f)
+            val sx = x + (i - 2) * 2.4f * u + sin(t * 3f + i) * 1f * u
+            val sy = y - 8f * u - p * 18f * u
+            drawCircle((if (i % 2 == 0) Color(0xFFFFC53D) else Color(0xFFFF8F1F)).copy(alpha = 1f - p), 0.8f * u, Offset(sx, sy))
+        }
     }
 }
 
