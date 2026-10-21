@@ -1,5 +1,23 @@
 package com.dopdop.bopdop.ui.screens
 
+import kotlin.math.roundToInt
+import com.dopdop.bopdop.ui.glass.glassLite
+import com.dopdop.bopdop.data.UserPlaylist
+import com.dopdop.bopdop.data.PlaylistSort
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.RemoveCircle
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.core.spring
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -102,8 +120,15 @@ fun CollectionLayout(
     error: String? = null,
     onRetry: () -> Unit = {},
     empty: String = "Nothing here yet",
+    /** Shown above the songs (a playlist's sort and edit buttons). */
+    toolbar: (@Composable () -> Unit)? = null,
+    /** Arranging: rows get drag handles ([onMove]) and remove buttons ([onRemove]) instead of playing. */
+    editing: Boolean = false,
+    onMove: ((Int, Int) -> Unit)? = null,
+    onRemove: ((Int) -> Unit)? = null,
 ) {
     val app = LocalApp.current
+    val drag = remember { ReorderDrag() }
     val haze = rememberHazeState()
     val list = rememberLazyListState()
     val current by PlayerConnection.current.collectAsState()
@@ -169,7 +194,9 @@ fun CollectionLayout(
                 loading || tracks == null -> items(8) { RowSkeleton() }
                 tracks.isEmpty() -> item { Text(empty, style = BopType.Body, color = Bop.Text2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(36.dp)) }
                 else -> {
-                    trackItems(tracks, context, current?.id, numbered = numbered, playlistId = playlistId) { app.sheet = it }
+                    if (toolbar != null) item(key = "toolbar") { toolbar() }
+                    if (editing && onMove != null) reorderItems(tracks, drag, onMove, onRemove)
+                    else trackItems(tracks, context, current?.id, numbered = numbered, playlistId = playlistId) { app.sheet = it }
                     item {
                         Text(
                             "${songs(tracks.size)} · ${formatTotal(tracks.sumOf { it.durationSec })}",
@@ -281,9 +308,15 @@ fun LocalCollectionScreen(id: String) {
                 Text("Playlist not found", style = BopType.Body, color = Bop.Text2, modifier = Modifier.statusBarsPad().padding(40.dp))
                 return
             }
+            var editing by remember(id) { mutableStateOf(false) }
             CollectionLayout(
-                title = p.name, subtitle = "Your playlist", meta = songs(p.tracks.size), artUrl = p.artwork,
-                tracks = p.tracks, context = p.name, numbered = false, playlistId = p.id,
+                title = p.name, subtitle = "Your playlist",
+                meta = if (p.tracks.isEmpty()) songs(0) else "${songs(p.tracks.size)} · ${formatTotal(p.tracks.sumOf { it.durationSec })}",
+                artUrl = p.artwork, tracks = p.sorted, context = p.name, numbered = false, playlistId = p.id,
+                toolbar = { PlaylistToolbar(p, editing) { editing = !editing } },
+                editing = editing && p.sort == PlaylistSort.CUSTOM,
+                onMove = { from, to -> LibraryStore.movePlaylistTrack(p.id, from, to) },
+                onRemove = { i -> p.tracks.getOrNull(i)?.let { LibraryStore.removeFromPlaylist(p.id, it.id) } },
                 art = { m -> Collage(p.tracks.map { it.artwork }.distinct(), m) },
                 onMore = { app.sheet = Sheet.CardOptions(Card(p.cardId, CardKind.PLAYLIST, p.name, "Your playlist", p.artwork)) },
                 onShare = if (p.tracks.isEmpty()) null else ({
@@ -297,6 +330,91 @@ fun LocalCollectionScreen(id: String) {
 
 @Composable
 private fun Modifier.statusBarsPad() = this.windowInsetsPadding(WindowInsets.statusBars)
+
+/** Sort on the left; Edit (arrange and remove) on the right while the playlist is in its own order. */
+@Composable
+private fun PlaylistToolbar(p: UserPlaylist, editing: Boolean, onEdit: () -> Unit) {
+    val app = LocalApp.current
+    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        ToolPill(Icons.Rounded.SwapVert, p.sort.label) { app.sheet = Sheet.SortPlaylist(p.id) }
+        Spacer(Modifier.weight(1f))
+        if (p.sort == PlaylistSort.CUSTOM) ToolPill(if (editing) Icons.Rounded.Check else Icons.Rounded.Edit, if (editing) "Done" else "Edit", on = editing, onClick = onEdit)
+    }
+}
+
+@Composable
+private fun ToolPill(icon: ImageVector, label: String, on: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.bounceClick(onClick = onClick).clip(RoundedCornerShape(50))
+            .background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f)).padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = if (on) Bop.OnInk else Bop.Text, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text)
+    }
+}
+
+/** The row being dragged while arranging a playlist, and how far it has moved. */
+private class ReorderDrag {
+    var from by mutableIntStateOf(-1)
+    var dy by mutableFloatStateOf(0f)
+}
+
+private val EDIT_ROW = 64.dp
+
+/** Songs with a remove button and a drag handle; the rows in between slide aside to make room. */
+private fun LazyListScope.reorderItems(tracks: List<Track>, drag: ReorderDrag, onMove: (Int, Int) -> Unit, onRemove: ((Int) -> Unit)?) {
+    items(tracks.size, key = { "e$it:" + tracks[it].id }) { i ->
+        val t = tracks[i]
+        val rowPx = with(LocalDensity.current) { EDIT_ROW.toPx() }
+        fun target() = (drag.from + (drag.dy / rowPx).roundToInt()).coerceIn(0, tracks.size - 1)
+        val dragged = i == drag.from
+        val to = if (drag.from >= 0) target() else -1
+        val shift = when {
+            drag.from < 0 || dragged -> 0f
+            drag.from < to && i in (drag.from + 1)..to -> -rowPx
+            drag.from > to && i in to until drag.from -> rowPx
+            else -> 0f
+        }
+        val slide by animateFloatAsState(shift, spring(dampingRatio = 0.8f, stiffness = 600f), label = "slide")
+        Row(
+            Modifier.zIndex(if (dragged) 1f else 0f)
+                .graphicsLayer { translationY = if (dragged) drag.dy else slide; scaleX = if (dragged) 1.02f else 1f; scaleY = scaleX }
+                .fillMaxWidth().height(EDIT_ROW).padding(horizontal = 12.dp)
+                .then(if (dragged) Modifier.glassLite(RoundedCornerShape(16.dp), alpha = 0.7f) else Modifier)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (onRemove != null) {
+                Box(Modifier.size(36.dp).clip(CircleShape).bounceClick(0.85f) { onRemove(i) }, contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.RemoveCircle, "Remove", tint = Bop.Danger, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(4.dp))
+            }
+            Artwork(t.artwork, Modifier.size(46.dp), corner = 10.dp, size = 226)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(t.title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.artist, style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Box(
+                Modifier.size(44.dp).pointerInput(tracks.size, i) {
+                    detectDragGestures(
+                        onDragStart = { drag.from = i; drag.dy = 0f },
+                        onDragEnd = {
+                            val dest = target()
+                            if (drag.from >= 0 && dest != drag.from) onMove(drag.from, dest)
+                            drag.from = -1; drag.dy = 0f
+                        },
+                        onDragCancel = { drag.from = -1; drag.dy = 0f },
+                    ) { change, d -> change.consume(); drag.dy += d.y }
+                },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.DragHandle, "Drag to move", tint = Bop.Text2) }
+        }
+    }
+}
 
 @Composable
 fun GradientArt(modifier: Modifier, icon: ImageVector, colors: List<Color>) {

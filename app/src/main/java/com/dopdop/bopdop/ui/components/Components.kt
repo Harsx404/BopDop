@@ -36,6 +36,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Explicit
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -60,6 +62,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -165,63 +169,122 @@ fun TrackRow(
     index: Int? = null,
     playing: Boolean = false,
     showArt: Boolean = true,
+    /** Swipe right to play next, left to add to the queue. Off inside sideways-scrolling shelves. */
+    swipe: Boolean = true,
     onMore: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
     val downloaded = com.dopdop.bopdop.playback.Downloads.status.collectAsState().value[track.id]?.state ==
         androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
-    Row(
-        modifier
-            .fillMaxWidth()
-            .bounceClick(0.985f, onLongClick = onMore, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (index != null) {
-            Box(Modifier.width(30.dp), contentAlignment = Alignment.CenterStart) {
-                if (playing) EqualizerBars(Modifier.size(14.dp), color = Bop.Text)
-                else Text("$index", style = BopType.Body, color = Bop.Text3)
+    val app = com.dopdop.bopdop.ui.LocalApp.current
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val dx = remember { Animatable(0f) }
+    val reach = with(androidx.compose.ui.platform.LocalDensity.current) { 88.dp.toPx() }
+    Box(modifier.fillMaxWidth()) {
+        if (dx.value != 0f) SwipeHint(dx.value, reach, Modifier.matchParentSize())
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationX = dx.value }
+                .then(if (!swipe) Modifier else Modifier.pointerInput(track.id) {
+                    var armed = false
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            val v = dx.value
+                            if (kotlin.math.abs(v) >= reach) {
+                                if (v > 0) { com.dopdop.bopdop.playback.PlayerConnection.playNext(track); app.toast("Playing next") }
+                                else { com.dopdop.bopdop.playback.PlayerConnection.addToQueue(listOf(track)); app.toast("Added to queue") }
+                            }
+                            armed = false
+                            scope.launch { dx.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 500f)) }
+                        },
+                        onDragCancel = { armed = false; scope.launch { dx.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = 500f)) } },
+                    ) { change, d ->
+                        change.consume()
+                        val now = dx.value
+                        // Past the trigger point the row pulls like a rubber band.
+                        val next = (now + if (kotlin.math.abs(now) > reach) d * 0.3f else d).coerceIn(-reach * 1.5f, reach * 1.5f)
+                        scope.launch { dx.snapTo(next) }
+                        val over = kotlin.math.abs(next) >= reach
+                        if (over != armed) {
+                            armed = over
+                            if (over) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        }
+                    }
+                })
+                .bounceClick(0.985f, onLongClick = onMore, onClick = onClick)
+                .padding(horizontal = 20.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (index != null) {
+                Box(Modifier.width(30.dp), contentAlignment = Alignment.CenterStart) {
+                    if (playing) EqualizerBars(Modifier.size(14.dp), color = Bop.Text)
+                    else Text("$index", style = BopType.Body, color = Bop.Text3)
+                }
             }
-        }
-        if (showArt) {
-            Box {
-                Artwork(track.artwork, Modifier.size(52.dp), corner = 14.dp, size = 226)
-                if (playing && index == null) {
-                    Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.38f)), contentAlignment = Alignment.Center) {
-                        EqualizerBars(Modifier.size(18.dp))
+            if (showArt) {
+                Box {
+                    Artwork(track.artwork, Modifier.size(52.dp), corner = 14.dp, size = 226)
+                    if (playing && index == null) {
+                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.38f)), contentAlignment = Alignment.Center) {
+                            EqualizerBars(Modifier.size(18.dp))
+                        }
                     }
                 }
+                Spacer(Modifier.width(14.dp))
             }
-            Spacer(Modifier.width(14.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                track.title, style = BopType.BodyStrong,
-                color = if (playing) Bop.Text else Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (track.explicit) {
-                    Icon(Icons.Rounded.Explicit, null, tint = Bop.Text3, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                }
-                if (downloaded) {
-                    Icon(Icons.Rounded.DownloadDone, "Downloaded", tint = Bop.Text2, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                }
-                if (track.bitrate >= 320) {
-                    QualityDot()
-                    Spacer(Modifier.width(5.dp))
-                }
+            Column(Modifier.weight(1f)) {
                 Text(
-                    listOf(track.artist, if (index != null) formatDuration(track.durationSec) else track.album).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    track.title, style = BopType.BodyStrong,
+                    color = if (playing) Bop.Text else Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (track.explicit) {
+                        Icon(Icons.Rounded.Explicit, null, tint = Bop.Text3, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    if (downloaded) {
+                        Icon(Icons.Rounded.DownloadDone, "Downloaded", tint = Bop.Text2, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    if (track.bitrate >= 320) {
+                        QualityDot()
+                        Spacer(Modifier.width(5.dp))
+                    }
+                    Text(
+                        listOf(track.artist, if (index != null) formatDuration(track.durationSec) else track.album).filter { it.isNotBlank() }.joinToString(" · "),
+                        style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            if (onMore != null) {
+                Box(Modifier.size(40.dp).clip(CircleShape).bounceClick(onClick = onMore), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.MoreHoriz, "More", tint = Bop.Text2)
+                }
             }
         }
-        if (onMore != null) {
-            Box(Modifier.size(40.dp).clip(CircleShape).bounceClick(onClick = onMore), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.MoreHoriz, "More", tint = Bop.Text2)
+    }
+}
+
+/** What a swipe will do, in the gap it opens: play next on the left, add to queue on the right. */
+@Composable
+private fun SwipeHint(dx: Float, reach: Float, modifier: Modifier) {
+    val next = dx > 0
+    val p = (kotlin.math.abs(dx) / reach).coerceIn(0f, 1f)
+    val gap = with(androidx.compose.ui.platform.LocalDensity.current) { kotlin.math.abs(dx).toDp() }
+    Box(modifier, contentAlignment = if (next) Alignment.CenterStart else Alignment.CenterEnd) {
+        Box(Modifier.width(gap).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(40.dp).graphicsLayer { alpha = p; scaleX = 0.6f + 0.4f * p; scaleY = scaleX }
+                    .clip(CircleShape).background(if (p >= 1f) Bop.Ink else Bop.Veil.copy(alpha = 0.8f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (next) Icons.Rounded.SkipNext else Icons.AutoMirrored.Rounded.QueueMusic,
+                    if (next) "Play next" else "Add to queue", tint = if (p >= 1f) Bop.OnInk else Bop.Text, modifier = Modifier.size(20.dp),
+                )
             }
         }
     }

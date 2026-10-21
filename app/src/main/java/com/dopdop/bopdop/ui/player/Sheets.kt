@@ -1,5 +1,13 @@
 package com.dopdop.bopdop.ui.player
 
+import com.dopdop.bopdop.data.pinnedFirst
+import com.dopdop.bopdop.data.PlaylistSort
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.runtime.mutableStateListOf
 import android.content.Intent
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -168,6 +176,8 @@ fun SheetHost(app: AppState) {
                     Sheet.PlaybackSpeed -> SpeedSheet(app)
                     Sheet.AudioPipeline -> AudioPipelineSheet()
                     Sheet.ImportPlaylist -> ImportPlaylistSheet(app)
+                    is Sheet.SortPlaylist -> SortPlaylistSheet(app, s.id)
+                    Sheet.Scrobbling -> ScrobblingSheet(app)
                     null -> {}
                 }
             }
@@ -255,7 +265,7 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
     val local = c.id.startsWith("local:")
     val localPl = if (local) lib.playlists.firstOrNull { it.cardId == c.id } else null
     suspend fun tracks(): List<Track> = when {
-        localPl != null -> localPl.tracks
+        localPl != null -> localPl.sorted
         c.kind == CardKind.ARTIST -> MusicRepository.artist(c.id).topSongs
         c.kind == CardKind.STATION || c.kind == CardKind.MOOD -> MusicRepository.station(c)
         else -> MusicRepository.collection(c).tracks
@@ -281,6 +291,10 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
         close(); app.shareQr(ShareRequest(SharePayload.Collection(c), c.title, c.subtitle.ifBlank { c.kind.name.lowercase().replaceFirstChar { it.uppercase() } }, c.artwork))
     }
     if (localPl != null) {
+        Action(Icons.Rounded.PushPin, if (localPl.pinned) "Unpin" else "Pin to top") {
+            LibraryStore.setPinned(localPl.id, !localPl.pinned); app.toast(if (localPl.pinned) "Unpinned" else "Pinned to the top of Library"); close()
+        }
+        Action(Icons.Rounded.SwapVert, "Sort songs · ${localPl.sort.label}") { app.sheet = Sheet.SortPlaylist(localPl.id) }
         Action(Icons.Rounded.Edit, "Rename") { app.sheet = Sheet.RenamePlaylist(localPl.id, localPl.name) }
         Action(Icons.Rounded.Delete, "Delete playlist", Color(0xFFFF6B8B)) {
             LibraryStore.deletePlaylist(localPl.id); close(); app.nav.popBackStack(); app.toast("Playlist deleted")
@@ -301,28 +315,142 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
     }
 }
 
+/** Tick one or more playlists, then add. Playlists that already have the song(s) are marked. */
 @Composable
 private fun ColumnScope.AddToPlaylist(app: AppState, tracks: List<Track>) {
     val lib by LibraryStore.state.collectAsState()
-    Text("Add to playlist", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
-    Column(Modifier.verticalScroll(rememberScrollState())) {
+    val picked = remember { mutableStateListOf<String>() }
+    Text("Add to playlists", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
         Action(Icons.Rounded.Add, "New playlist") { app.sheet = Sheet.NewPlaylist(tracks) }
-        lib.playlists.forEach { p ->
+        lib.playlists.pinnedFirst().forEach { p ->
+            val has = tracks.all { t -> p.tracks.any { it.id == t.id } }
+            val on = p.id in picked
             Row(
                 Modifier.fillMaxWidth().bounceClick(0.98f) {
-                    LibraryStore.addToPlaylist(p.id, tracks); app.toast("Added to “${p.name}”"); app.sheet = null
+                    if (!has) { if (on) picked.remove(p.id) else picked.add(p.id) }
                 }.padding(horizontal = 18.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Collage(p.tracks.map { it.artwork }.distinct(), Modifier.size(48.dp), 8.dp)
                 Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(p.name, style = BopType.BodyStrong, color = Bop.Text)
-                    Text(songs(p.tracks.size), style = BopType.Caption, color = Bop.Text2)
+                Column(Modifier.weight(1f)) {
+                    Text(p.name, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (has) "Already added" else songs(p.tracks.size), style = BopType.Caption, color = Bop.Text2)
                 }
+                Icon(
+                    if (on || has) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null,
+                    tint = if (on) Bop.Ink else Bop.Text3, modifier = Modifier.size(24.dp),
+                )
             }
         }
     }
+    if (lib.playlists.isNotEmpty()) Box(
+        Modifier.padding(horizontal = 18.dp, vertical = 10.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50))
+            .background(if (picked.isEmpty()) Bop.Ink.copy(alpha = 0.25f) else Bop.Ink)
+            .bounceClick {
+                if (picked.isEmpty()) return@bounceClick
+                LibraryStore.addToPlaylists(picked.toSet(), tracks)
+                val one = lib.playlists.firstOrNull { it.id == picked.singleOrNull() }
+                app.toast(if (one != null) "Added to “${one.name}”" else "Added to ${picked.size} playlists")
+                app.sheet = null
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            when (picked.size) { 0 -> "Pick playlists"; 1 -> "Add"; else -> "Add to ${picked.size} playlists" },
+            style = BopType.BodyStrong, color = if (picked.isEmpty()) Bop.Text2 else Bop.OnInk,
+        )
+    }
+}
+
+/** How a playlist lists and plays its songs. */
+@Composable
+private fun ColumnScope.SortPlaylistSheet(app: AppState, id: String) {
+    val lib by LibraryStore.state.collectAsState()
+    val p = lib.playlists.firstOrNull { it.id == id } ?: return
+    Text("Sort songs", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    PlaylistSort.entries.forEach { o ->
+        val on = o == p.sort
+        Row(
+            Modifier.fillMaxWidth().bounceClick(0.98f) { LibraryStore.setSort(id, o); app.sheet = null }.padding(horizontal = 22.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(o.label, style = if (on) BopType.BodyStrong else BopType.Body, color = Bop.Text, modifier = Modifier.weight(1f))
+            if (on) Icon(Icons.Rounded.Check, null, tint = Bop.Text, modifier = Modifier.size(20.dp))
+        }
+    }
+    Text("Custom order is the one you arrange with Edit on the playlist.", style = BopType.Caption, color = Bop.Text3,
+        modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+}
+
+/** Connect or disconnect ListenBrainz with a user token. */
+@Composable
+private fun ColumnScope.ScrobblingSheet(app: AppState) {
+    val ctx = LocalContext.current
+    val lib by LibraryStore.state.collectAsState()
+    val s = lib.settings
+    val scope = rememberCoroutineScope()
+    var token by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val rule = "A song counts once you've heard half of it, or four minutes."
+    Text("ListenBrainz", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp))
+    if (s.listenBrainzToken.isNotBlank()) {
+        Text("Scrobbling as ${s.listenBrainzUser}. $rule", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+        Box(
+            Modifier.padding(18.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50)).background(Bop.Veil.copy(alpha = 0.7f))
+                .bounceClick {
+                    LibraryStore.updateSettings { it.copy(listenBrainzToken = "", listenBrainzUser = "") }
+                    app.toast("ListenBrainz disconnected"); app.sheet = null
+                },
+            contentAlignment = Alignment.Center,
+        ) { Text("Disconnect", style = BopType.BodyStrong, color = Bop.Danger) }
+        return
+    }
+    Text("Paste your user token from ListenBrainz › Settings. $rule", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+    Text(
+        "Get your token", style = BopType.BodyStrong, color = Bop.Accent,
+        modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp).bounceClick {
+            runCatching {
+                ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://listenbrainz.org/settings/")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        },
+    )
+    Box(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().height(54.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+        if (token.isEmpty()) Text("User token", style = BopType.Body, color = Bop.Text3)
+        BasicTextField(
+            token, { token = it.trim(); error = null }, singleLine = true, enabled = !busy,
+            textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    error?.let { Text(it, style = BopType.Caption, color = Bop.Danger, modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp)) }
+    val ready = token.length >= 8 && !busy
+    Box(
+        Modifier.padding(18.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50))
+            .background(if (ready) Bop.Ink else Bop.Ink.copy(alpha = 0.25f))
+            .bounceClick {
+                if (!ready) return@bounceClick
+                busy = true
+                scope.launch {
+                    try {
+                        val user = com.dopdop.bopdop.data.scrobble.ListenBrainz.validate(token)
+                        if (user == null) error = "ListenBrainz didn't accept that token"
+                        else {
+                            LibraryStore.updateSettings { it.copy(listenBrainzToken = token, listenBrainzUser = user) }
+                            com.dopdop.bopdop.data.scrobble.ListenBrainz.flush()
+                            app.toast("Scrobbling as $user"); app.sheet = null
+                        }
+                    } catch (e: Exception) {
+                        error = "Couldn't reach ListenBrainz. Check your connection."
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) { Text(if (busy) "Checking…" else "Connect", style = BopType.BodyStrong, color = if (ready) Bop.OnInk else Bop.Text2) }
 }
 
 @Composable
@@ -345,7 +473,7 @@ private fun ColumnScope.NameInput(app: AppState, title: String, cta: String, ini
         Modifier.padding(18.dp).fillMaxWidth().height(50.dp).bounceClick { submit() }.clip(RoundedCornerShape(50))
             .background(if (name.isBlank()) Bop.Ink.copy(alpha = 0.25f) else Bop.Ink),
         contentAlignment = Alignment.Center,
-    ) { Text(cta, style = BopType.BodyStrong, color = Color.White) }
+    ) { Text(cta, style = BopType.BodyStrong, color = if (name.isBlank()) Bop.Text2 else Bop.OnInk) }
 }
 
 /** 1x, 1.25x, 0.75x… */
@@ -511,5 +639,5 @@ private fun ColumnScope.ImportPlaylistSheet(app: AppState) {
                 }
             },
         contentAlignment = Alignment.Center,
-    ) { Text(if (busy) "Importing…" else "Import", style = BopType.BodyStrong, color = Color.White) }
+    ) { Text(if (busy) "Importing…" else "Import", style = BopType.BodyStrong, color = if (ready) Bop.OnInk else Bop.Text2) }
 }

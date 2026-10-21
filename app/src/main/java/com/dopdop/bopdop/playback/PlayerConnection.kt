@@ -122,7 +122,8 @@ object PlayerConnection {
         playGeneration++
         _context.value = context
         withController { c ->
-            c.shuffleModeEnabled = shuffle
+            // Shuffle buttons turn shuffle on; otherwise it stays as the listener left it.
+            if (shuffle) c.shuffleModeEnabled = true
             val first = if (shuffle) unique.indices.random() else unique.indexOfFirst { sameQueueSong(it, selected) }
             c.setMediaItems(unique.map { it.toMediaItem() }, first, 0L)
             c.prepare()

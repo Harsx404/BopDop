@@ -27,12 +27,12 @@ in batch order. Update the **Status** column as items land.
 | F03 | Player | Playback speed 0.5×–2× (pitch kept) | BC | P1 | S | 1 | done | Player ⋯ menu and Settings; shown under the seek bar when not 1× |
 | F04 | Player | Lyrics timing offset, per song | BC | P1 | S | 1 | done | Timer button in the lyrics toolbar; also moves the live line and lock-screen lyrics |
 | F05 | QoL | Separate audio quality for Wi-Fi and mobile data | BC | P1 | M | 1 | done | Settings › Sound; High keeps the JioSaavn 320 kbps match; downloads always High |
-| F06 | Features | Scrobbling to ListenBrainz (user token) | BC, LW | P1 | M | 2 | todo | |
+| F06 | Features | Scrobbling to ListenBrainz (user token) | BC, LW | P1 | M | 2 | done | Settings › Scrobbling; token checked with ListenBrainz; playing-now + a listen at half the song or 4 min; offline listens wait in a file |
 | F07 | Features | Scrobbling to Last.fm | BC, LW | P2 | M | later | blocked | needs a Last.fm API key + secret registered for BopDop |
-| F08 | QoL | Remember shuffle and repeat across restarts | BC | P2 | S | 2 | todo | |
-| F09 | QoL | Search inside Settings | BC, LW | P2 | M | 2 | todo | |
-| F10 | QoL | Swipe a song to add it to the queue (search, recents, lists) | BC | P2 | M | 2 | todo | |
-| F11 | QoL | Playlist tools: reorder, add to several playlists, total length, sort, pin | BC | P2 | M | 2 | todo | |
+| F08 | QoL | Remember shuffle and repeat across restarts | BC | P2 | S | 2 | done | Saved in settings; Play keeps the mode, Shuffle buttons turn it on |
+| F09 | QoL | Search inside Settings | BC, LW | P2 | M | 2 | done | Matches titles, descriptions, group names and a few extra words |
+| F10 | QoL | Swipe a song to add it to the queue (search, recents, lists) | BC | P2 | M | 2 | done | Right = play next, left = add to queue, with haptic at the trigger; off in sideways shelves |
+| F11 | QoL | Playlist tools: reorder, add to several playlists, total length, sort, pin | BC | P2 | M | 2 | done | Edit mode with drag handles and remove; multi-select add sheet; sort sheet; pin in ⋯. Drag does not auto-scroll long lists yet |
 | F12 | Features | Smart playlists from history, likes, seed artists and genres; weekly recap | LW | P1 | L | 3 | todo | |
 | F13 | Player | Stats for nerds: codec, bitrate, sample rate, bit depth, channels, source | BC, LW | P2 | S | 3 | todo | |
 | F14 | QoL | Live search results while typing | BC | P2 | M | 3 | todo | today only word suggestions |

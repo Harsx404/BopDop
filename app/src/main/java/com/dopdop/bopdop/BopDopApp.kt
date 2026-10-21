@@ -19,6 +19,8 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.playback.StreamResolver.init(this)
         com.dopdop.bopdop.data.lyrics.LyricOffsets.init(this)
         com.dopdop.bopdop.data.lyrics.LyricsApi.init(this)
+        com.dopdop.bopdop.data.scrobble.ListenBrainz.init(this)
+        com.dopdop.bopdop.data.scrobble.ListenBrainz.flush()
         com.dopdop.bopdop.playback.Downloads.init(this)
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
         com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)

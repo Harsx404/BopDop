@@ -30,6 +30,8 @@ sealed interface Sheet {
     data object PlaybackSpeed : Sheet
     data object AudioPipeline : Sheet
     data object ImportPlaylist : Sheet
+    data class SortPlaylist(val id: String) : Sheet
+    data object Scrobbling : Sheet
 }
 
 object Routes {

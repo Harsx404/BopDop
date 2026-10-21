@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
+import com.dopdop.bopdop.data.pinnedFirst
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -116,7 +118,7 @@ fun LibraryScreen() {
         }
 
         item(key = "plHeader") { SectionHeader("Your playlists", action = "New") { app.sheet = Sheet.NewPlaylist(emptyList()) } }
-        val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists
+        val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists.pinnedFirst()
         val rows = tiles.chunked(2)
         items(rows.size, key = { "pl$it" }) { r ->
             Row(Modifier.riseIn(r + 2).padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -299,7 +301,15 @@ private fun PlaylistCard(p: UserPlaylist) {
         title = p.name, sub = songs(p.tracks.size),
         onLong = { app.sheet = Sheet.CardOptions(Card(p.cardId, CardKind.PLAYLIST, p.name, "Your playlist", p.artwork)) },
         onClick = { app.openLocal(p.id) },
-    ) { m -> Collage(p.tracks.map { it.artwork }.distinct(), m, 0.dp) }
+    ) { m ->
+        Box(m) {
+            Collage(p.tracks.map { it.artwork }.distinct(), Modifier.fillMaxSize(), 0.dp)
+            if (p.pinned) Box(
+                Modifier.align(Alignment.TopEnd).padding(10.dp).size(28.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.PushPin, "Pinned", tint = Color.White, modifier = Modifier.size(15.dp)) }
+        }
+    }
 }
 
 @Composable

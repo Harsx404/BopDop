@@ -91,6 +91,12 @@ data class Settings(
     val audioMobile: AudioQuality = AudioQuality.HIGH,
     /** Playback speed, 0.5x to 2x; pitch stays the same. */
     val playbackSpeed: Float = 1f,
+    /** Shuffle and repeat as last left, so they survive restarts. [repeat] is a Media3 REPEAT_MODE_*. */
+    val shuffle: Boolean = false,
+    val repeat: Int = 0,
+    /** ListenBrainz user token (scrobbling is on while it's set) and the account it belongs to. */
+    val listenBrainzToken: String = "",
+    val listenBrainzUser: String = "",
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -101,7 +107,8 @@ data class Settings(
         .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
         .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name)
-        .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble()).apply { islandInApp?.let { put("islandInApp", it) } }
+        .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
+        .put("shuffle", shuffle).put("repeat", repeat).put("listenBrainzToken", listenBrainzToken).put("listenBrainzUser", listenBrainzUser).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
     companion object {
@@ -134,15 +141,41 @@ data class Settings(
             audioWifi = runCatching { AudioQuality.valueOf(o.optString("audioWifi")) }.getOrDefault(AudioQuality.HIGH),
             audioMobile = runCatching { AudioQuality.valueOf(o.optString("audioMobile")) }.getOrDefault(AudioQuality.HIGH),
             playbackSpeed = o.optDouble("playbackSpeed", 1.0).toFloat().coerceIn(0.5f, 2f),
+            shuffle = o.optBoolean("shuffle", false),
+            repeat = o.optInt("repeat", 0).coerceIn(0, 2),
+            listenBrainzToken = o.optString("listenBrainzToken"),
+            listenBrainzUser = o.optString("listenBrainzUser"),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }
 }
 
-data class UserPlaylist(val id: String, val name: String, val createdAt: Long, val tracks: List<Track>) {
+/** How a playlist's songs are listed (and played). [CUSTOM] is the order they were added or arranged in. */
+enum class PlaylistSort(val label: String) {
+    CUSTOM("Custom order"), RECENT("Recently added"), TITLE("Title"), ARTIST("Artist"), LONGEST("Longest first");
+
+    fun apply(tracks: List<Track>): List<Track> = when (this) {
+        CUSTOM -> tracks
+        RECENT -> tracks.asReversed()
+        TITLE -> tracks.sortedBy { it.title.lowercase() }
+        ARTIST -> tracks.sortedWith(compareBy({ it.artist.lowercase() }, { it.title.lowercase() }))
+        LONGEST -> tracks.sortedByDescending { it.durationSec }
+    }
+}
+
+data class UserPlaylist(
+    val id: String, val name: String, val createdAt: Long, val tracks: List<Track>,
+    /** Pinned playlists come first in Library and the add-to-playlist list. */
+    val pinned: Boolean = false,
+    val sort: PlaylistSort = PlaylistSort.CUSTOM,
+) {
     val cardId get() = "local:$id"
     val artwork get() = tracks.firstOrNull()?.artwork.orEmpty()
+    val sorted get() = sort.apply(tracks)
 }
+
+/** Pinned first, otherwise as they are. */
+fun List<UserPlaylist>.pinnedFirst() = sortedByDescending { it.pinned }
 
 data class LibraryState(
     val liked: List<Track> = emptyList(),
@@ -178,7 +211,11 @@ object LibraryStore {
         playlists = o.optJSONArray("playlists")?.let { a ->
             (0 until a.length()).mapNotNull { i ->
                 val p = a.optJSONObject(i) ?: return@mapNotNull null
-                UserPlaylist(p.optString("id"), p.optString("name"), p.optLong("createdAt"), p.optJSONArray("tracks").toTracks())
+                UserPlaylist(
+                    p.optString("id"), p.optString("name"), p.optLong("createdAt"), p.optJSONArray("tracks").toTracks(),
+                    pinned = p.optBoolean("pinned"),
+                    sort = runCatching { PlaylistSort.valueOf(p.optString("sort")) }.getOrDefault(PlaylistSort.CUSTOM),
+                )
             }
         }.orEmpty(),
         saved = o.optJSONArray("saved").toCards(),
@@ -191,7 +228,8 @@ object LibraryStore {
         val o = JSONObject()
             .put("liked", s.liked.toJsonArray())
             .put("playlists", JSONArray().also { a ->
-                s.playlists.forEach { p -> a.put(JSONObject().put("id", p.id).put("name", p.name).put("createdAt", p.createdAt).put("tracks", p.tracks.toJsonArray())) }
+                s.playlists.forEach { p -> a.put(JSONObject().put("id", p.id).put("name", p.name).put("createdAt", p.createdAt).put("tracks", p.tracks.toJsonArray())
+                    .put("pinned", p.pinned).put("sort", p.sort.name)) }
             })
             .put("saved", s.saved.cardsToJson())
             .put("history", s.history.toJsonArray())
@@ -242,10 +280,29 @@ object LibraryStore {
         return p
     }
 
-    fun addToPlaylist(id: String, tracks: List<Track>) = _state.update { s ->
+    fun addToPlaylist(id: String, tracks: List<Track>) = addToPlaylists(setOf(id), tracks)
+
+    /** Add [tracks] to every playlist in [ids], skipping songs a playlist already has. */
+    fun addToPlaylists(ids: Set<String>, tracks: List<Track>) = _state.update { s ->
         s.copy(playlists = s.playlists.map { p ->
-            if (p.id != id) p else p.copy(tracks = p.tracks + tracks.filter { t -> p.tracks.none { it.id == t.id } })
+            if (p.id !in ids) p else p.copy(tracks = p.tracks + tracks.filter { t -> p.tracks.none { it.id == t.id } }.distinctBy { it.id })
         })
+    }
+
+    /** Move a song within a playlist's own (custom) order. */
+    fun movePlaylistTrack(id: String, from: Int, to: Int) = _state.update { s ->
+        s.copy(playlists = s.playlists.map { p ->
+            if (p.id != id || from == to || from !in p.tracks.indices || to !in p.tracks.indices) p
+            else p.copy(tracks = p.tracks.toMutableList().apply { add(to, removeAt(from)) })
+        })
+    }
+
+    fun setPinned(id: String, pinned: Boolean) = _state.update { s ->
+        s.copy(playlists = s.playlists.map { if (it.id == id) it.copy(pinned = pinned) else it })
+    }
+
+    fun setSort(id: String, sort: PlaylistSort) = _state.update { s ->
+        s.copy(playlists = s.playlists.map { if (it.id == id) it.copy(sort = sort) else it })
     }
 
     fun removeFromPlaylist(id: String, trackId: String) = _state.update { s ->

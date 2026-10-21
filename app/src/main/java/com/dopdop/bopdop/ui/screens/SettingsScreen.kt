@@ -6,6 +6,13 @@ import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Contactless
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Celebration
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Pets
@@ -97,263 +104,361 @@ fun SettingsScreen() {
     val lib by LibraryStore.state.collectAsState()
     val s = lib.settings
     val account by AccountStore.account.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val total = remember { Hits() }
     LargeTitleScaffold(title = "Settings", showBack = true) {
         item {
-            Group("Account") {
-                val a = account
-                if (a == null) {
-                    Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.SIGN_IN) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconBadge(Icons.Rounded.AccountCircle)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Sign in to YouTube Music", style = BopType.BodyStrong, color = Bop.Text)
-                            Text("Your own Home mixes, Liked Music and playlists. Optional — everything else works without it.", style = BopType.Caption, color = Bop.Text2)
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Text("Sign in", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(650)), color = Color.White,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Accent).padding(horizontal = 14.dp, vertical = 8.dp))
-                    }
-                } else {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Artwork(a.photo.ifBlank { null }, Modifier.size(46.dp), circle = true, size = 160)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(a.name, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1)
-                            Text(a.handle.ifBlank { "YouTube Music" }, style = BopType.Caption, color = Bop.Text2, maxLines = 1)
-                        }
-                        Text(
-                            "Sign out", style = BopType.BodyStrong, color = Bop.Danger,
-                            modifier = Modifier.bounceClick {
-                                AccountStore.signOut(); YtMusic.clearCache(); ScreenCache.put("home", null)
-                                app.toast("Signed out")
-                            }.padding(8.dp),
-                        )
-                    }
-                }
-            }
-            Group("Sound") {
-                RowHead(Icons.Rounded.Wifi, "Audio quality on Wi-Fi", "High plays the best stream there is, including JioSaavn's 320 kbps copy.")
-                ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioWifi, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioWifi = q) } }
-                RowHead(Icons.Rounded.SignalCellularAlt, "Audio quality on mobile data", "Normal is about 128–160 kbps; Data saver about 70–96 kbps. Applies from the next song.")
-                ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioMobile, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioMobile = q) } }
-                RowHead(Icons.Rounded.Speed, "Playback speed", "Faster or slower without changing the pitch. Also in the player's ⋯ menu.")
-                ChipRow(listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f), s.playbackSpeed, { com.dopdop.bopdop.ui.player.speedLabel(it) }) { v -> LibraryStore.updateSettings { it.copy(playbackSpeed = v) } }
-                ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
-                    LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
-                }
-                ToggleRow(Icons.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
-                    LibraryStore.updateSettings { it.copy(normalize = !it.normalize) }
-                }
-                ToggleRow(Icons.Rounded.VolumeOff, "Skip silence", "Trims gaps of silence inside and between tracks.", s.skipSilence) {
-                    LibraryStore.updateSettings { it.copy(skipSilence = !it.skipSilence) }
-                }
-                RowHead(Icons.Rounded.AutoAwesome, "Automix", "Blends each song into the next. Albums that flow track-to-track stay gapless.")
-                ChipRow(listOf(0, 3, 6, 9, 12), s.crossfadeSec, { if (it == 0) "Off" else "$it s" }) { sec -> LibraryStore.updateSettings { it.copy(crossfadeSec = sec) } }
-                RowHead(Icons.Rounded.Tune, "Output precision", if (s.floatOutput) "Sends 32-bit float to Android's mixer: more headroom after the EQ and leveling." else "16-bit PCM, the standard output.")
-                Segmented(listOf("16-bit PCM", "32-bit float"), if (s.floatOutput) 1 else 0) { i -> LibraryStore.updateSettings { it.copy(floatOutput = i == 1) } }
-                Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.EQ) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge(Icons.Rounded.GraphicEq)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Equalizer", style = BopType.BodyStrong, color = Bop.Text)
-                        Text(if (s.eq.enabled) "${s.eq.preset} · on" else "Shape the sound — bass, vocals, sparkle.", style = BopType.Caption, color = Bop.Text2)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    EqMini(s.eq.gains, s.eq.enabled)
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Bop.Text3, modifier = Modifier.size(22.dp))
-                }
-                ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
-                    LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
-                }
-                val pipe by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
-                NavRow(Icons.Rounded.Insights, "Audio pipeline", if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
-                    app.sheet = Sheet.AudioPipeline
-                }
-            }
-            Group("Lyrics") {
-                ToggleRow(Icons.Rounded.Lyrics, "Lyrics on lock screen", "Shows the line being sung in the notification and on the lock screen.", s.lockScreenLyrics) {
-                    LibraryStore.updateSettings { it.copy(lockScreenLyrics = !it.lockScreenLyrics) }
-                }
-            }
-            Group("Local music") {
-                var allowed by remember { mutableStateOf(LocalMusic.hasPermission(ctx)) }
-                val folders by LocalMusic.folders.collectAsState()
-                LaunchedEffect(allowed, s.filterNonMusic) { if (allowed) LocalMusic.refresh(ctx) }
-                val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
-                if (!allowed) {
-                    NavRow(Icons.Rounded.Folder, "Allow music access", "Play songs saved on this phone.") { ask.launch(LocalMusic.permission) }
-                } else {
-                    RowHead(Icons.Rounded.Folder, "Local music folder", s.localFolder ?: "All music folders")
-                    ChipRow(listOf<String?>(null) + folders, s.localFolder, { f -> f?.substringAfterLast('/')?.ifBlank { f } ?: "All" }) { f ->
-                        LibraryStore.updateSettings { it.copy(localFolder = f) }
-                    }
-                }
-                ToggleRow(Icons.Rounded.FilterAlt, "Filter non-music audio", "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds.", s.filterNonMusic) {
-                    LibraryStore.updateSettings { it.copy(filterNonMusic = !it.filterNonMusic) }
-                }
-            }
-            Group("Music video") {
-                RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.")
-                FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    VideoQuality.entries.forEach { q ->
-                        val on = s.videoQuality == q
-                        Text(
-                            q.label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
-                            modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(videoQuality = q) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
-                        )
-                    }
-                }
-            }
-            Group("Look & feel") {
-                RowHead(Icons.Rounded.DarkMode, "Theme", "Auto follows your phone's light or dark setting.")
-                ChipRow(com.dopdop.bopdop.data.ThemeMode.entries, s.themeMode, { it.label }) { m -> LibraryStore.updateSettings { it.copy(themeMode = m) } }
-                RowHead(Icons.Rounded.WaterDrop, "Glass", "How much the background shows through.")
-                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
-                    GlassLevel.entries.forEach { g ->
-                        val on = g == s.glass
-                        val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "g")
-                        Text(
-                            g.label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text2,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(bg)
-                                .bounceClick { LibraryStore.updateSettings { it.copy(glass = g) } }.padding(vertical = 9.dp),
-                        )
-                    }
-                }
-                val rates = remember { ctx.refreshRates() }
-                if (rates.size > 1) {
-                    RowHead(Icons.Rounded.Speed, "Refresh rate", if (s.refreshRate == 0) "Auto: Android picks the rate." else "${s.refreshRate} Hz requested. Android may lower it when needed.")
-                    ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
-                }
-                NavRow(Icons.Rounded.Pets, "Seek bar & pet", "${s.seekStyle.label} seek bar${if (s.seekPet == com.dopdop.bopdop.data.SeekPet.NONE) "" else " with a running ${s.seekPet.label.lowercase()}"}. Long-press the seek bar to change it from the player.") {
-                    app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
-                }
-                ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
-                    LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }
-                }
-            }
-            Group("Festive") {
-                val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
-                val now = festive.festival?.let { f ->
-                    val end = com.dopdop.bopdop.data.Festivals.window(f, java.time.LocalDate.now().year)?.endInclusive
-                    "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
-                }.orEmpty()
-                RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends. Full decorates Home and dresses up your pet; Pet only keeps it to the pet.")
-                ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l -> LibraryStore.updateSettings { it.copy(festiveLevel = l) } }
-                if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
-                    RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.")
-                    ChipRow(com.dopdop.bopdop.data.FestivePick.entries, s.festivePick, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
-                }
-            }
-            Group("Island") {
-                val native = com.dopdop.bopdop.ui.island.NativeIsland.name
-                ToggleRow(Icons.Rounded.Contactless, "Island in BopDop", "What's playing in a pill around your camera, while you browse the app. Tap it for controls.", s.islandInApp ?: true) {
-                    LibraryStore.updateSettings { it.copy(islandInApp = !(it.islandInApp ?: true)) }
-                }
-                if (android.os.Build.VERSION.SDK_INT >= 36) {
-                    ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
-                        (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
-                        LibraryStore.updateSettings { it.copy(liveUpdate = !it.liveUpdate) }
-                    }
-                }
-                if (android.os.Build.VERSION.SDK_INT >= 30) {
-                    ToggleRow(Icons.Rounded.Contactless, "Island over other apps", "BopDop's own island while you use other apps. Asks to display over other apps.", s.islandOverlay) {
-                        val turnOn = !s.islandOverlay
-                        if (turnOn && !android.provider.Settings.canDrawOverlays(ctx)) {
-                            runCatching {
-                                ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
+            SettingsSearch(query) { query = it }
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
+                Group("Account") {
+                    Searchable("Sign in to YouTube Music", "account sign out library liked playlists") {
+                        val a = account
+                        if (a == null) {
+                            Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.SIGN_IN) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                IconBadge(Icons.Rounded.AccountCircle)
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text("Sign in to YouTube Music", style = BopType.BodyStrong, color = Bop.Text)
+                                    Text("Your own Home mixes, Liked Music and playlists. Optional — everything else works without it.", style = BopType.Caption, color = Bop.Text2)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text("Sign in", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(650)), color = Color.White,
+                                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Accent).padding(horizontal = 14.dp, vertical = 8.dp))
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Artwork(a.photo.ifBlank { null }, Modifier.size(46.dp), circle = true, size = 160)
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(a.name, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1)
+                                    Text(a.handle.ifBlank { "YouTube Music" }, style = BopType.Caption, color = Bop.Text2, maxLines = 1)
+                                }
+                                Text(
+                                    "Sign out", style = BopType.BodyStrong, color = Bop.Danger,
+                                    modifier = Modifier.bounceClick {
+                                        AccountStore.signOut(); YtMusic.clearCache(); ScreenCache.put("home", null)
+                                        app.toast("Signed out")
+                                    }.padding(8.dp),
+                                )
                             }
                         }
-                        LibraryStore.updateSettings { it.copy(islandOverlay = turnOn) }
                     }
                 }
-            }
-            Group("Home feed") {
-                ToggleRow(Icons.Rounded.AutoAwesome, "JioSaavn picks", "Mix Indian charts, new releases and stations into Home.", s.showSaavnHome) {
-                    LibraryStore.updateSettings { it.copy(showSaavnHome = !it.showSaavnHome) }
-                    ScreenCache.put("home", null)
+                Group("Sound") {
+                    RowHead(Icons.Rounded.Wifi, "Audio quality on Wi-Fi", "High plays the best stream there is, including JioSaavn's 320 kbps copy.") {
+                        ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioWifi, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioWifi = q) } }
+                    }
+                    RowHead(Icons.Rounded.SignalCellularAlt, "Audio quality on mobile data", "Normal is about 128–160 kbps; Data saver about 70–96 kbps. Applies from the next song.") {
+                        ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioMobile, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioMobile = q) } }
+                    }
+                    RowHead(Icons.Rounded.Speed, "Playback speed", "Faster or slower without changing the pitch. Also in the player's ⋯ menu.") {
+                        ChipRow(listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f), s.playbackSpeed, { com.dopdop.bopdop.ui.player.speedLabel(it) }) { v -> LibraryStore.updateSettings { it.copy(playbackSpeed = v) } }
+                    }
+                    ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
+                        LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
+                    }
+                    ToggleRow(Icons.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
+                        LibraryStore.updateSettings { it.copy(normalize = !it.normalize) }
+                    }
+                    ToggleRow(Icons.Rounded.VolumeOff, "Skip silence", "Trims gaps of silence inside and between tracks.", s.skipSilence) {
+                        LibraryStore.updateSettings { it.copy(skipSilence = !it.skipSilence) }
+                    }
+                    RowHead(Icons.Rounded.AutoAwesome, "Automix", "Blends each song into the next. Albums that flow track-to-track stay gapless.", keywords = "crossfade gapless fade") {
+                        ChipRow(listOf(0, 3, 6, 9, 12), s.crossfadeSec, { if (it == 0) "Off" else "$it s" }) { sec -> LibraryStore.updateSettings { it.copy(crossfadeSec = sec) } }
+                    }
+                    RowHead(Icons.Rounded.Tune, "Output precision", if (s.floatOutput) "Sends 32-bit float to Android's mixer: more headroom after the EQ and leveling." else "16-bit PCM, the standard output.") {
+                        Segmented(listOf("16-bit PCM", "32-bit float"), if (s.floatOutput) 1 else 0) { i -> LibraryStore.updateSettings { it.copy(floatOutput = i == 1) } }
+                    }
+                    Searchable("Equalizer", "EQ bass treble vocals presets spatial sound") {
+                        Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.EQ) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Rounded.GraphicEq)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Equalizer", style = BopType.BodyStrong, color = Bop.Text)
+                                Text(if (s.eq.enabled) "${s.eq.preset} · on" else "Shape the sound — bass, vocals, sparkle.", style = BopType.Caption, color = Bop.Text2)
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            EqMini(s.eq.gains, s.eq.enabled)
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Bop.Text3, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                    ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
+                        LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
+                    }
+                    val pipe by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
+                    NavRow(Icons.Rounded.Insights, "Audio pipeline", if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
+                        app.sheet = Sheet.AudioPipeline
+                    }
                 }
-                RowHead(Icons.Rounded.Language, "Languages", "Shapes JioSaavn charts and stations.")
-                val chosen = s.languages.split(",").filter { it.isNotBlank() }.toSet()
-                FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LANGS.forEach { l ->
-                        val on = l in chosen
-                        Text(
-                            l.replaceFirstChar { it.uppercase() }, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
-                            modifier = Modifier.bounceClick {
-                                val next = if (on) chosen - l else chosen + l
-                                if (next.isNotEmpty()) {
-                                    LibraryStore.updateSettings { it.copy(languages = next.joinToString(",")) }
-                                    ScreenCache.put("home", null)
+                Group("Lyrics") {
+                    ToggleRow(Icons.Rounded.Lyrics, "Lyrics on lock screen", "Shows the line being sung in the notification and on the lock screen.", s.lockScreenLyrics) {
+                        LibraryStore.updateSettings { it.copy(lockScreenLyrics = !it.lockScreenLyrics) }
+                    }
+                }
+                Group("Local music") {
+                    var allowed by remember { mutableStateOf(LocalMusic.hasPermission(ctx)) }
+                    val folders by LocalMusic.folders.collectAsState()
+                    LaunchedEffect(allowed, s.filterNonMusic) { if (allowed) LocalMusic.refresh(ctx) }
+                    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = it }
+                    if (!allowed) {
+                        NavRow(Icons.Rounded.Folder, "Allow music access", "Play songs saved on this phone.") { ask.launch(LocalMusic.permission) }
+                    } else {
+                        RowHead(Icons.Rounded.Folder, "Local music folder", s.localFolder ?: "All music folders") {
+                            ChipRow(listOf<String?>(null) + folders, s.localFolder, { f -> f?.substringAfterLast('/')?.ifBlank { f } ?: "All" }) { f ->
+                                LibraryStore.updateSettings { it.copy(localFolder = f) }
+                            }
+                        }
+                    }
+                    ToggleRow(Icons.Rounded.FilterAlt, "Filter non-music audio", "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds.", s.filterNonMusic) {
+                        LibraryStore.updateSettings { it.copy(filterNonMusic = !it.filterNonMusic) }
+                    }
+                }
+                Group("Music video") {
+                    RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.") {
+                        FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            VideoQuality.entries.forEach { q ->
+                                val on = s.videoQuality == q
+                                Text(
+                                    q.label, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
+                                    modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(videoQuality = q) } }
+                                        .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+                Group("Look & feel") {
+                    RowHead(Icons.Rounded.DarkMode, "Theme", "Auto follows your phone's light or dark setting.", keywords = "dark light mode night") {
+                        ChipRow(com.dopdop.bopdop.data.ThemeMode.entries, s.themeMode, { it.label }) { m -> LibraryStore.updateSettings { it.copy(themeMode = m) } }
+                    }
+                    RowHead(Icons.Rounded.WaterDrop, "Glass", "How much the background shows through.", keywords = "blur transparency") {
+                        Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
+                            GlassLevel.entries.forEach { g ->
+                                val on = g == s.glass
+                                val bg by animateColorAsState(if (on) Bop.Ink else Color.Transparent, label = "g")
+                                Text(
+                                    g.label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text2,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(11.dp)).background(bg)
+                                        .bounceClick { LibraryStore.updateSettings { it.copy(glass = g) } }.padding(vertical = 9.dp),
+                                )
+                            }
+                        }
+                    }
+                    val rates = remember { ctx.refreshRates() }
+                    if (rates.size > 1) {
+                        RowHead(Icons.Rounded.Speed, "Refresh rate", if (s.refreshRate == 0) "Auto: Android picks the rate." else "${s.refreshRate} Hz requested. Android may lower it when needed.") {
+                            ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
+                        }
+                    }
+                    NavRow(Icons.Rounded.Pets, "Seek bar & pet", "${s.seekStyle.label} seek bar${if (s.seekPet == com.dopdop.bopdop.data.SeekPet.NONE) "" else " with a running ${s.seekPet.label.lowercase()}"}. Long-press the seek bar to change it from the player.") {
+                        app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
+                    }
+                    ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
+                        LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }
+                    }
+                }
+                Group("Festive") {
+                    val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
+                    val now = festive.festival?.let { f ->
+                        val end = com.dopdop.bopdop.data.Festivals.window(f, java.time.LocalDate.now().year)?.endInclusive
+                        "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
+                    }.orEmpty()
+                    RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends. Full decorates Home and dresses up your pet; Pet only keeps it to the pet.") {
+                        ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l -> LibraryStore.updateSettings { it.copy(festiveLevel = l) } }
+                    }
+                    if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
+                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.") {
+                            ChipRow(com.dopdop.bopdop.data.FestivePick.entries, s.festivePick, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
+                        }
+                    }
+                }
+                Group("Island") {
+                    val native = com.dopdop.bopdop.ui.island.NativeIsland.name
+                    ToggleRow(Icons.Rounded.Contactless, "Island in BopDop", "What's playing in a pill around your camera, while you browse the app. Tap it for controls.", s.islandInApp ?: true) {
+                        LibraryStore.updateSettings { it.copy(islandInApp = !(it.islandInApp ?: true)) }
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= 36) {
+                        ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
+                            (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
+                            LibraryStore.updateSettings { it.copy(liveUpdate = !it.liveUpdate) }
+                        }
+                    }
+                    if (android.os.Build.VERSION.SDK_INT >= 30) {
+                        ToggleRow(Icons.Rounded.Contactless, "Island over other apps", "BopDop's own island while you use other apps. Asks to display over other apps.", s.islandOverlay) {
+                            val turnOn = !s.islandOverlay
+                            if (turnOn && !android.provider.Settings.canDrawOverlays(ctx)) {
+                                runCatching {
+                                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
                                 }
-                            }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
-                        )
+                            }
+                            LibraryStore.updateSettings { it.copy(islandOverlay = turnOn) }
+                        }
                     }
                 }
-            }
-            Group("Storage") {
-                RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch.")
-                Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(512, 1024, 2048, 4096).forEach { mb ->
-                        val on = s.cacheMb == mb
+                Group("Home feed") {
+                    ToggleRow(Icons.Rounded.AutoAwesome, "JioSaavn picks", "Mix Indian charts, new releases and stations into Home.", s.showSaavnHome) {
+                        LibraryStore.updateSettings { it.copy(showSaavnHome = !it.showSaavnHome) }
+                        ScreenCache.put("home", null)
+                    }
+                    RowHead(Icons.Rounded.Language, "Languages", "Shapes JioSaavn charts and stations.") {
+                        val chosen = s.languages.split(",").filter { it.isNotBlank() }.toSet()
+                        FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LANGS.forEach { l ->
+                                val on = l in chosen
+                                Text(
+                                    l.replaceFirstChar { it.uppercase() }, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
+                                    modifier = Modifier.bounceClick {
+                                        val next = if (on) chosen - l else chosen + l
+                                        if (next.isNotEmpty()) {
+                                            LibraryStore.updateSettings { it.copy(languages = next.joinToString(",")) }
+                                            ScreenCache.put("home", null)
+                                        }
+                                    }.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+                Group("Storage") {
+                    RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch.", keywords = "storage clear space data") {
+                        Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(512, 1024, 2048, 4096).forEach { mb ->
+                                val on = s.cacheMb == mb
+                                Text(
+                                    if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
+                                    modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
+                                        .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
+                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                )
+                            }
+                        }
                         Text(
-                            if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
-                            modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
-                                .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            "Clear cached audio", style = BopType.BodyStrong, color = Color(0xFFFF6B8B),
+                            modifier = Modifier.padding(start = 56.dp, bottom = 16.dp).bounceClick {
+                                val c = PlaybackService.cache(ctx)
+                                val mb = c.cacheSpace / (1024 * 1024)
+                                c.keys.toList().forEach { runCatching { c.removeResource(it) } }
+                                app.toast("Freed $mb MB")
+                            },
                         )
                     }
                 }
-                Text(
-                    "Clear cached audio", style = BopType.BodyStrong, color = Color(0xFFFF6B8B),
-                    modifier = Modifier.padding(start = 56.dp, bottom = 16.dp).bounceClick {
-                        val c = PlaybackService.cache(ctx)
-                        val mb = c.cacheSpace / (1024 * 1024)
-                        c.keys.toList().forEach { runCatching { c.removeResource(it) } }
-                        app.toast("Freed $mb MB")
-                    },
-                )
+                Group("Scrobbling") {
+                NavRow(
+                    Icons.Rounded.BarChart, "ListenBrainz",
+                    if (s.listenBrainzToken.isNotBlank()) "Scrobbling as ${s.listenBrainzUser}" else "Keep a record of what you listen to on listenbrainz.org.",
+                    keywords = "scrobble last.fm history stats",
+                ) { app.sheet = Sheet.Scrobbling }
             }
             Group("With friends") {
-                NavRow(Icons.Rounded.Groups, "Listen Together", "Start or join a room and listen with friends.") {
-                    app.nav.navigate("together?code=")
+                    NavRow(Icons.Rounded.Groups, "Listen Together", "Start or join a room and listen with friends.") {
+                        app.nav.navigate("together?code=")
+                    }
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("BopDop", style = BopType.Title, color = Bop.Text)
-                Text("v${BuildConfig.VERSION_NAME} · DopDop music engine", style = BopType.Caption, color = Bop.Text3)
-                // Updates: what's newer on GitHub, or a check on demand.
-                val update by com.dopdop.bopdop.data.Updates.available.collectAsState()
-                val scope = androidx.compose.runtime.rememberCoroutineScope()
-                val u = update
-                Text(
-                    if (u != null) "Get ${u.title}" else "Check for updates",
-                    style = BopType.BodyStrong, color = if (u != null) Bop.OnInk else Bop.Text,
-                    modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
-                        .background(if (u != null) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
-                        .bounceClick {
-                            if (u != null) com.dopdop.bopdop.ui.components.openUpdate(ctx, u)
-                            else scope.launch {
-                                app.toast("Checking for updates…")
-                                val found = com.dopdop.bopdop.data.Updates.check(force = true)
-                                app.toast(if (found != null) "${found.title} is available" else "You're on the latest version")
-                            }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 9.dp),
-                )
-                Text("YouTube Music catalogue · JioSaavn 320 kbps · LRCLIB lyrics", style = BopType.Caption, color = Bop.Text3)
+            if (query.isNotBlank() && total.n == 0) {
+                Text("No settings match “${query.trim()}”", style = BopType.Body, color = Bop.Text2, modifier = Modifier.fillMaxWidth().padding(36.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
+            if (query.isBlank()) {
+                Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("BopDop", style = BopType.Title, color = Bop.Text)
+                    Text("v${BuildConfig.VERSION_NAME} · DopDop music engine", style = BopType.Caption, color = Bop.Text3)
+                    // Updates: what's newer on GitHub, or a check on demand.
+                    val update by com.dopdop.bopdop.data.Updates.available.collectAsState()
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    val u = update
+                    Text(
+                        if (u != null) "Get ${u.title}" else "Check for updates",
+                        style = BopType.BodyStrong, color = if (u != null) Bop.OnInk else Bop.Text,
+                        modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
+                            .background(if (u != null) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
+                            .bounceClick {
+                                if (u != null) com.dopdop.bopdop.ui.components.openUpdate(ctx, u)
+                                else scope.launch {
+                                    app.toast("Checking for updates…")
+                                    val found = com.dopdop.bopdop.data.Updates.check(force = true)
+                                    app.toast(if (found != null) "${found.title} is available" else "You're on the latest version")
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 9.dp),
+                    )
+                    Text("YouTube Music catalogue · JioSaavn 320 kbps · LRCLIB lyrics", style = BopType.Caption, color = Bop.Text3)
+                }
+            }
+        }
+    }
+}
+
+// --- Search ---------------------------------------------------------------------------
+// Each setting row checks the query itself; a group shows its card only while something in it
+// matches. Matching the group's own name shows the whole group.
+
+private class Hits { var n by mutableIntStateOf(0) }
+
+private val LocalQuery = compositionLocalOf { "" }
+private val LocalGroup = compositionLocalOf<Pair<String, Hits>?> { null }
+private val LocalTotal = compositionLocalOf<Hits?> { null }
+
+/** Every word of [query] appears somewhere in [text] (hyphens ignored, so "wifi" finds "Wi-Fi"). */
+internal fun settingMatches(query: String, vararg text: String): Boolean {
+    val words = query.trim().lowercase().replace("-", "").split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (words.isEmpty()) return true
+    val hay = text.joinToString(" ").lowercase().replace("-", "")
+    return words.all { it in hay }
+}
+
+@Composable
+private fun Searchable(vararg text: String, content: @Composable () -> Unit) {
+    val group = LocalGroup.current
+    val total = LocalTotal.current
+    val hit = settingMatches(LocalQuery.current, group?.first.orEmpty(), *text)
+    DisposableEffect(hit, group, total) {
+        if (hit) { group?.second?.let { it.n++ }; total?.let { it.n++ } }
+        onDispose { if (hit) { group?.second?.let { it.n-- }; total?.let { it.n-- } } }
+    }
+    if (hit) content()
+}
+
+@Composable
+private fun SettingsSearch(query: String, onChange: (String) -> Unit) {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    Row(
+        Modifier.padding(horizontal = 16.dp).padding(top = 16.dp).fillMaxWidth().height(48.dp)
+            .glassLite(RoundedCornerShape(50), alpha = 0.5f).padding(start = 14.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Search, null, tint = Bop.Text2, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) Text("Search settings", style = BopType.Body, color = Bop.Text3)
+            androidx.compose.foundation.text.BasicTextField(
+                query, onChange, singleLine = true,
+                textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = androidx.compose.ui.graphics.SolidColor(Bop.Ink),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Search),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { focus.clearFocus() }),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) Box(Modifier.size(32.dp).clip(CircleShape).bounceClick { onChange("") }, contentAlignment = Alignment.Center) {
+            Icon(Icons.Rounded.Close, "Clear", tint = Bop.Text2, modifier = Modifier.size(18.dp))
         }
     }
 }
 
 @Composable
 private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Text(title.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 28.dp, top = 22.dp, bottom = 8.dp))
-    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(24.dp), alpha = 0.5f, shadow = 14.dp), content = content)
+    val hits = remember { Hits() }
+    val group = remember(title) { title to hits }
+    val shown = LocalQuery.current.isBlank() || hits.n > 0
+    if (shown) Text(title.uppercase(), style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 28.dp, top = 22.dp, bottom = 8.dp))
+    Column(if (shown) Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(24.dp), alpha = 0.5f, shadow = 14.dp) else Modifier.fillMaxWidth()) {
+        val column = this
+        CompositionLocalProvider(LocalGroup provides group) { column.content() }
+    }
 }
 
 @Composable
@@ -363,8 +468,9 @@ private fun IconBadge(icon: ImageVector) {
     }
 }
 
+/** A setting's title, with its choices ([below]) underneath. */
 @Composable
-private fun RowHead(icon: ImageVector, title: String, sub: String) {
+private fun RowHead(icon: ImageVector, title: String, sub: String, keywords: String = "", below: @Composable () -> Unit = {}) = Searchable(title, sub, keywords) {
     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
         IconBadge(icon)
         Spacer(Modifier.width(14.dp))
@@ -373,10 +479,11 @@ private fun RowHead(icon: ImageVector, title: String, sub: String) {
             Text(sub, style = BopType.Caption, color = Bop.Text2)
         }
     }
+    below()
 }
 
 @Composable
-private fun ToggleRow(icon: ImageVector, title: String, sub: String, on: Boolean, onToggle: () -> Unit) {
+private fun ToggleRow(icon: ImageVector, title: String, sub: String, on: Boolean, keywords: String = "", onToggle: () -> Unit) = Searchable(title, sub, keywords) {
     Row(Modifier.fillMaxWidth().bounceClick(0.99f, onClick = onToggle).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         IconBadge(icon)
         Spacer(Modifier.width(14.dp))
@@ -432,7 +539,7 @@ private fun Segmented(options: List<String>, selected: Int, onPick: (Int) -> Uni
 
 /** A row that opens something else. */
 @Composable
-private fun NavRow(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) {
+private fun NavRow(icon: ImageVector, title: String, sub: String, keywords: String = "", onClick: () -> Unit) = Searchable(title, sub, keywords) {
     Row(Modifier.fillMaxWidth().bounceClick(0.99f, onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         IconBadge(icon)
         Spacer(Modifier.width(14.dp))

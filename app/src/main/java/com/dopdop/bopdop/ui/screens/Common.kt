@@ -193,7 +193,7 @@ fun QuickPicksShelf(shelf: Shelf) {
                 Column(Modifier.width(330.dp)) {
                     columns[ci].forEachIndexed { i, t ->
                         TrackRow(
-                            t, playing = current?.id == t.id,
+                            t, playing = current?.id == t.id, swipe = false,
                             onMore = { app.sheet = Sheet.TrackOptions(t) },
                         ) { PlayerConnection.play(shelf.tracks, ci * 4 + i, shelf.title) }
                     }

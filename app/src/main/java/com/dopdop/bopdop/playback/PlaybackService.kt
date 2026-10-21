@@ -60,6 +60,7 @@ class PlaybackService : MediaLibraryService() {
         LibraryStore.init(this)
         com.dopdop.bopdop.data.lyrics.LyricOffsets.init(this)
         PlayStats.init(this)
+        com.dopdop.bopdop.data.scrobble.ListenBrainz.init(this)
 
         val resolving = ResolvingDataSource.Factory(OkHttpDataSource.Factory(Http.client)) { spec -> StreamResolver.resolveSpec(spec) }
         val key = androidx.media3.datasource.cache.CacheKeyFactory { spec -> spec.key ?: spec.uri.getQueryParameter("id") ?: spec.uri.toString() }
@@ -146,7 +147,7 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             while (isActive) {
                 delay(1000)
-                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it) }
+                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it); com.dopdop.bopdop.data.scrobble.ListenBrainz.tick(it) }
             }
         }
 
@@ -186,7 +187,12 @@ class PlaybackService : MediaLibraryService() {
                 it.setAudioSessionId(audioSessionId)
                 it.skipSilenceEnabled = LibraryStore.settings.skipSilence
                 it.setPlaybackSpeed(LibraryStore.settings.playbackSpeed)
-                if (main) { it.addListener(listener); it.addAnalyticsListener(AudioPipeline.listener) }
+                if (main) {
+                    // Shuffle and repeat pick up where they were left.
+                    it.shuffleModeEnabled = LibraryStore.settings.shuffle
+                    it.repeatMode = LibraryStore.settings.repeat
+                    it.addListener(listener); it.addAnalyticsListener(AudioPipeline.listener)
+                }
             }
     }
 
@@ -245,6 +251,15 @@ class PlaybackService : MediaLibraryService() {
             lastTrackId = mediaItem?.mediaId
             mediaItem?.toTrack()?.let(LibraryStore::recordPlay)
             PlayStats.newSession()
+            com.dopdop.bopdop.data.scrobble.ListenBrainz.onTrack(mediaItem?.toTrack())
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            if (LibraryStore.settings.shuffle != shuffleModeEnabled) LibraryStore.updateSettings { it.copy(shuffle = shuffleModeEnabled) }
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            if (LibraryStore.settings.repeat != repeatMode) LibraryStore.updateSettings { it.copy(repeat = repeatMode) }
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
