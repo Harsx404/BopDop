@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+<defs><clipPath id="tile"><rect width="108" height="108" rx="24"/></clipPath>
+<linearGradient id="t" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#2C2C31"/><stop offset="1" stop-color="#0E0E10"/></linearGradient>
+<radialGradient id="g" cx="54" cy="62" r="46" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF4D2D" stop-opacity="0.38"/><stop offset="1" stop-color="#FF4D2D" stop-opacity="0"/></radialGradient>
+<linearGradient id="m" x1="0" y1="16" x2="0" y2="264" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FF9466"/><stop offset="0.5" stop-color="#FF4D2D"/><stop offset="1" stop-color="#E0331A"/></linearGradient>
+<linearGradient id="s" x1="0" y1="16" x2="0" y2="122" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.55"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<clipPath id="o"><path d="M60 16H84C97.255 16 108 26.745 108 40V78.13C114.446 76.734 121.138 76 128 76C179.915 76 222 118.085 222 170C222 221.915 179.915 264 128 264C76.085 264 34 221.915 34 170V42C34 27.641 45.641 16 60 16Z"/></clipPath>
+</defs>
+<g clip-path="url(#tile)">
+<rect width="108" height="108" fill="url(#t)"/><rect width="108" height="108" fill="url(#g)"/>
+<path d="M-10,24 C30,6 70,46 118,28 L118,-10 L-10,-10 Z" fill="#FFFFFF" fill-opacity="0.07"/>
+<g transform="translate(21.20 21.20) scale(0.205) translate(32 20)">
+<path fill-rule="evenodd" d="M60 23H84C97.255 23 108 33.745 108 47V85.13C114.446 83.734 121.138 83 128 83C179.915 83 222 125.085 222 177C222 228.915 179.915 271 128 271C76.085 271 34 228.915 34 177V49C34 34.641 45.641 23 60 23 Z M60 16H84C97.255 16 108 26.745 108 40V78.13C114.446 76.734 121.138 76 128 76C179.915 76 222 118.085 222 170C222 221.915 179.915 264 128 264C76.085 264 34 221.915 34 170V42C34 27.641 45.641 16 60 16Z" fill="#000000" fill-opacity="0.45"/>
+<path fill-rule="evenodd" d="M60 16H84C97.255 16 108 26.745 108 40V78.13C114.446 76.734 121.138 76 128 76C179.915 76 222 118.085 222 170C222 221.915 179.915 264 128 264C76.085 264 34 221.915 34 170V42C34 27.641 45.641 16 60 16Z M109 126L172 162Q184 169 172 176L109 212Q100 217 100 206V132Q100 121 109 126Z" fill="url(#m)"/>
+<g clip-path="url(#o)"><rect x="0" y="0" width="260" height="122" fill="url(#s)"/></g>
+</g></g></svg>

@@ -2,9 +2,14 @@
 
 <br/>
 
-<img src="docs/readme/logo.png" alt="BopDop app icon" width="150" />
+<img src="docs/brand/app-icon-glass.png" alt="BopDop app icon" width="140" />
 
-# BopDop
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/wordmark-dark.png">
+    <img src="docs/brand/wordmark.png" alt="bopdop" width="300">
+  </picture>
+</h1>
 
 ### Music, wrapped in glass.
 
@@ -13,9 +18,9 @@ and mixes made from what you actually play.
 
 <br/>
 
-[![Latest release](https://img.shields.io/github/v/release/Harsx404/BopDop?include_prereleases&style=for-the-badge&labelColor=0d1117&color=e0359b&label=release)](https://github.com/Harsx404/BopDop/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Harsx404/BopDop/total?style=for-the-badge&labelColor=0d1117&color=6a3bff)](https://github.com/Harsx404/BopDop/releases)
-[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-ff8a3d?style=for-the-badge&labelColor=0d1117&logo=android&logoColor=white)](#download)
+[![Latest release](https://img.shields.io/github/v/release/Harsx404/BopDop?include_prereleases&style=for-the-badge&labelColor=0d1117&color=ff4d2d&label=release)](https://github.com/Harsx404/BopDop/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Harsx404/BopDop/total?style=for-the-badge&labelColor=0d1117&color=ff7a4a)](https://github.com/Harsx404/BopDop/releases)
+[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-ff9466?style=for-the-badge&labelColor=0d1117&logo=android&logoColor=white)](#download)
 [![Kotlin · Compose](https://img.shields.io/badge/Kotlin-Compose-7f52ff?style=for-the-badge&labelColor=0d1117&logo=kotlin&logoColor=white)](#under-the-hood)
 
 <br/>

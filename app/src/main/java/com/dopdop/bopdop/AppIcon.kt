@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 /** The home-screen icon: one launcher alias per look, exactly one enabled (see the manifest). */
 enum class AppIcon(val alias: String, val label: String, val background: Int, val foreground: Int) {
     CLASSIC(".IconClassic", "Classic", R.drawable.ic_launcher_bg, R.drawable.ic_launcher_fg),
-    DARK(".IconDark", "Dark glass", R.drawable.ic_launcher_bg_dark, R.drawable.ic_launcher_fg_dark),
+    DARK(".IconDark", "Orange glass", R.drawable.ic_launcher_bg_dark, R.drawable.ic_launcher_fg_dark),
     LIGHT(".IconLight", "Light glass", R.drawable.ic_launcher_bg_light, R.drawable.ic_launcher_fg_light);
 
     private fun component(context: Context) = ComponentName(context.packageName, "com.dopdop.bopdop" + alias)

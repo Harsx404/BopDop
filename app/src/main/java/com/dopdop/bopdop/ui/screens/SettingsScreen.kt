@@ -769,7 +769,7 @@ private fun AddonRows() {
 
 /** Home-screen icon: three looks, previewed as they'll appear. */
 @Composable
-private fun AppIconRow() = Searchable("App icon", "Classic, dark glass or light glass", "launcher home screen logo") {
+private fun AppIconRow() = Searchable("App icon", "Classic, orange glass or light glass", "launcher home screen logo dark") {
     val ctx = LocalContext.current
     var current by remember { mutableStateOf<com.dopdop.bopdop.AppIcon?>(null) }
     LaunchedEffect(Unit) { current = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.AppIcon.current(ctx) } }
