@@ -61,6 +61,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.TimerOff
@@ -241,6 +242,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         // Speed belongs to the player, so it's offered for the song that's playing.
         if (PlayerConnection.current.value?.id == t.id) {
             Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
+            Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
         }
     }
 }

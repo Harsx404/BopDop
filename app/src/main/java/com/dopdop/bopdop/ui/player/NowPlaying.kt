@@ -452,22 +452,6 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             }
         }
         ProgressPill(t, quality[t.id])
-        // Lyrics and queue get the room: one slim row (back to cover · previous · play · next ·
-        // the other page) instead of the full transport plus a row of five buttons.
-        if (!onArt) {
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                val lyrics = app.nowPlayingPage == NowPlayingPage.LYRICS
-                PageToggle(Icons.Rounded.Lyrics, "Lyrics", lyrics, haze) {
-                    app.nowPlayingPage = if (lyrics) NowPlayingPage.ART else NowPlayingPage.LYRICS
-                }
-                CompactTransport(playing, buffering, app)
-                PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", !lyrics, haze) {
-                    app.nowPlayingPage = if (!lyrics) NowPlayingPage.ART else NowPlayingPage.QUEUE
-                }
-            }
-            return@Column
-        }
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TransportCluster(playing, buffering, haze, app) }
         Spacer(Modifier.height(16.dp))
@@ -475,7 +459,6 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             PageToggle(Icons.Rounded.Lyrics, "Lyrics", app.nowPlayingPage == NowPlayingPage.LYRICS, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.LYRICS) NowPlayingPage.ART else NowPlayingPage.LYRICS
             }
-            CastToggle(haze)
             PageToggle(Icons.Rounded.Groups, "Listen Together", room.live, haze) {
                 app.collapsePlayer()
                 app.nav.navigate("together?code=") { launchSingleTop = true }
@@ -517,27 +500,6 @@ private fun LiveLyricLine(t: Track, onOpen: () -> Unit) {
                 text, style = BopType.BodyStrong.copy(fontSize = 15.sp, lineHeight = 18.sp).forScript(text), color = Bop.OnMedia,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
-        }
-    }
-}
-
-/** Previous · play · next, small, for the lyrics and queue pages. */
-@Composable
-private fun CompactTransport(playing: Boolean, buffering: Boolean, app: AppState) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        Box(Modifier.size(44.dp).clip(CircleShape).bounceClick(0.88f) { PlayerConnection.previous() }, contentAlignment = Alignment.Center) {
-            LineSkip(false, Modifier.size(22.dp), color = Color.White, stroke = 2.2.dp)
-        }
-        Box(
-            Modifier.size(56.dp).bounceClick(0.9f) { PlayerConnection.toggle() }
-                .softShadow(CircleShape, 12.dp, color = Color.Black, alpha = 0.16f, dy = 3.dp).clip(CircleShape).background(Color.White),
-            contentAlignment = Alignment.Center,
-        ) {
-            LinePlayPause(playing, Modifier.size(20.dp), color = Bop.Graphite, stroke = 2.2.dp)
-            if (buffering) androidx.compose.material3.CircularProgressIndicator(Modifier.size(52.dp), color = Bop.Graphite.copy(alpha = 0.25f), strokeWidth = 1.5.dp)
-        }
-        Box(Modifier.size(44.dp).clip(CircleShape).bounceClick(0.88f) { PlayerConnection.next() }, contentAlignment = Alignment.Center) {
-            LineSkip(true, Modifier.size(22.dp), color = Color.White, stroke = 2.2.dp)
         }
     }
 }
@@ -656,14 +618,14 @@ private fun QualityChip(q: StreamQuality, haze: HazeState) {
 }
 
 @Composable
-private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState) {
+private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState, size: Dp = 46.dp) {
     var pop by remember { mutableStateOf(false) }
     var bursts by remember { mutableStateOf(0) }
     val s by animateFloatAsState(if (pop) 1.35f else 1f, spring(dampingRatio = 0.35f, stiffness = 700f), finishedListener = { pop = false }, label = "pop")
     val press = remember { MutableInteractionSource() }
-    Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Box(
-            Modifier.size(46.dp).bounceClick(0.85f, interactionSource = press) {
+            Modifier.size(size).bounceClick(0.85f, interactionSource = press) {
                 val now = LibraryStore.toggleLike(t)
                 if (now) { pop = true; bursts++ }
                 app.toast(if (now) "Added to Liked Songs" else "Removed from Liked Songs")
@@ -709,6 +671,7 @@ private fun SongHeader(t: Track, app: AppState, haze: HazeState) {
             com.dopdop.bopdop.ui.components.MarqueeText(t.title, BopType.Headline, Bop.OnMedia)
             Text(t.artist, style = BopType.Body, color = Bop.OnMedia2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        LikeCircle(t, t.id in lib.likedIds, haze, app)
+        // Same size and right edge as the lyrics toolbar buttons under it, so they form one column.
+        LikeCircle(t, t.id in lib.likedIds, haze, app, size = 40.dp)
     }
 }

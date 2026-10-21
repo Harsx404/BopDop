@@ -66,3 +66,20 @@ internal object CastPrefetch {
         }
     }
 }
+
+/**
+ * The Cast device picker (or, while casting, the controller to stop it), opened from the
+ * player's menu. Uses the same Cast setup as the rest of the app.
+ */
+object CastPicker {
+    fun show(context: android.content.Context) {
+        val cast = runCatching { CastContext.getSharedInstance(context) }.getOrNull() ?: return
+        val selector = cast.mergedSelector ?: return
+        val themed = android.view.ContextThemeWrapper(context, androidx.appcompat.R.style.Theme_AppCompat_DayNight_Dialog)
+        val connected = cast.sessionManager.currentCastSession?.isConnected == true
+        runCatching {
+            if (connected) androidx.mediarouter.app.MediaRouteControllerDialog(themed).show()
+            else androidx.mediarouter.app.MediaRouteChooserDialog(themed).apply { routeSelector = selector }.show()
+        }
+    }
+}

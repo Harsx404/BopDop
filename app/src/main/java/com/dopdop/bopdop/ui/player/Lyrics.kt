@@ -21,6 +21,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -179,7 +180,8 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
  */
 @Composable
 private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, selecting: Boolean, timing: Boolean, synced: Boolean, onTiming: () -> Unit, onShare: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Lined up under the song header: starts at its cover; the last button sits right under its heart.
+    Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f)) {
             androidx.compose.animation.AnimatedContent(timing, label = "lyricBar") { t ->
                 if (t) LyricTiming(trackId) else Row(
@@ -198,16 +200,17 @@ private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, sele
             }
         }
         if (synced) BarIcon(if (timing) Icons.Rounded.Check else Icons.Rounded.Timer, if (timing) "Done" else "Lyrics timing", timing, onTiming)
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(10.dp))
         BarIcon(Icons.Rounded.IosShare, "Share lyrics", selecting, onShare)
     }
 }
 
 @Composable
 private fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, on: Boolean, onClick: () -> Unit) = Box(
-    Modifier.size(32.dp).clip(CircleShape).background(if (on) Color.White else Color.White.copy(alpha = 0.12f)).bounceClick(onClick = onClick),
+    Modifier.size(40.dp).clip(CircleShape).background(if (on) Color.White else Color.White.copy(alpha = 0.12f))
+        .border(1.dp, Color.White.copy(alpha = if (on) 0f else 0.16f), CircleShape).bounceClick(onClick = onClick),
     contentAlignment = Alignment.Center,
-) { Icon(icon, desc, tint = if (on) Color(0xFF15161B) else Color.White, modifier = Modifier.size(16.dp)) }
+) { Icon(icon, desc, tint = if (on) Color(0xFF15161B) else Color.White, modifier = Modifier.size(18.dp)) }
 
 /**
  * Nudge this song's lyrics, in the toolbar: − when the words run ahead of the singing, + when

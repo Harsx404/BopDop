@@ -65,6 +65,8 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:$media3")
     implementation("androidx.media3:media3-cast:$media3")
     implementation("androidx.mediarouter:mediarouter:1.8.1")
+    // Already pulled in by mediarouter; declared to open its Cast dialogs from the player menu.
+    implementation("androidx.appcompat:appcompat:1.7.1")
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
