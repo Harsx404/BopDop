@@ -17,6 +17,10 @@ class UpdatesTest {
         assertTrue(Updates.isNewer("1.3.0-beta.2", "1.3.0-beta.1"))
         assertFalse(Updates.isNewer("1.3.0-beta.1", "1.3.0"))
         assertTrue(Updates.isNewer("1.3.0-beta.1", "1.2.0"))
+        // Point releases of a beta.
+        assertTrue(Updates.isNewer("1.3.0-beta.6.1", "1.3.0-beta.6"))
+        assertFalse(Updates.isNewer("1.3.0-beta.6", "1.3.0-beta.6.1"))
+        assertTrue(Updates.isNewer("1.3.0-beta.7", "1.3.0-beta.6.1"))
     }
 
     @Test fun picksThePhonesOwnBuildElseUniversal() {
