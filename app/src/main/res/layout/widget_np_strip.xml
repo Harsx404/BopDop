@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Now Playing, strip. The picture is drawn by WidgetArt; these are only its tap areas, sized to match WidgetArt.Np. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_preview_np"
+        android:importantForAccessibility="no" />
+
+    <FrameLayout android:id="@+id/widget_open" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="Open BopDop" />
+    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_gravity="center_vertical|end"
+        android:layout_marginEnd="10dp" android:gravity="center_vertical" android:orientation="horizontal">
+        <FrameLayout android:id="@+id/widget_toggle" android:layout_width="46dp" android:layout_height="46dp" android:contentDescription="Play or pause" />
+        <FrameLayout android:id="@+id/widget_next" android:layout_width="38dp" android:layout_height="38dp" android:contentDescription="Next" android:layout_marginStart="4dp" />
+    </LinearLayout>
+</FrameLayout>

@@ -8,19 +8,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Shader
 import android.os.Build
 import android.os.SystemClock
 import android.util.LruCache
-import android.util.SizeF
 import android.view.KeyEvent
 import android.widget.RemoteViews
-import androidx.palette.graphics.Palette
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
@@ -29,7 +21,6 @@ import com.dopdop.bopdop.MainActivity
 import com.dopdop.bopdop.R
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.model.Track
-import com.dopdop.bopdop.data.model.formatDuration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -87,9 +78,6 @@ internal object WidgetUpdater {
 
     private val images = LruCache<String, Bitmap>(24)
     private val loading = HashSet<String>()
-    private var bgFor: String? = null
-    private var bgWide: Bitmap? = null
-    private var bgTall: Bitmap? = null
 
     fun current(): Track? = track
 
@@ -113,88 +101,61 @@ internal object WidgetUpdater {
         val up = ids(m, ctx, UpNextWidget::class.java)
         val quick = ids(m, ctx, QuickMixWidget::class.java)
         if (np.isEmpty() && up.isEmpty() && quick.isEmpty()) return
-        track?.artwork?.let { art -> if (art != bgFor) backdrops(ctx, art) }
-
-        if (np.isNotEmpty()) {
-            val views = if (Build.VERSION.SDK_INT >= 31) RemoteViews(
-                mapOf(
-                    SizeF(110f, 110f) to nowPlaying(ctx, R.layout.widget_np_small),
-                    SizeF(220f, 60f) to nowPlaying(ctx, R.layout.widget_now_playing),
-                    SizeF(220f, 160f) to nowPlaying(ctx, R.layout.widget_np_large),
-                ),
-            ) else nowPlaying(ctx, R.layout.widget_now_playing)
-            m.updateAppWidget(np, views)
-        }
-        if (up.isNotEmpty()) m.updateAppWidget(up, upNextViews(ctx))
-        if (quick.isNotEmpty()) m.updateAppWidget(quick, quickViews(ctx))
+        // Each widget is drawn at its own size (see WidgetArt), so they're updated one by one.
+        val state = WidgetArt.NowPlaying(
+            track, playing, livePosition().coerceIn(0, durationMs.coerceAtLeast(0)), durationMs.coerceAtLeast(0),
+            track?.let { LibraryStore.isLiked(it.id) } == true, track?.artwork?.let { image(ctx, it, 300) },
+        )
+        np.forEach { id -> runCatching { m.updateAppWidget(id, nowPlaying(ctx, WidgetArt.sizeOf(ctx, m.getAppWidgetOptions(id), 300f, 150f), state)) } }
+        up.forEach { id -> runCatching { m.updateAppWidget(id, upNextViews(ctx, WidgetArt.sizeOf(ctx, m.getAppWidgetOptions(id), 300f, 280f), state)) } }
+        quick.forEach { id -> runCatching { m.updateAppWidget(id, quickViews(ctx, WidgetArt.sizeOf(ctx, m.getAppWidgetOptions(id), 300f, 90f))) } }
     }
 
     private fun livePosition(): Long =
         if (playing) positionMs + (SystemClock.elapsedRealtime() - positionAt) else positionMs
 
-    private fun nowPlaying(ctx: Context, layout: Int): RemoteViews {
-        val t = track
-        val v = RemoteViews(ctx.packageName, layout)
-        v.setTextViewText(R.id.widget_title, t?.title ?: "BopDop")
-        v.setTextViewText(R.id.widget_artist, t?.artist ?: "Tap to play something")
-        val big = layout == R.layout.widget_np_small
-        val art = t?.artwork?.let { image(ctx, it, if (big) 600 else 240, rounded = !big) }
-        if (art != null) v.setImageViewBitmap(R.id.widget_art, art) else v.setImageViewResource(R.id.widget_art, R.drawable.ic_launcher_fg)
-        if (layout != R.layout.widget_np_small) v.setImageViewBitmap(R.id.widget_bg, (if (layout == R.layout.widget_np_large) bgTall else bgWide) ?: plainBackdrop())
-        transport(ctx, v)
-        val dur = durationMs.coerceAtLeast(0)
-        val pos = livePosition().coerceIn(0, dur.coerceAtLeast(1))
-        v.setProgressBar(R.id.widget_progress, 1000, if (dur > 0) (pos * 1000 / dur).toInt() else 0, false)
-        if (layout == R.layout.widget_np_large) {
-            v.setTextViewText(R.id.widget_pos, formatDuration((pos / 1000).toInt()).ifEmpty { "0:00" })
-            v.setTextViewText(R.id.widget_dur, formatDuration((dur / 1000).toInt()).ifEmpty { "0:00" })
-            val liked = t != null && LibraryStore.isLiked(t.id)
-            v.setImageViewResource(R.id.widget_like, if (liked) R.drawable.ic_w_heart_fill else R.drawable.ic_w_heart)
-            v.setInt(R.id.widget_like, "setColorFilter", if (liked) 0xFFFF3B6B.toInt() else 0xFFFFFFFF.toInt())
+    private fun nowPlaying(ctx: Context, size: WidgetArt.Size, state: WidgetArt.NowPlaying): RemoteViews {
+        val shape = WidgetArt.npShape(size.wDp, size.hDp)
+        val v = RemoteViews(ctx.packageName, when (shape) {
+            WidgetArt.NpShape.STRIP -> R.layout.widget_np_strip
+            WidgetArt.NpShape.SQUARE -> R.layout.widget_np_square
+            WidgetArt.NpShape.FULL -> R.layout.widget_np_full
+        })
+        v.setImageViewBitmap(R.id.widget_canvas, WidgetArt.nowPlaying(ctx, size, state))
+        v.setOnClickPendingIntent(R.id.widget_open, openApp(ctx, 0, null))
+        v.setOnClickPendingIntent(R.id.widget_toggle, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+        if (shape != WidgetArt.NpShape.SQUARE) v.setOnClickPendingIntent(R.id.widget_next, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_NEXT))
+        if (shape == WidgetArt.NpShape.FULL) {
+            v.setOnClickPendingIntent(R.id.widget_prev, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
             v.setOnClickPendingIntent(R.id.widget_like, action(ctx, WidgetActionReceiver.ACTION_LIKE, 0))
         }
         return v
     }
 
-    /** Play/pause (ink on the white disc), next and previous, plus tapping the song opens the player. */
-    private fun transport(ctx: Context, v: RemoteViews) {
-        v.setImageViewResource(R.id.widget_toggle, if (playing) R.drawable.ic_w_pause_ink else R.drawable.ic_w_play_ink)
-        v.setOnClickPendingIntent(R.id.widget_toggle, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
-        v.setOnClickPendingIntent(R.id.widget_next, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_NEXT))
-        v.setOnClickPendingIntent(R.id.widget_prev, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
-        val open = openApp(ctx, 0, null)
-        v.setOnClickPendingIntent(R.id.widget_art, open)
-        v.setOnClickPendingIntent(R.id.widget_text, open)
-    }
-
-    private fun upNextViews(ctx: Context): RemoteViews {
+    private fun upNextViews(ctx: Context, size: WidgetArt.Size, state: WidgetArt.NowPlaying): RemoteViews {
         val v = RemoteViews(ctx.packageName, R.layout.widget_up_next)
-        val t = track
-        v.setTextViewText(R.id.widget_title, t?.title ?: "Up next")
-        v.setTextViewText(R.id.widget_artist, t?.let { "Now playing · ${it.artist}" } ?: "Play something to fill your queue")
-        v.setImageViewBitmap(R.id.widget_bg, bgTall ?: plainBackdrop())
-        transport(ctx, v)
-        val rows = listOf(
-            listOf(R.id.widget_q0, R.id.widget_q0_art, R.id.widget_q0_title, R.id.widget_q0_artist),
-            listOf(R.id.widget_q1, R.id.widget_q1_art, R.id.widget_q1_title, R.id.widget_q1_artist),
-            listOf(R.id.widget_q2, R.id.widget_q2_art, R.id.widget_q2_title, R.id.widget_q2_artist),
-            listOf(R.id.widget_q3, R.id.widget_q3_art, R.id.widget_q3_title, R.id.widget_q3_artist),
-        )
-        rows.forEachIndexed { i, (row, art, title, artist) ->
+        val next = upNext.take(4).map { (_, song) -> song to image(ctx, song.artwork, 120) }
+        v.setImageViewBitmap(R.id.widget_canvas, WidgetArt.upNext(ctx, size, state, next))
+        v.setOnClickPendingIntent(R.id.widget_open, openApp(ctx, 0, null))
+        v.setOnClickPendingIntent(R.id.widget_toggle, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
+        listOf(R.id.widget_q0, R.id.widget_q1, R.id.widget_q2, R.id.widget_q3).forEachIndexed { i, row ->
             val item = upNext.getOrNull(i)
-            if (item == null) { v.setViewVisibility(row, android.view.View.INVISIBLE); return@forEachIndexed }
-            val (index, song) = item
-            v.setViewVisibility(row, android.view.View.VISIBLE)
-            v.setTextViewText(title, song.title)
-            v.setTextViewText(artist, song.artist)
-            image(ctx, song.artwork, 120, rounded = true)?.let { v.setImageViewBitmap(art, it) } ?: v.setImageViewResource(art, R.drawable.ic_launcher_fg)
-            v.setOnClickPendingIntent(row, action(ctx, WidgetActionReceiver.ACTION_JUMP, index))
+            v.setViewVisibility(row, if (item == null) android.view.View.GONE else android.view.View.VISIBLE)
+            if (item != null) v.setOnClickPendingIntent(row, action(ctx, WidgetActionReceiver.ACTION_JUMP, item.first))
         }
         return v
     }
 
-    private fun quickViews(ctx: Context): RemoteViews {
+    private val tiles = listOf(
+        WidgetArt.Tile("Liked", "Shuffle your hearts", 0xFFFF5E7E.toInt(), 0xFFFF4D2D.toInt(), R.drawable.ic_w_heart_fill),
+        WidgetArt.Tile("Discover", "New to you", 0xFF8C6BFF.toInt(), 0xFF4F7BFF.toInt(), R.drawable.ic_w_sparkle),
+        WidgetArt.Tile("Replay", "Your top songs", 0xFFFFB347.toInt(), 0xFFFF6A3D.toInt(), R.drawable.ic_w_history),
+        WidgetArt.Tile("Search", "Find anything", 0xFF3A3940.toInt(), 0xFF1E1D22.toInt(), R.drawable.ic_w_search),
+    )
+
+    private fun quickViews(ctx: Context, size: WidgetArt.Size): RemoteViews {
         val v = RemoteViews(ctx.packageName, R.layout.widget_quick)
+        v.setImageViewBitmap(R.id.widget_canvas, WidgetArt.quick(ctx, size, tiles))
         v.setOnClickPendingIntent(R.id.widget_quick_liked, openApp(ctx, 11, MainActivity.QUICK_LIKED))
         v.setOnClickPendingIntent(R.id.widget_quick_discover, openApp(ctx, 12, MainActivity.QUICK_DISCOVER))
         v.setOnClickPendingIntent(R.id.widget_quick_replay, openApp(ctx, 13, MainActivity.QUICK_REPLAY))
@@ -223,16 +184,16 @@ internal object WidgetUpdater {
     }
 
     /** A cover at [size] px, from memory, or null while it loads (the widgets redraw once it has). */
-    private fun image(ctx: Context, url: String, size: Int, rounded: Boolean): Bitmap? {
+    private fun image(ctx: Context, url: String, size: Int): Bitmap? {
         if (url.isBlank()) return null
-        val key = "$url@$size@$rounded"
+        val key = "$url@$size"
         images.get(key)?.let { return it }
         if (!loading.add(key)) return null
         scope.launch {
             val bmp = load(ctx, url, size)
             loading.remove(key)
             if (bmp != null) {
-                images.put(key, if (rounded) roundedCopy(bmp, size) else bmp)
+                images.put(key, WidgetArt.soft(bmp) ?: bmp)
                 redraw(ctx)
             }
         }
@@ -244,43 +205,4 @@ internal object WidgetUpdater {
             ImageRequest.Builder(ctx).data(url).size(size).allowHardware(false).build(),
         ).image?.toBitmap()
     }.getOrNull()
-
-    private fun backdrops(ctx: Context, url: String) {
-        bgFor = url
-        scope.launch {
-            val bmp = load(ctx, url, 160)
-            if (bgFor != url) return@launch
-            bgWide = backdrop(bmp, 900, 280)
-            bgTall = backdrop(bmp, 900, 560)
-            redraw(ctx)
-        }
-    }
-
-    private fun roundedCopy(src: Bitmap, size: Int): Bitmap {
-        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val c = Canvas(out)
-        val r = size * 0.18f
-        c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, size.toFloat(), size.toFloat()), r, r, Path.Direction.CW) })
-        c.drawBitmap(Bitmap.createScaledBitmap(src, size, size, true), 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
-        return out
-    }
-
-    private fun plainBackdrop() = backdrop(null, 900, 280)
-
-    /** A panel in the artwork's colours with a soft sheen across the top. */
-    private fun backdrop(src: Bitmap?, w: Int, h: Int): Bitmap {
-        val p = src?.let { Palette.from(it).generate() }
-        val top = p?.getDarkVibrantColor(p.getDarkMutedColor(0xFF3A3550.toInt())) ?: 0xFF2A2833.toInt()
-        val bottom = p?.getMutedColor(0xFF1A1A26.toInt())?.let { darken(it) } ?: 0xFF15141A.toInt()
-        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = Canvas(out)
-        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, w.toFloat(), h.toFloat(), top, bottom, Shader.TileMode.CLAMP) })
-        c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { shader = LinearGradient(0f, 0f, 0f, h * 0.6f, 0x2EFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP) })
-        return out
-    }
-
-    private fun darken(c: Int): Int {
-        val f = 0.5f
-        return (0xFF shl 24) or (((c shr 16 and 0xFF) * f).toInt() shl 16) or (((c shr 8 and 0xFF) * f).toInt() shl 8) or ((c and 0xFF) * f).toInt()
-    }
 }

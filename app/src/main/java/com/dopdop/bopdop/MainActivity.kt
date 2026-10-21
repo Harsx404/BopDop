@@ -68,6 +68,9 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         com.dopdop.bopdop.playback.AppVisibility.set(false)
+        // A new home-screen icon is switched in only now: doing it while BopDop is on screen
+        // closes the app (see AppIcon.choose).
+        if (!isChangingConfigurations) AppIcon.applyPending(applicationContext)
     }
 
     override fun onNewIntent(intent: Intent) {

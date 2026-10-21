@@ -13,6 +13,32 @@ enum class AppIcon(val alias: String, val label: String, val background: Int, va
     private fun component(context: Context) = ComponentName(context.packageName, "com.dopdop.bopdop" + alias)
 
     companion object {
+        private const val PREFS = "app_icon"
+
+        /** The look picked in Settings: the waiting one if it hasn't been applied yet. */
+        fun chosen(context: Context): AppIcon =
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("pending", null)
+                ?.let { n -> entries.firstOrNull { it.name == n } } ?: current(context)
+
+        /**
+         * Pick [icon]. It's applied when BopDop goes to the background ([applyPending]): the app
+         * was opened through the current icon's launcher entry, and switching that entry off
+         * while the app is on screen makes Android close it.
+         */
+        fun choose(context: Context, icon: AppIcon) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (icon == current(context)) prefs.edit().remove("pending").apply()
+            else prefs.edit().putString("pending", icon.name).apply()
+        }
+
+        /** Apply a waiting icon change; call once the app is no longer on screen. */
+        fun applyPending(context: Context) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val name = prefs.getString("pending", null) ?: return
+            prefs.edit().remove("pending").apply()
+            entries.firstOrNull { it.name == name }?.let { runCatching { set(context, it) } }
+        }
+
         fun current(context: Context): AppIcon = entries.firstOrNull { icon ->
             when (context.packageManager.getComponentEnabledSetting(icon.component(context))) {
                 PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true

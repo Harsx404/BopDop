@@ -348,9 +348,6 @@ fun SettingsScreen() {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Island") {
                     val native = com.dopdop.bopdop.ui.island.NativeIsland.name
-                    ToggleRow(Icons.Rounded.Contactless, "Island in BopDop", "What's playing in a pill around your camera, while you browse the app. Tap it for controls.", s.islandInApp ?: true) {
-                        LibraryStore.updateSettings { it.copy(islandInApp = !(it.islandInApp ?: true)) }
-                    }
                     if (android.os.Build.VERSION.SDK_INT >= 36) {
                         ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
                             (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
@@ -776,21 +773,25 @@ private fun AddonRows() {
 private fun AppIconRow() = Searchable("App icon", "Classic, orange glass or light glass", "launcher home screen logo dark") {
     val ctx = LocalContext.current
     var current by remember { mutableStateOf<com.dopdop.bopdop.AppIcon?>(null) }
-    LaunchedEffect(Unit) { current = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.AppIcon.current(ctx) } }
+    LaunchedEffect(Unit) { current = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.AppIcon.chosen(ctx) } }
+    val app = LocalApp.current
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconBadge(Icons.Rounded.AutoAwesome)
             Spacer(Modifier.width(14.dp))
             Column {
                 Text("App icon", style = BopType.BodyStrong, color = Bop.Text)
-                Text("Your launcher may take a moment to update it.", style = BopType.Caption, color = Bop.Text2)
+                Text("Changes when you leave BopDop; your launcher may take a moment.", style = BopType.Caption, color = Bop.Text2)
             }
         }
         Row(Modifier.padding(start = 56.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             com.dopdop.bopdop.AppIcon.entries.forEach { icon ->
                 val on = icon == current
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.bounceClick {
-                    if (!on) { com.dopdop.bopdop.AppIcon.set(ctx, icon); current = icon }
+                    if (!on) {
+                        com.dopdop.bopdop.AppIcon.choose(ctx, icon); current = icon
+                        app.toast("${icon.label} icon: it changes when you leave BopDop")
+                    }
                 }) {
                     Box(
                         Modifier.size(58.dp).clip(RoundedCornerShape(16.dp))

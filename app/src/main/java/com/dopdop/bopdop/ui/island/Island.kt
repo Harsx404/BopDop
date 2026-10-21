@@ -163,10 +163,21 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
         Modifier.offset { IntOffset(leftPx, topPx) }.width(w).height(h).clip(shape).background(Color.Black)
             .pointerInput(expanded) { detectTapGestures(onTap = { onExpandedChange(!expanded) }, onLongPress = { model.open() }) },
     ) {
-        // Collapsed: cover · camera · bars.
+        // Collapsed: cover (ringed by the song's progress) · camera · bars.
         AnimatedVisibility(!expanded, enter = fadeIn(), exit = fadeOut()) {
-            Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Artwork(t.artwork, Modifier.size(pillH - 10.dp), circle = true, size = 120)
+            val pos by produceState(model.positionMs(), model.playing, t.id) { while (true) { value = model.positionMs(); kotlinx.coroutines.delay(1000) } }
+            val frac = (pos.toFloat() / model.durationMs().coerceAtLeast(1)).coerceIn(0f, 1f)
+            Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(pillH - 8.dp), contentAlignment = Alignment.Center) {
+                    Artwork(t.artwork, Modifier.size(pillH - 14.dp), circle = true, size = 120)
+                    Canvas(Modifier.fillMaxSize()) {
+                        val sw = 2.2.dp.toPx()
+                        val inset = androidx.compose.ui.geometry.Offset(sw / 2, sw / 2)
+                        val arc = androidx.compose.ui.geometry.Size(size.width - sw, size.height - sw)
+                        drawArc(Color.White.copy(alpha = 0.18f), 0f, 360f, false, inset, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(sw))
+                        drawArc(ISLAND_ACCENT, -90f, 360f * frac, false, inset, arc, style = androidx.compose.ui.graphics.drawscope.Stroke(sw, cap = StrokeCap.Round))
+                    }
+                }
                 Spacer(Modifier.weight(1f))
                 Bars(model.playing, Modifier.padding(end = 6.dp).size(width = pillH * 0.42f, height = pillH * 0.38f))
             }
@@ -184,7 +195,7 @@ private fun Expanded(model: IslandModel, t: Track, pillH: Dp) {
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = pillH + 2.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.clickable(remember { MutableInteractionSource() }, null) { model.open() }) {
-                Artwork(t.artwork, Modifier.size(52.dp), corner = 12.dp, size = 200)
+                Artwork(t.artwork, Modifier.size(56.dp), corner = 14.dp, size = 200)
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -197,14 +208,17 @@ private fun Expanded(model: IslandModel, t: Track, pillH: Dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatDuration((pos / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
             Box(Modifier.weight(1f).padding(horizontal = 8.dp).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f))) {
-                Box(Modifier.fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(Color.White))
+                Box(Modifier.fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(ISLAND_ACCENT))
             }
             Text(formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
         }
         Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
             Control(Icons.Rounded.SkipPrevious, "Previous", 30.dp) { model.previous() }
-            Control(if (model.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (model.playing) "Pause" else "Play", 38.dp) { model.toggle() }
+            Box(
+                Modifier.size(50.dp).clip(CircleShape).background(Color.White).clickable { model.toggle() },
+                contentAlignment = Alignment.Center,
+            ) { Icon(if (model.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (model.playing) "Pause" else "Play", tint = Color.Black, modifier = Modifier.size(30.dp)) }
             Control(Icons.Rounded.SkipNext, "Next", 30.dp) { model.next() }
         }
     }
@@ -217,6 +231,9 @@ private fun Control(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         contentAlignment = Alignment.Center,
     ) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size)) }
 }
+
+/** BopDop orange, for the island's progress and bars. */
+private val ISLAND_ACCENT = Color(0xFFFF5A36)
 
 /** Four little equaliser bars that dance while music plays and rest low when paused. */
 @Composable
@@ -234,7 +251,7 @@ private fun Bars(playing: Boolean, modifier: Modifier) {
             val f = if (playing) 0.3f + 0.7f * ((sin(t * (6f + i * 1.7f) + i) + 1f) / 2f) else 0.25f
             val h = size.height * f
             val x = gap / 2 + i * (bw + gap) + bw / 2
-            drawLine(Color(0xFF7CF5B0), androidx.compose.ui.geometry.Offset(x, size.height / 2 - h / 2),
+            drawLine(ISLAND_ACCENT, androidx.compose.ui.geometry.Offset(x, size.height / 2 - h / 2),
                 androidx.compose.ui.geometry.Offset(x, size.height / 2 + h / 2), bw, StrokeCap.Round)
         }
     }

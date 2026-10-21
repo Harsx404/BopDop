@@ -190,7 +190,6 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             SheetHost(app)
             app.shareTrack?.let { com.dopdop.bopdop.ui.share.ShareStudio(it) { app.shareTrack = null } }
             ToastHost(app)
-            InAppIsland(app, lib.settings.islandInApp ?: true)
         }
     }
 

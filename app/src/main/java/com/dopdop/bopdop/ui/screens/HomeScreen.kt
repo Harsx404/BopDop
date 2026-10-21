@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -167,7 +168,7 @@ fun HomeScreen() {
                     CircleButton(onClick = { app.nav.navigate(Routes.SEARCH) }) { Icon(Icons.Rounded.Search, "Search", tint = Bop.Text, modifier = Modifier.size(24.dp)) }
                     Spacer(Modifier.width(12.dp))
                     val account by com.dopdop.bopdop.data.account.AccountStore.account.collectAsState()
-                    Avatar(account?.photo?.ifBlank { null } ?: current?.artwork ?: lib.history.firstOrNull()?.artwork) {
+                    Avatar(account?.photo?.ifBlank { null }, account?.name, signedIn = account != null) {
                         if (account == null) app.nav.navigate(Routes.SIGN_IN) else app.goTab(Routes.LIBRARY)
                     }
                 }
@@ -342,15 +343,21 @@ private fun MenuGlyph() {
 }
 
 @Composable
-private fun Avatar(art: String?, onClick: () -> Unit) {
+private fun Avatar(photo: String?, name: String?, signedIn: Boolean, onClick: () -> Unit) {
+    // Signed out it's a sign-in button, not a picture: the album art that used to sit here looked
+    // like someone's profile.
+    if (!signedIn) {
+        CircleButton(onClick = onClick) { Icon(Icons.Rounded.AccountCircle, "Sign in", tint = Bop.Text, modifier = Modifier.size(26.dp)) }
+        return
+    }
     Box(
         Modifier.size(54.dp).bounceClick(0.9f, onClick = onClick).softShadow(CircleShape, 12.dp, dy = 4.dp)
             .clip(CircleShape).background(Color.White).padding(3.dp),
         contentAlignment = Alignment.Center,
     ) {
-        if (art != null) Artwork(art, Modifier.fillMaxSize(), circle = true, size = 160)
+        if (photo != null) Artwork(photo, Modifier.fillMaxSize(), circle = true, size = 160)
         else Box(Modifier.fillMaxSize().clip(CircleShape).background(Bop.Brand), contentAlignment = Alignment.Center) {
-            Text("B", style = BopType.Title, color = Color.White)
+            Text(name?.trim()?.firstOrNull()?.uppercase() ?: "B", style = BopType.Title, color = Color.White)
         }
     }
 }
