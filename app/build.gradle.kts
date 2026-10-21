@@ -16,24 +16,34 @@ android {
         versionCode = 8
         versionName = "1.3.0-beta.5"
 
-        // Last.fm API key and secret: local.properties lastfm.key / lastfm.secret, or the
-        // LASTFM_API_KEY / LASTFM_SECRET environment (CI secrets). Blank keeps Last.fm on the
-        // user's own pasted key.
-        val local = Properties().apply {
-            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
-        }
-        fun secret(prop: String, env: String) = (local.getProperty(prop) ?: System.getenv(env) ?: "").replace("\"", "")
-        buildConfigField("String", "LASTFM_KEY", "\"${secret("lastfm.key", "LASTFM_API_KEY")}\"")
-        buildConfigField("String", "LASTFM_SECRET", "\"${secret("lastfm.secret", "LASTFM_SECRET")}\"")
     }
+
+    // One release key for every build, here and on GitHub, so updates install over each other.
+    // From local.properties (release.storeFile, release.storePassword, release.keyAlias,
+    // release.keyPassword) or the environment (RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD,
+    // RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD). The keystore itself is never committed.
+    val local = Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+    fun cfg(prop: String, env: String) = local.getProperty(prop) ?: System.getenv(env)
+    val releaseStore = cfg("release.storeFile", "RELEASE_STORE_FILE")?.let { rootProject.file(it) }?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseStore != null) create("release") {
+            storeFile = releaseStore
+            storePassword = cfg("release.storePassword", "RELEASE_STORE_PASSWORD")
+            keyAlias = cfg("release.keyAlias", "RELEASE_KEY_ALIAS")
+            keyPassword = cfg("release.keyPassword", "RELEASE_KEY_PASSWORD")
+        }
+    }
+    // On CI a release without the real key would install over nobody's BopDop: stop instead.
+    if (releaseStore == null && System.getenv("CI") == "true") error("Release key missing: set the RELEASE_KEYSTORE_B64 and RELEASE_* secrets")
 
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Sideload build: signed with the debug key so it installs straight away.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

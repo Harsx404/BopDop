@@ -33,7 +33,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # The one BopDop release key, from the repository's secrets (see docs/RELEASING.md).
+      - name: Release key
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: echo "$RELEASE_KEYSTORE_B64" | base64 -d > release.keystore
+
       - name: Build release APK
+        env:
+          RELEASE_STORE_FILE: release.keystore
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: sh gradlew --no-daemon :app:assembleRelease
 
       - name: Name the APKs after the tag

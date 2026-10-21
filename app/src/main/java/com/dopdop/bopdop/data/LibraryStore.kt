@@ -68,6 +68,8 @@ data class Settings(
     val bitPerfect: Boolean = false,
     /** Keep your own Spotify playlists (and Liked Songs) copied into the library, synced on launch. */
     val spotifyAutoImport: Boolean = true,
+    /** Play again when the headphones or car that paused the music by disconnecting come back. */
+    val resumeOnConnect: Boolean = true,
     val reduceMotion: Boolean = false,
     val showSaavnHome: Boolean = true,
     val videoQuality: VideoQuality = VideoQuality.AUTO,
@@ -127,7 +129,7 @@ data class Settings(
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
         .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("canvas", canvas).put("canvasOnData", canvasOnData)
-            .put("addons", JSONArray(addons)).put("lossless", lossless).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
+            .put("addons", JSONArray(addons)).put("lossless", lossless).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
@@ -155,6 +157,7 @@ data class Settings(
             atmos = o.optBoolean("atmos", true),
             bitPerfect = o.optBoolean("bitPerfect", false),
             spotifyAutoImport = o.optBoolean("spotifyAutoImport", true),
+            resumeOnConnect = o.optBoolean("resumeOnConnect", true),
             reduceMotion = o.optBoolean("reduceMotion", false),
             showSaavnHome = o.optBoolean("showSaavnHome", true),
             videoQuality = runCatching { VideoQuality.valueOf(o.optString("videoQuality")) }.getOrDefault(VideoQuality.AUTO),

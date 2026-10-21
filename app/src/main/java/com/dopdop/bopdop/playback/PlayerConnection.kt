@@ -53,7 +53,7 @@ object PlayerConnection {
     val shuffle: StateFlow<Boolean> = _shuffle.asStateFlow()
     private val _repeat = MutableStateFlow(RepeatMode.OFF)
     val repeat: StateFlow<RepeatMode> = _repeat.asStateFlow()
-    private val _context = MutableStateFlow("")
+    private val _context = MutableStateFlow(QueueStore.load()?.context.orEmpty())
     /** "Playing from …" label. */
     val context: StateFlow<String> = _context.asStateFlow()
     private val _sleepAt = MutableStateFlow<Long?>(null)

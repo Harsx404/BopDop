@@ -32,6 +32,12 @@ import kotlinx.coroutines.guava.future
 internal class LibraryCallback(private val context: Context) : MediaLibrarySession.Callback {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult =
+        NotificationButtons.connect(session, controller)
+
+    override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: androidx.media3.session.SessionCommand, args: Bundle): ListenableFuture<androidx.media3.session.SessionResult> =
+        Futures.immediateFuture(NotificationButtons.result(NotificationButtons.handle(session.player, customCommand)))
+
     override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> =
         Futures.immediateFuture(LibraryResult.ofItem(folder(ROOT, "BopDop", MediaMetadata.MEDIA_TYPE_FOLDER_MIXED), params))
 
@@ -76,6 +82,10 @@ internal class LibraryCallback(private val context: Context) : MediaLibrarySessi
 
     /** Play pressed on a headset, the widget or the car with nothing queued: pick up where you left off. */
     override fun onPlaybackResumption(mediaSession: MediaSession, controller: MediaSession.ControllerInfo): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+        // The exact queue, song and second it was left at; recent songs only when nothing was saved.
+        QueueStore.load()?.let { q ->
+            return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(q.tracks.map { it.toMediaItem() }, q.index, q.positionMs))
+        }
         val recent = LibraryStore.state.value.history.take(20)
         return Futures.immediateFuture(MediaSession.MediaItemsWithStartPosition(recent.map { it.toMediaItem() }, 0, 0))
     }

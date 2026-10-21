@@ -49,6 +49,27 @@ class PlaybackService : MediaLibraryService() {
     private val scope = MainScope()
     private var extending = false
     private val retried = HashSet<String>()
+    /** When headphones or the car disconnecting paused playback (0: it wasn't that). */
+    @Volatile private var unpluggedAt = 0L
+    private val reconnect = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>?) {
+            val personal = added.orEmpty().any {
+                it.isSink && it.type in setOf(
+                    android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, android.media.AudioDeviceInfo.TYPE_BLE_HEADSET,
+                    android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER, android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+                    android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET, android.media.AudioDeviceInfo.TYPE_USB_HEADSET,
+                )
+            }
+            // Only within half an hour of that pause, so music never starts out of nowhere later on.
+            val recent = unpluggedAt > 0 && System.currentTimeMillis() - unpluggedAt < 30 * 60_000
+            if (personal && recent && LibraryStore.settings.resumeOnConnect && !player.playWhenReady && player.mediaItemCount > 0) {
+                unpluggedAt = 0L
+                Log.i("PlaybackService", "headphones back: resuming")
+                // Bluetooth reports the device a moment before audio can actually route to it.
+                scope.launch { delay(1200); player.play() }
+            }
+        }
+    }
     /** Where the playing video item was a second ago, to tell "the picture ended" from "the song ended". */
     private data class VideoSpot(val index: Int, val id: String, val positionMs: Long, val songMs: Long)
     @Volatile private var videoAt: VideoSpot? = null
@@ -168,9 +189,29 @@ class PlaybackService : MediaLibraryService() {
                 .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        // F42: the queue as it was when the app was last closed, ready to play (not playing).
+        QueueStore.init(this)
+        if (player.mediaItemCount == 0) QueueStore.load()?.let { q ->
+            player.setMediaItems(q.tracks.map { it.toMediaItem() }, q.index, q.positionMs)
+            player.prepare()
+            player.playWhenReady = false
+        }
+        // Saved on every change, and every few seconds while playing so the position is fresh.
+        scope.launch {
+            while (isActive) {
+                delay(2_000)
+                if (player.isPlaying) QueueStore.save(player, PlayerConnection.context.value)
+            }
+        }
+
+        getSystemService(android.media.AudioManager::class.java)?.registerAudioDeviceCallback(reconnect, android.os.Handler(android.os.Looper.getMainLooper()))
+
         session = MediaLibrarySession.Builder(this, castable(player), LibraryCallback(this))
             .setSessionActivity(open)
+            .setMediaButtonPreferences(NotificationButtons.buttons(player))
             .build()
+        // The like button follows the library (a like from the app shows in the notification too).
+        scope.launch { LibraryStore.state.map { it.likedIds }.distinctUntilChanged().collect { refreshButtons() } }
     }
 
     /**
@@ -289,6 +330,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
+            if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED, Player.EVENT_REPEAT_MODE_CHANGED)) refreshButtons()
             if (events.containsAny(Player.EVENT_MEDIA_ITEM_TRANSITION, Player.EVENT_IS_PLAYING_CHANGED, Player.EVENT_TIMELINE_CHANGED)) {
                 pushWidgets()
                 island.update(player.currentMediaItem?.toTrack(), player.isPlaying)
@@ -353,7 +395,21 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
+        override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+            QueueStore.save(player, PlayerConnection.context.value)
+        }
+
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            QueueStore.save(player, PlayerConnection.context.value)
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            // F51: remember a pause caused by headphones or the car going away, and nothing else.
+            unpluggedAt = if (!playWhenReady && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) System.currentTimeMillis() else 0L
+        }
+
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isPlaying) QueueStore.save(player, PlayerConnection.context.value)
             if (isPlaying) player.currentMediaItem?.mediaId?.let(retried::remove)
         }
     }
@@ -400,8 +456,14 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? = session
 
     override fun onTaskRemoved(rootIntent: Intent?) {
+        QueueStore.save(player, PlayerConnection.context.value)
         val p = session?.player
         if (p == null || !p.playWhenReady || p.mediaItemCount == 0) stopSelf()
+    }
+
+    private fun refreshButtons() {
+        val s = session ?: return
+        s.setMediaButtonPreferences(NotificationButtons.buttons(s.player))
     }
 
     /** Hand the widgets the song, its progress and the next few songs. */
@@ -419,6 +481,8 @@ class PlaybackService : MediaLibraryService() {
     }
 
     override fun onDestroy() {
+        runCatching { QueueStore.save(player, PlayerConnection.context.value) }
+        runCatching { getSystemService(android.media.AudioManager::class.java)?.unregisterAudioDeviceCallback(reconnect) }
         running = null
         island.release()
         liveUpdate.cancel()

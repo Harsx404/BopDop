@@ -32,6 +32,8 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
             com.dopdop.bopdop.data.spotify.SpotifyImport.auto(this@BopDopApp)
         }
         com.dopdop.bopdop.playback.BitPerfect.init(this)
+        com.dopdop.bopdop.playback.QueueStore.init(this)
+        com.dopdop.bopdop.data.ProblemReport.install(this)
         com.dopdop.bopdop.data.addon.DeviceAudio.warm()
         com.dopdop.bopdop.data.scrobble.LastFm.flush()
         com.dopdop.bopdop.playback.Downloads.init(this)

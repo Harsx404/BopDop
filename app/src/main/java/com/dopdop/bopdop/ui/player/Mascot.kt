@@ -30,6 +30,8 @@ internal enum class MascotMode { WALK, SLEEP, HOP }
 internal class MascotFrames(
     val walk: List<ImageBitmap>, val sleep: List<ImageBitmap>,
     val step: Float, val settle: Int, val settleStep: Float, val doze: Float,
+    /** Pixel art: drawn with nearest-pixel scaling so it stays crisp. */
+    val pixel: Boolean = false,
 )
 
 
@@ -50,8 +52,20 @@ private val WAGON_WALK = listOf(R.drawable.wagon_walk_0, R.drawable.wagon_walk_1
 private val WAGON_SLEEP = listOf(R.drawable.wagon_sleep_0, R.drawable.wagon_sleep_1, R.drawable.wagon_sleep_2, R.drawable.wagon_sleep_3, R.drawable.wagon_sleep_4, R.drawable.wagon_sleep_5)
 private val DINO_WALK = listOf(R.drawable.dino_walk_0, R.drawable.dino_walk_1, R.drawable.dino_walk_2, R.drawable.dino_walk_3, R.drawable.dino_walk_4, R.drawable.dino_walk_5, R.drawable.dino_walk_6, R.drawable.dino_walk_7)
 private val DINO_SLEEP = listOf(R.drawable.dino_sleep_0, R.drawable.dino_sleep_1, R.drawable.dino_sleep_2, R.drawable.dino_sleep_3, R.drawable.dino_sleep_4, R.drawable.dino_sleep_5)
-private val VILLAGER_WALK = listOf(R.drawable.villager_walk_0, R.drawable.villager_walk_1, R.drawable.villager_walk_2, R.drawable.villager_walk_3, R.drawable.villager_walk_4, R.drawable.villager_walk_5, R.drawable.villager_walk_6, R.drawable.villager_walk_7, R.drawable.villager_walk_8)
-private val VILLAGER_SLEEP = listOf(R.drawable.villager_sleep_0, R.drawable.villager_sleep_1, R.drawable.villager_sleep_2, R.drawable.villager_sleep_3, R.drawable.villager_sleep_4, R.drawable.villager_sleep_5, R.drawable.villager_sleep_6, R.drawable.villager_sleep_7)
+private val CRAFTER_WALK = listOf(R.drawable.crafter_walk_0, R.drawable.crafter_walk_1, R.drawable.crafter_walk_2, R.drawable.crafter_walk_3, R.drawable.crafter_walk_4, R.drawable.crafter_walk_5, R.drawable.crafter_walk_6, R.drawable.crafter_walk_7)
+private val CRAFTER_SLEEP = listOf(R.drawable.crafter_sleep_0, R.drawable.crafter_sleep_1, R.drawable.crafter_sleep_2, R.drawable.crafter_sleep_3)
+private val GIRL1_WALK = listOf(R.drawable.girl1_walk_0, R.drawable.girl1_walk_1, R.drawable.girl1_walk_2, R.drawable.girl1_walk_3, R.drawable.girl1_walk_4, R.drawable.girl1_walk_5, R.drawable.girl1_walk_6, R.drawable.girl1_walk_7, R.drawable.girl1_walk_8, R.drawable.girl1_walk_9, R.drawable.girl1_walk_10, R.drawable.girl1_walk_11)
+private val GIRL1_SLEEP = listOf(R.drawable.girl1_sleep_0, R.drawable.girl1_sleep_1, R.drawable.girl1_sleep_2, R.drawable.girl1_sleep_3, R.drawable.girl1_sleep_4, R.drawable.girl1_sleep_5, R.drawable.girl1_sleep_6, R.drawable.girl1_sleep_7, R.drawable.girl1_sleep_8)
+private val GIRL2_WALK = listOf(R.drawable.girl2_walk_0, R.drawable.girl2_walk_1, R.drawable.girl2_walk_2, R.drawable.girl2_walk_3, R.drawable.girl2_walk_4, R.drawable.girl2_walk_5, R.drawable.girl2_walk_6, R.drawable.girl2_walk_7, R.drawable.girl2_walk_8, R.drawable.girl2_walk_9, R.drawable.girl2_walk_10, R.drawable.girl2_walk_11)
+private val GIRL2_SLEEP = listOf(R.drawable.girl2_sleep_0, R.drawable.girl2_sleep_1, R.drawable.girl2_sleep_2, R.drawable.girl2_sleep_3, R.drawable.girl2_sleep_4, R.drawable.girl2_sleep_5, R.drawable.girl2_sleep_6)
+private val GIRL3_WALK = listOf(R.drawable.girl3_walk_0, R.drawable.girl3_walk_1, R.drawable.girl3_walk_2, R.drawable.girl3_walk_3, R.drawable.girl3_walk_4, R.drawable.girl3_walk_5, R.drawable.girl3_walk_6, R.drawable.girl3_walk_7, R.drawable.girl3_walk_8, R.drawable.girl3_walk_9, R.drawable.girl3_walk_10, R.drawable.girl3_walk_11)
+private val GIRL3_SLEEP = listOf(R.drawable.girl3_sleep_0, R.drawable.girl3_sleep_1, R.drawable.girl3_sleep_2, R.drawable.girl3_sleep_3, R.drawable.girl3_sleep_4, R.drawable.girl3_sleep_5)
+private val FIGHTER_WALK = listOf(R.drawable.fighter_walk_0, R.drawable.fighter_walk_1, R.drawable.fighter_walk_2, R.drawable.fighter_walk_3, R.drawable.fighter_walk_4, R.drawable.fighter_walk_5, R.drawable.fighter_walk_6, R.drawable.fighter_walk_7)
+private val FIGHTER_SLEEP = listOf(R.drawable.fighter_sleep_0, R.drawable.fighter_sleep_1, R.drawable.fighter_sleep_2, R.drawable.fighter_sleep_3, R.drawable.fighter_sleep_4, R.drawable.fighter_sleep_5)
+private val SAMURAI_WALK = listOf(R.drawable.samurai_walk_0, R.drawable.samurai_walk_1, R.drawable.samurai_walk_2, R.drawable.samurai_walk_3, R.drawable.samurai_walk_4, R.drawable.samurai_walk_5, R.drawable.samurai_walk_6, R.drawable.samurai_walk_7)
+private val SAMURAI_SLEEP = listOf(R.drawable.samurai_sleep_0, R.drawable.samurai_sleep_1, R.drawable.samurai_sleep_2, R.drawable.samurai_sleep_3, R.drawable.samurai_sleep_4, R.drawable.samurai_sleep_5)
+private val SHINOBI_WALK = listOf(R.drawable.shinobi_walk_0, R.drawable.shinobi_walk_1, R.drawable.shinobi_walk_2, R.drawable.shinobi_walk_3, R.drawable.shinobi_walk_4, R.drawable.shinobi_walk_5, R.drawable.shinobi_walk_6, R.drawable.shinobi_walk_7)
+private val SHINOBI_SLEEP = listOf(R.drawable.shinobi_sleep_0, R.drawable.shinobi_sleep_1, R.drawable.shinobi_sleep_2, R.drawable.shinobi_sleep_3, R.drawable.shinobi_sleep_4, R.drawable.shinobi_sleep_5)
 
 @Composable
 internal fun rememberMascotFrames(mascot: Mascot = Mascot.KITTY): MascotFrames {
@@ -65,10 +79,17 @@ internal fun rememberMascotFrames(mascot: Mascot = Mascot.KITTY): MascotFrames {
             Mascot.BUNNY -> MascotFrames(load(BUNNY_WALK), load(BUNNY_SLEEP), step = 0.085f, settle = 0, settleStep = 0f, doze = 0.32f)
             Mascot.BIKE -> MascotFrames(load(BIKE_WALK), load(BIKE_SLEEP), step = 0.07f, settle = 4, settleStep = 0.2f, doze = 0.4f)
             // The wagon rests in place, looping all 6 idle frames; the dino stands, yawns and lies
-            // down, then sleeps on its last frame; the villager sits, nods off over 4 frames, then dozes.
+            // down, then sleeps on its last frame; the crafter lies down on a pillow and sleeps.
             Mascot.WAGON -> MascotFrames(load(WAGON_WALK), load(WAGON_SLEEP), step = 0.11f, settle = 0, settleStep = 0f, doze = 0.45f)
             Mascot.DINO -> MascotFrames(load(DINO_WALK), load(DINO_SLEEP), step = 0.1f, settle = 5, settleStep = 0.35f, doze = 1f)
-            Mascot.VILLAGER -> MascotFrames(load(VILLAGER_WALK), load(VILLAGER_SLEEP), step = 0.09f, settle = 4, settleStep = 0.22f, doze = 0.5f)
+            Mascot.CRAFTER -> MascotFrames(load(CRAFTER_WALK), load(CRAFTER_SLEEP), step = 0.1f, settle = 0, settleStep = 0f, doze = 0.6f)
+            // Pixel-art packs: no sleep animation, so paused they stand and idle.
+            Mascot.HANA -> MascotFrames(load(GIRL1_WALK), load(GIRL1_SLEEP), step = 0.08f, settle = 0, settleStep = 0f, doze = 0.16f, pixel = true)
+            Mascot.MEI -> MascotFrames(load(GIRL2_WALK), load(GIRL2_SLEEP), step = 0.08f, settle = 0, settleStep = 0f, doze = 0.18f, pixel = true)
+            Mascot.YUI -> MascotFrames(load(GIRL3_WALK), load(GIRL3_SLEEP), step = 0.08f, settle = 0, settleStep = 0f, doze = 0.2f, pixel = true)
+            Mascot.FIGHTER -> MascotFrames(load(FIGHTER_WALK), load(FIGHTER_SLEEP), step = 0.1f, settle = 0, settleStep = 0f, doze = 0.18f, pixel = true)
+            Mascot.SAMURAI -> MascotFrames(load(SAMURAI_WALK), load(SAMURAI_SLEEP), step = 0.1f, settle = 0, settleStep = 0f, doze = 0.18f, pixel = true)
+            Mascot.SHINOBI -> MascotFrames(load(SHINOBI_WALK), load(SHINOBI_SLEEP), step = 0.1f, settle = 0, settleStep = 0f, doze = 0.18f, pixel = true)
             else -> MascotFrames(load(KITTY_WALK), load(KITTY_SLEEP), step = 0.1f, settle = 5, settleStep = 0.16f, doze = 0.55f)
         }
     }
@@ -99,7 +120,7 @@ internal fun DrawScope.drawMascot(frames: MascotFrames, x: Float, feetY: Float, 
             img,
             dstOffset = IntOffset((x - w / 2).roundToInt(), (feetY - h - lift).roundToInt()),
             dstSize = IntSize(w.roundToInt(), h.roundToInt()),
-            filterQuality = FilterQuality.Medium,
+            filterQuality = if (frames.pixel) FilterQuality.None else FilterQuality.Medium,
         )
     }
 }

@@ -16,7 +16,7 @@ in batch order. Update the **Status** column as items land.
 | 3 | F12 Smart playlists · F13 Stats for nerds · F14 Live search results · F15 Queue history · F16 Dislike |
 | 4 | F17 Song info panel · F18 Output device pill · F19 Lyrics translation under lines · F20 Backup & restore · F21 Grid / list Library |
 | 5 | F22 Cache controls · F23 Lyrics motion background · F24 Selectable app icon · F25 One-tap update install · F26 Per-ABI APKs |
-| 6 | F42 Resume exactly · F43 Notification buttons · F44 Lyrics search · F45 Save queue · F46 Release signing |
+| 6 | F42 Resume exactly · F43 Notification buttons · F44 Lyrics search · F46 Release signing · F51 Bluetooth resume · F56 Report a problem |
 | 7 | F47 Smart downloads · F48 Private session · F49 Launcher shortcuts · F50 Radio from playlist · F51 Bluetooth resume |
 | 8 | F52 Video PiP · F53 Battery saver · F54 Accessibility · F55 Continue listening · F56 Report a problem |
 | later | F57–F60, F40 (languages), F41 |
@@ -66,25 +66,25 @@ in batch order. Update the **Status** column as items land.
 | F39 | UI | Bounce overscroll throughout | BC | P3 | S | later | done | Rubber-band ends on every list and scroller, springing back; reduced motion keeps Android's stretch |
 | F40 | QoL | In-app language picker and translations | BC | P2 | L | later | todo | Hindi first |
 | F41 | Features | Desktop and TV apps | BC | P3 | XL | later | todo | |
-| F42 | QoL | Pick up exactly where you left off after the app is closed: same queue, song and position | BopDop | P1 | M | 6 | todo | Today "resume" rebuilds a queue from history and starts at 0:00 |
-| F43 | Player | Like, shuffle and repeat buttons in the notification and on the lock screen | BopDop | P1 | M | 6 | todo | Media3 custom layout; only play/skip there now |
-| F44 | Player | Wrong or missing lyrics: search and pick another lyrics result | BopDop | P1 | M | 6 | todo | "No lyrics for this one" is a dead end now |
-| F45 | QoL | Save the current queue as a playlist | BopDop | P1 | S | 6 | todo | |
-| F46 | QoL | Stable release signing key (and Last.fm key in CI) | BopDop | P1 | S | 6 | todo | One-tap updates and Last.fm sign-in depend on it |
-| F47 | Features | Auto-download Liked songs, Wi-Fi only option for downloads | BopDop | P2 | M | 7 | todo | |
-| F48 | QoL | Private session: no history, stats or scrobbles for a while | BopDop | P2 | S | 7 | todo | |
-| F49 | QoL | Launcher shortcuts on the app icon: Search, Liked songs, Shuffle all, Continue | BopDop | P2 | S | 7 | todo | |
-| F50 | Player | Start radio from a playlist or album (not just one song) | BopDop | P2 | S | 7 | todo | |
-| F51 | QoL | Resume playing when Bluetooth headphones or the car reconnect | BopDop | P2 | S | 7 | todo | Pausing on unplug already works |
-| F52 | Player | Music video picture-in-picture when leaving the app | BopDop | P2 | M | 8 | todo | |
-| F53 | UI | Battery saver: lighter glass and no moving backgrounds when the phone saves power | BopDop | P2 | S | 8 | todo | Uses what the lag work taught us |
-| F54 | UI | Accessibility pass: TalkBack labels on every button, large-text check | BopDop | P2 | M | 8 | todo | Few content descriptions today |
-| F55 | Features | Home "Continue listening": playlists and albums you were in the middle of | BopDop | P2 | M | 8 | todo | |
-| F56 | QoL | Report a problem: share the app's recent log from Settings | BopDop | P2 | S | 8 | todo | Release builds can't be debugged on the phone |
-| F57 | Player | Equalizer remembers a preset per output (headphones, speaker, car) | BopDop | P3 | S | later | todo | |
-| F58 | Features | Wake-up alarm with a song or playlist | BopDop | P3 | M | later | todo | |
-| F59 | Features | Voice search from the search bar | BopDop | P3 | S | later | todo | |
-| F60 | Features | Edit or sync your own lyrics for a song | BopDop | P3 | M | later | todo | |
+| F42 | QoL | Pick up exactly where you left off after the app is closed: same queue, song and position | BopDop | P1 | M | 6 | done | Queue, song and position saved every 2 s and on every change; restored paused when the app opens; headset/car resume uses it too |
+| F43 | Player | Like, shuffle and repeat buttons in the notification and on the lock screen | BopDop | P1 | M | 6 | done | Like, shuffle and repeat as custom actions (Android shows the first two: Like, Shuffle) |
+| F44 | Player | Wrong or missing lyrics: search and pick another lyrics result | BopDop | P1 | M | 6 | done | “Search lyrics” when none, “Wrong lyrics? Search” under synced ones, and ⋯ › Find other lyrics; your pick is kept per song, “Automatic” undoes it |
+| F45 | QoL | Save the current queue as a playlist | BopDop | P1 | S | 6 | skipped | Not needed for now |
+| F46 | QoL | Stable release signing key (and Last.fm key in CI) | BopDop | P1 | S | 6 | done | This PC's existing key is now the release key (release.keystore, git-ignored, local.properties); CI needs RELEASE_* secrets and stops without them. Last.fm: user pastes their own key; see docs/RELEASING.md |
+| F47 | Features | Auto-download Liked songs, Wi-Fi only option for downloads | BopDop | P2 | M | 7 | skipped | Not needed for now |
+| F48 | QoL | Private session: no history, stats or scrobbles for a while | BopDop | P2 | S | 7 | skipped | Not needed for now |
+| F49 | QoL | Launcher shortcuts on the app icon: Search, Liked songs, Shuffle all, Continue | BopDop | P2 | S | 7 | skipped | Not needed for now |
+| F50 | Player | Start radio from a playlist or album (not just one song) | BopDop | P2 | S | 7 | skipped | Not needed for now |
+| F51 | QoL | Resume playing when Bluetooth headphones or the car reconnect | BopDop | P2 | S | 7 | done | Resumes within 30 min only if headphones/car disconnecting caused the pause; Settings › Sound |
+| F52 | Player | Music video picture-in-picture when leaving the app | BopDop | P2 | M | 8 | skipped | Not needed for now |
+| F53 | UI | Battery saver: lighter glass and no moving backgrounds when the phone saves power | BopDop | P2 | S | 8 | skipped | Not needed for now |
+| F54 | UI | Accessibility pass: TalkBack labels on every button, large-text check | BopDop | P2 | M | 8 | skipped | Not needed for now |
+| F55 | Features | Home "Continue listening": playlists and albums you were in the middle of | BopDop | P2 | M | 8 | skipped | Not needed for now |
+| F56 | QoL | Report a problem: share the app's recent log from Settings | BopDop | P2 | S | 8 | done | Settings › Help › Report a problem: note + app log + last crash + phone info, via the share sheet |
+| F57 | Player | Equalizer remembers a preset per output (headphones, speaker, car) | BopDop | P3 | S | later | skipped | Not needed for now |
+| F58 | Features | Wake-up alarm with a song or playlist | BopDop | P3 | M | later | skipped | Not needed for now |
+| F59 | Features | Voice search from the search bar | BopDop | P3 | S | later | skipped | Not needed for now |
+| F60 | Features | Edit or sync your own lyrics for a song | BopDop | P3 | M | later | skipped | Not needed for now |
 
 Sources: [BitChord](https://github.com/kushagrasinghx/BitChord) ([releases](https://github.com/kushagrasinghx/BitChord/releases)),
 [LastWave](https://github.com/Clash-Projects/LastWave-Native) ([releases](https://github.com/Clash-Projects/LastWave-Native/releases)).

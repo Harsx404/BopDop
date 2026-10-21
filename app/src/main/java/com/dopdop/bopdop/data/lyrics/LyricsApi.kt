@@ -39,7 +39,35 @@ object LyricsApi {
     private var appContext: android.content.Context? = null
     fun init(context: android.content.Context) { appContext = context.applicationContext }
 
+    /** Bumped when you pick other lyrics, so the lyrics on screen load again. */
+    val version = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    /** One LRCLIB result for the lyrics search. */
+    data class Hit(val title: String, val artist: String, val album: String, val durationSec: Int, val lyrics: Lyrics)
+
+    /** LRCLIB results for anything you type ("title artist"), synced ones first (F44). */
+    suspend fun search(q: String): List<Hit> {
+        val arr = JSONArray(Http.getText("https://lrclib.net/api/search?q=${enc(q.trim())}", headers))
+        return (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val l = parse(o) ?: return@mapNotNull null
+            Hit(o.optString("trackName"), o.optString("artistName"), o.optString("albumName").takeIf { it != "null" }.orEmpty(), o.optDouble("duration", 0.0).toInt(), l)
+        }.sortedByDescending { it.lyrics.isSynced }
+    }
+
+    /** Use [l] for [t] from now on (kept on the phone); null goes back to finding them automatically. */
+    fun choose(t: Track, l: Lyrics?) {
+        val ctx = appContext ?: return
+        if (l == null) { LyricsDisk.deletePick(ctx, t.id); cache.remove(t.id); misses.remove(t.id) }
+        else { LyricsDisk.writePick(ctx, t.id, l); cache.put(t.id, l); misses.remove(t.id) }
+        version.value++
+    }
+
+    fun hasPick(t: Track) = appContext?.let { LyricsDisk.hasPick(it, t.id) } == true
+
     suspend fun get(t: Track): Lyrics? {
+        // Lyrics you picked yourself win over everything.
+        appContext?.let { ctx -> LyricsDisk.readPick(ctx, t.id) }?.let { return it }
         cache.get(t.id)?.let { return it }
         // Downloaded songs keep their lyrics on the phone.
         appContext?.let { ctx -> LyricsDisk.read(ctx, t.id) }?.let { cache.put(t.id, it); return it }

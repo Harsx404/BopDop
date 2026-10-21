@@ -66,6 +66,8 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.Save
@@ -163,6 +165,9 @@ fun SettingsScreen() {
         item(key = "group:Sound") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Sound") {
+                    ToggleRow(Icons.Rounded.Headphones, "Resume when headphones reconnect", "If disconnecting your Bluetooth headphones, earbuds or car paused the music, it plays again when they're back (within 30 minutes).", s.resumeOnConnect, keywords = "bluetooth car reconnect resume auto play earbuds") {
+                        LibraryStore.updateSettings { it.copy(resumeOnConnect = !it.resumeOnConnect) }
+                    }
                     RowHead(Icons.Rounded.Wifi, "Audio quality on Wi-Fi", "High plays the best stream there is, including JioSaavn's 320 kbps copy.") {
                         ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioWifi, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioWifi = q) } }
                     }
@@ -307,7 +312,7 @@ fun SettingsScreen() {
                             ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
                         }
                     }
-                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${when (s.mascot) { com.dopdop.bopdop.data.Mascot.NONE -> ""; com.dopdop.bopdop.data.Mascot.BUNNY -> " with the bunny hopping along"; com.dopdop.bopdop.data.Mascot.BIKE -> " with the bike riding along"; com.dopdop.bopdop.data.Mascot.WAGON -> " with the wagon rolling along"; com.dopdop.bopdop.data.Mascot.DINO -> " with the dino stomping along"; com.dopdop.bopdop.data.Mascot.VILLAGER -> " with the villager walking along"; else -> " with the kitty walking along" }}. Long-press the seek bar to change it from the player.") {
+                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${when (s.mascot) { com.dopdop.bopdop.data.Mascot.NONE -> ""; com.dopdop.bopdop.data.Mascot.BUNNY -> " with the bunny hopping along"; com.dopdop.bopdop.data.Mascot.BIKE -> " with the bike riding along"; com.dopdop.bopdop.data.Mascot.WAGON -> " with the wagon rolling along"; com.dopdop.bopdop.data.Mascot.DINO -> " with the dino stomping along"; else -> " with the ${s.mascot.label.lowercase()} walking along".replace("the hana","Hana").replace("the mei","Mei").replace("the yui","Yui")}}. Long-press the seek bar to change it from the player.") {
                         app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
                     }
                     ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
@@ -447,6 +452,15 @@ fun SettingsScreen() {
                     brand = if (s.lastFmLibre) com.dopdop.bopdop.ui.components.Brand.LIBREFM else com.dopdop.bopdop.ui.components.Brand.LASTFM,
                 ) { app.sheet = Sheet.LastFm }
             }
+            }
+        }
+        item(key = "group:Help") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
+                Group("Help") {
+                    NavRow(Icons.Rounded.BugReport, "Report a problem", "Send what went wrong with BopDop's recent log, so it can be fixed.", keywords = "bug crash feedback log help support") {
+                        app.sheet = Sheet.ReportProblem
+                    }
+                }
             }
         }
         item(key = "group:With friends") {

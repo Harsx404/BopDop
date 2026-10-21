@@ -2,6 +2,7 @@ package com.dopdop.bopdop.ui.player
 
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ThumbDown
 import com.dopdop.bopdop.data.pinnedFirst
@@ -183,6 +184,8 @@ fun SheetHost(app: AppState) {
                     is Sheet.SortPlaylist -> SortPlaylistSheet(app, s.id)
                     Sheet.Scrobbling -> ScrobblingSheet(app)
                     Sheet.LastFm -> LastFmSheet(app)
+                    is Sheet.LyricsSearch -> LyricsSearchSheet(app, s.track)
+                    Sheet.ReportProblem -> ReportProblemSheet(app)
                     is Sheet.SongInfo -> SongInfoSheet(s.track)
                     null -> {}
                 }
@@ -238,6 +241,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
             Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
             Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
             Action(Icons.Rounded.Insights, "Stats for nerds") { app.sheet = Sheet.AudioPipeline }
+            Action(Icons.Rounded.Search, "Find other lyrics") { app.sheet = Sheet.LyricsSearch(t) }
         }
         Action(Icons.Rounded.SkipNext, "Play next") { PlayerConnection.playNext(t); app.toast("Playing next"); close() }
         Action(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { PlayerConnection.addToQueue(listOf(t)); app.toast("Added to queue"); close() }
@@ -509,7 +513,7 @@ private fun ColumnScope.LastFmSheet(app: AppState) {
         }
     }
     if (!fm.hasKeys || ownKey) {
-        Text("This build has no Last.fm API key. Create one at last.fm/api/account/create and paste it here.", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp))
+        Text("Last.fm needs your own API key: create one free at last.fm/api/account/create and paste the key and secret here.", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp))
         @Composable
         fun Field(hint: String, value: String, onChange: (String) -> Unit) = Box(
             Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().height(50.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 16.dp),
@@ -559,6 +563,97 @@ private fun ColumnScope.LastFmSheet(app: AppState) {
             },
         contentAlignment = Alignment.Center,
     ) { Text(when { busy -> "Working…"; token == null -> "Sign in with $site"; else -> "Done" }, style = BopType.BodyStrong, color = if (ready) Bop.OnInk else Bop.Text2) }
+}
+
+/**
+ * Wrong or missing lyrics (F44): search LRCLIB with any words, see which results are synced and how
+ * long each recording is, and pick one. The pick is kept for the song; "Automatic" undoes it.
+ */
+@Composable
+private fun ColumnScope.LyricsSearchSheet(app: AppState, t: Track) {
+    val api = com.dopdop.bopdop.data.lyrics.LyricsApi
+    var q by remember(t.id) { mutableStateOf("${com.dopdop.bopdop.data.lyrics.LyricsApi.cleanTitle(t.title)} ${t.artist.split(",").first().trim()}".trim()) }
+    var hits by remember(t.id) { mutableStateOf<List<com.dopdop.bopdop.data.lyrics.LyricsApi.Hit>?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    fun run() {
+        busy = true; error = null
+        scope.launch {
+            runCatching { api.search(q) }.onSuccess { hits = it }.onFailure { error = "Couldn't reach the lyrics search. Check your connection." }
+            busy = false
+        }
+    }
+    LaunchedEffect(t.id) { run() }
+    Text("Find lyrics", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    Row(Modifier.padding(horizontal = 18.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f).height(48.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) {
+            BasicTextField(q, { q = it }, singleLine = true, textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { run() }), modifier = Modifier.fillMaxWidth())
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(if (busy) "…" else "Search", style = BopType.BodyStrong, color = Bop.OnInk,
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick { if (!busy) run() }.padding(horizontal = 16.dp, vertical = 12.dp))
+    }
+    error?.let { Text(it, style = BopType.Caption, color = Bop.Danger, modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp)) }
+    if (api.hasPick(t)) Text("Automatic (undo your pick)", style = BopType.BodyStrong, color = Bop.Accent,
+        modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp).bounceClick { api.choose(t, null); app.toast("Lyrics back to automatic"); app.sheet = null })
+    val list = hits
+    Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) {
+        if (list != null && list.isEmpty() && !busy) Text("Nothing found. Try fewer words, or the song's original title.", style = BopType.Body, color = Bop.Text2,
+            modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp))
+        list.orEmpty().take(30).forEach { h ->
+            Row(
+                Modifier.fillMaxWidth().bounceClick(0.98f) { api.choose(t, h.lyrics); app.toast("Using these lyrics for this song"); app.sheet = null }
+                    .padding(horizontal = 22.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(h.title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(h.artist, h.album).filter { it.isNotBlank() }.joinToString(" · "), style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(h.lyrics.synced.firstOrNull { it.text.isNotBlank() }?.text ?: h.lyrics.plain?.lineSequence()?.firstOrNull { it.isNotBlank() }.orEmpty(),
+                        style = BopType.Caption, color = Bop.Text3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(if (h.lyrics.isSynced) "Synced" else "Text only", style = BopType.Caption, color = if (h.lyrics.isSynced) Bop.Text else Bop.Text3)
+                    // How far its length is from the song's: a close one usually lines up.
+                    if (h.durationSec > 0) Text(com.dopdop.bopdop.data.model.formatDuration(h.durationSec) +
+                        (if (t.durationSec > 0 && kotlin.math.abs(h.durationSec - t.durationSec) <= 3) " ✓" else ""), style = BopType.Caption, color = Bop.Text2)
+                }
+            }
+        }
+    }
+}
+
+/** Report a problem (F56): an optional note, then the share sheet with the report file. */
+@Composable
+private fun ColumnScope.ReportProblemSheet(app: AppState) {
+    val ctx = LocalContext.current
+    var note by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Text("Report a problem", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    Text("Say what went wrong and when. BopDop adds its own recent log, the last crash and your phone model; no passwords or sign-ins. You choose where to send it.",
+        style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+    Box(Modifier.padding(horizontal = 18.dp, vertical = 10.dp).fillMaxWidth().heightIn(min = 96.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(14.dp)) {
+        if (note.isEmpty()) Text("e.g. the cover didn't load after the song changed", style = BopType.Body, color = Bop.Text3)
+        BasicTextField(note, { note = it }, textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink), modifier = Modifier.fillMaxWidth())
+    }
+    Box(
+        Modifier.padding(horizontal = 18.dp, vertical = 6.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50)).background(Bop.Ink)
+            .bounceClick {
+                if (busy) return@bounceClick
+                busy = true
+                scope.launch {
+                    runCatching { com.dopdop.bopdop.data.ProblemReport.build(ctx, note) }
+                        .onSuccess { f -> app.sheet = null; com.dopdop.bopdop.data.ProblemReport.share(ctx, f) }
+                        .onFailure { app.toast("Couldn't make the report") }
+                    busy = false
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) { Text(if (busy) "Collecting…" else "Share report", style = BopType.BodyStrong, color = Bop.OnInk) }
 }
 
 @Composable

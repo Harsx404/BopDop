@@ -23,9 +23,8 @@ import java.security.MessageDigest
  *
  * Signing in is Last.fm's web approval: BopDop asks for a token, the user allows BopDop on
  * last.fm in the browser, and the token is traded for a session key. No password passes through
- * the app. The API key and secret come from the build (local.properties `lastfm.key` /
- * `lastfm.secret`, or the LASTFM_API_KEY / LASTFM_SECRET environment in CI), or from the user's
- * own pasted in Settings when the build has none.
+ * the app. Last.fm needs an API key and secret: you create your own at
+ * last.fm/api/account/create and paste them in Settings (Libre.fm needs none).
  *
  * A song counts after half its length or four minutes, and only if it's longer than 30 s
  * (Last.fm's rule). Scrobbles that can't be sent wait in a file, up to 50 per request.
@@ -50,8 +49,9 @@ object LastFm {
 
     private val s get() = LibraryStore.settings
     val endpoint get() = if (s.lastFmLibre) LIBREFM else LASTFM
-    val apiKey get() = s.lastFmKey.ifBlank { BuildConfig.LASTFM_KEY }
-    private val secret get() = s.lastFmSecret.ifBlank { BuildConfig.LASTFM_SECRET }
+    // Your own key from last.fm/api/account/create; BopDop ships none.
+    val apiKey get() = s.lastFmKey
+    private val secret get() = s.lastFmSecret
 
     /** Libre.fm takes any key; Last.fm needs a real one from last.fm/api/account/create. */
     val hasKeys get() = s.lastFmLibre || (apiKey.isNotBlank() && secret.isNotBlank())

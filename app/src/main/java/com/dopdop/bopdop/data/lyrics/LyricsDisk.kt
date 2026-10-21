@@ -21,6 +21,15 @@ object LyricsDisk {
 
     fun delete(ctx: Context, id: String) { file(ctx, id).delete() }
 
+    // Lyrics picked by hand from the lyrics search (F44), kept apart from downloads.
+    private fun pick(ctx: Context, id: String) =
+        File(File(ctx.filesDir, "lyrics_picked").apply { mkdirs() }, id.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".json")
+
+    fun hasPick(ctx: Context, id: String) = pick(ctx, id).exists()
+    fun readPick(ctx: Context, id: String): Lyrics? = runCatching { decode(JSONObject(pick(ctx, id).readText())) }.getOrNull()
+    fun writePick(ctx: Context, id: String, l: Lyrics) { runCatching { pick(ctx, id).writeText(encode(l).toString()) } }
+    fun deletePick(ctx: Context, id: String) { pick(ctx, id).delete() }
+
     internal fun encode(l: Lyrics): JSONObject = JSONObject().put("plain", l.plain).put("synced", JSONArray().apply {
         l.synced.forEach { line ->
             put(JSONObject().put("t", line.timeMs).put("x", line.text).apply {

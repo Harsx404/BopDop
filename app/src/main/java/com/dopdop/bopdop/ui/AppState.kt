@@ -33,6 +33,8 @@ sealed interface Sheet {
     data class SortPlaylist(val id: String) : Sheet
     data object Scrobbling : Sheet
     data object LastFm : Sheet
+    data class LyricsSearch(val track: Track) : Sheet
+    data object ReportProblem : Sheet
     data class SongInfo(val track: Track) : Sheet
 }
 

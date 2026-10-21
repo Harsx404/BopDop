@@ -6,4 +6,5 @@ enum class SeekStyle(val label: String) {
 }
 
 /** BopDop's mascots, walking (or hopping) along the seek bar with the song; or nobody. */
-enum class Mascot(val label: String) { NONE("None"), KITTY("Kitty"), BUNNY("Bunny"), BIKE("Bike"), WAGON("Wagon"), DINO("Dino"), VILLAGER("Villager") }
+enum class Mascot(val label: String) { NONE("None"), KITTY("Kitty"), BUNNY("Bunny"), BIKE("Bike"), WAGON("Wagon"), DINO("Dino"), CRAFTER("Crafter"),
+    HANA("Hana"), MEI("Mei"), YUI("Yui"), FIGHTER("Fighter"), SAMURAI("Samurai"), SHINOBI("Shinobi") }

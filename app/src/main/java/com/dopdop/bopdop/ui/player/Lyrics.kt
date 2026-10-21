@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -146,7 +147,9 @@ object LyricPrefs {
 
 @Composable
 fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
-    val state by produceState<LyricState>(LyricState.Loading, t.id) {
+    val version by com.dopdop.bopdop.data.lyrics.LyricsApi.version.collectAsState()
+    val app = com.dopdop.bopdop.ui.LocalApp.current
+    val state by produceState<LyricState>(LyricState.Loading, t.id, version) {
         value = MusicRepository.lyrics(t)?.let { LyricState.Ready(it) } ?: LyricState.None
     }
     var selecting by remember(t.id) { mutableStateOf(false) }
@@ -165,6 +168,11 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 BreathingDots(active = true, modifier = Modifier.padding(bottom = 18.dp))
                 Text("No lyrics for this one", style = LyricStyle.copy(fontSize = 26.sp), color = Color.White.copy(alpha = 0.9f))
                 Text("Just feel it.", style = BopType.Headline, color = Color.White.copy(alpha = 0.55f))
+                Text(
+                    "Search lyrics", style = BopType.BodyStrong, color = Color(0xFF15161B),
+                    modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(50)).background(Color.White)
+                        .bounceClick { app.sheet = com.dopdop.bopdop.ui.Sheet.LyricsSearch(t) }.padding(horizontal = 18.dp, vertical = 10.dp),
+                )
             }
             is LyricState.Ready -> {
                 val texts = remember(s.l) { if (s.l.isSynced) s.l.synced.map { it.text } else s.l.plain.orEmpty().trim().lines() }
@@ -448,8 +456,9 @@ private fun SyncedLyrics(
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text(if (lines.any { it.words.isNotEmpty() }) "Word-synced lyrics" else "Synced lyrics", style = BopType.Caption, color = Color.White.copy(alpha = 0.35f),
-                modifier = Modifier.graphicsLayer { translationY = target + user.value })
+            val app = com.dopdop.bopdop.ui.LocalApp.current
+            Text((if (lines.any { it.words.isNotEmpty() }) "Word-synced lyrics" else "Synced lyrics") + " · Wrong lyrics? Search", style = BopType.Caption, color = Color.White.copy(alpha = 0.45f),
+                modifier = Modifier.graphicsLayer { translationY = target + user.value }.bounceClick { app.sheet = com.dopdop.bopdop.ui.Sheet.LyricsSearch(t) }.padding(vertical = 6.dp))
             Spacer(Modifier.height(420.dp))
         }
     }

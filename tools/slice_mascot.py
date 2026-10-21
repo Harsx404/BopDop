@@ -5,7 +5,8 @@
     python tools/slice_mascot.py bike art/bike.png --rows 4 5
     python tools/slice_mascot.py wagon art/wagon.png --rows 1 2
     python tools/slice_mascot.py dino art/dino.png --rows 1 2 --counts 8 6
-    python tools/slice_mascot.py villager art/villager.png --rows 1 4 --sleep-frames 8
+    python tools/slice_mascot.py crafter art/steve.png --rows 1 3 --no-split --erase 0 830 430 885
+    python tools/slice_mascot.py girl1 <pack>/Girl_1/Walk.png <pack>/Girl_1/Idle.png --grid
 
 With --rows, one sheet holds several rows of animations (frame counts may differ): the first
 number is the move row, the second the sleep row (1-based, top to bottom).
@@ -40,7 +41,7 @@ def clean(im):
     return im
 
 
-def bands(im):
+def bands(im, split=True):
     """The sheet's rows as (top, bottom). Thin bands (text labels like "Walking (8 frames)") are
     dropped; a band several rows tall (rows that touch) is split at its emptiest lines."""
     a = im.split()[3].load()
@@ -57,7 +58,7 @@ def bands(im):
     ink = lambda y: sum(1 for x in range(w) if a[x, y])
     rows = []
     for t, b in out:
-        k = max(1, round((b - t) / typical))
+        k = max(1, round((b - t) / typical)) if split else 1
         cuts = [t]
         for j in range(1, k):
             guess = t + (b - t) * j // k
@@ -181,10 +182,31 @@ def frames(im, count=FRAMES, want=None):
     return out
 
 
-def main(name, move_path, sleep_path, keep_height=False, rows=None, sleep_take=None, counts=None):
+def grid(name, move_path, idle_path, scale=2):
+    """Pixel art on a fixed grid (frames as wide as the sheet is tall, e.g. craftpix packs): every
+    frame cut from its cell, all cropped to one box, and scaled up by whole pixels so it stays crisp."""
+    def cells(path):
+        im = Image.open(path).convert("RGBA")
+        n = im.width // im.height
+        return [im.crop((i * im.height, 0, (i + 1) * im.height, im.height)) for i in range(n)]
+    sheets = {"walk": cells(move_path), "sleep": cells(idle_path)}
+    boxes = [f.getbbox() for fs in sheets.values() for f in fs if f.getbbox()]
+    box = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+    OUT.mkdir(parents=True, exist_ok=True)
+    for kind, fs in sheets.items():
+        for i, f in enumerate(fs):
+            c = f.crop(box)
+            c.resize((c.width * scale, c.height * scale), Image.NEAREST).save(OUT / f"{name}_{kind}_{i}.png", optimize=True)
+    print(f"wrote {sum(len(v) for v in sheets.values())} {name} frames of {(box[2]-box[0])*scale}x{(box[3]-box[1])*scale} (pixel art x{scale})")
+
+
+def main(name, move_path, sleep_path, keep_height=False, rows=None, sleep_take=None, counts=None, split=True, erase=None):
     if rows:
         sheet = clean(Image.open(move_path))
-        bs = bands(sheet)
+        if erase:
+            # A caption printed inside a row ("SLEEPING (4 FRAMES)") is wiped before slicing.
+            sheet.paste((0, 0, 0, 0), tuple(erase))
+        bs = bands(sheet, split)
         pick = lambda n, want: frames(sheet.crop((0, bs[n - 1][0], sheet.width, bs[n - 1][1])), count=None, want=want)
         sheets = {"walk": pick(rows[0], counts[0] if counts else None), "sleep": pick(rows[1], counts[1] if counts else None)[:sleep_take]}
     else:
@@ -213,11 +235,14 @@ def main(name, move_path, sleep_path, keep_height=False, rows=None, sleep_take=N
 
 if __name__ == "__main__":
     argv = sys.argv[1:]
-    if "--rows" in argv:
+    if "--grid" in argv:
+        grid(argv[0], argv[1], argv[2])
+    elif "--rows" in argv:
         i = argv.index("--rows")
         take = int(argv[argv.index("--sleep-frames") + 1]) if "--sleep-frames" in argv else None
         counts = (int(argv[argv.index("--counts") + 1]), int(argv[argv.index("--counts") + 2])) if "--counts" in argv else None
-        main(argv[0], argv[1], None, rows=(int(argv[i + 1]), int(argv[i + 2])), sleep_take=take, counts=counts)
+        main(argv[0], argv[1], None, rows=(int(argv[i + 1]), int(argv[i + 2])), sleep_take=take, counts=counts, split="--no-split" not in argv,
+             erase=[int(v) for v in argv[argv.index("--erase") + 1:argv.index("--erase") + 5]] if "--erase" in argv else None)
     else:
         args = [a for a in argv if not a.startswith("--")]
         main(args[0], args[1], args[2], keep_height="--keep-height" in argv)
