@@ -15,7 +15,10 @@ internal fun musicVideoMatchScore(song: Track, video: Track, requireArtist: Bool
     val credits = candidate + words(video.artist)
     val artist = words(song.artist.split(',', '&').first())
     if (title.isEmpty() || !candidate.containsAll(title) || (requireArtist && (artist.isEmpty() || !credits.containsAll(artist)))) return 0
-    val versions = setOf("cover", "remix", "live", "karaoke", "slowed", "sped", "instrumental")
+    // Another version (lofi, slowed, unplugged, live, remix…) is never the song's video.
+    if (SongVersion.parse(video.title).tags != SongVersion.parse(song.title).tags) return 0
+    // Video titles also write versions as bare words ("Chogada Cover", "Chogada lofi song").
+    val versions = setOf("cover", "remix", "live", "karaoke", "slowed", "sped", "instrumental", "lofi", "reverb", "unplugged", "acoustic", "nightcore", "8d", "mashup", "vocals")
     if ((candidate intersect versions) != (title intersect versions)) return 0
     if (song.durationSec > 0 && video.durationSec > 0 &&
         abs(song.durationSec - video.durationSec) > maxOf(180, song.durationSec / 2)) return 0

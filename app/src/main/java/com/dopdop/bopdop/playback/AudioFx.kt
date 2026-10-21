@@ -68,7 +68,9 @@ object AudioFx {
         apply(state.value)
     }
 
-    fun apply(s: EqState) {
+    fun apply(requested: EqState) {
+        // Bit-perfect output to a USB DAC: the equalizer and its friends stand aside.
+        val s = if (BitPerfect.bypassEffects) requested.copy(enabled = false) else requested
         eq?.let { e ->
             runCatching {
                 val range = e.bandLevelRange

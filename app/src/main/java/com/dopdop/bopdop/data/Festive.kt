@@ -12,8 +12,8 @@ enum class Festival(val label: String, val greeting: String) {
     HALLOWEEN("Halloween", "Happy Halloween"),
 }
 
-/** How much of a festival shows: everything (Home and pet), only the pet, or nothing. */
-enum class FestiveLevel(val label: String) { FULL("Full"), LIMITED("Pet only"), OFF("Off") }
+/** Whether festival themes show on Home. */
+enum class FestiveLevel(val label: String) { FULL("On"), OFF("Off") }
 
 /** Which festival to celebrate: the one for your region, a particular one, or all of them. */
 enum class FestivePick(val label: String) { AUTO("My region"), NAVARATRI("Navaratri"), HALLOWEEN("Halloween"), ALL("All") }
@@ -64,6 +64,18 @@ object Festivals {
         }
     }
 
+    /** True once [f]'s last day this year has gone by (or it has no date this year). */
+    fun passed(f: Festival, today: LocalDate): Boolean = window(f, today.year)?.let { today > it.endInclusive } ?: true
+
+    /** The choices offered: My region and All, plus each festival that hasn't ended this year. */
+    fun picks(today: LocalDate): List<FestivePick> = FestivePick.entries.filter { p ->
+        when (p) {
+            FestivePick.NAVARATRI -> !passed(Festival.NAVARATRI, today)
+            FestivePick.HALLOWEEN -> !passed(Festival.HALLOWEEN, today)
+            else -> true
+        }
+    }
+
     /** Festivals whose theme window includes [today]. */
     fun open(today: LocalDate): List<Festival> = Festival.entries.filter { f -> window(f, today.year)?.contains(today) == true }
 
@@ -82,8 +94,9 @@ object Festivals {
         if (open.isEmpty()) return null
         return when (pick) {
             FestivePick.AUTO -> forRegion(country).takeIf { it in open }
-            FestivePick.NAVARATRI -> Festival.NAVARATRI
-            FestivePick.HALLOWEEN -> Festival.HALLOWEEN
+            // A picked festival whose dates have gone by this year is over: it never stands in for another.
+            FestivePick.NAVARATRI -> Festival.NAVARATRI.takeUnless { passed(it, today) }
+            FestivePick.HALLOWEEN -> Festival.HALLOWEEN.takeUnless { passed(it, today) }
             FestivePick.ALL -> open.first()
         }
     }

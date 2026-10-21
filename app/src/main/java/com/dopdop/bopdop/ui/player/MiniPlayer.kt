@@ -150,26 +150,24 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
     }
 }
 
-/** The seek bar pet, smaller, trotting along the mini player's progress line. */
+/** The mascot, smaller, walking along the mini player's progress line. */
 @Composable
 private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
     val lib by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
-    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
-    val pet = lib.settings.seekPet.inSeason(costume)
-    if (pet == com.dopdop.bopdop.data.SeekPet.NONE) return
+    if (lib.settings.mascot == com.dopdop.bopdop.data.Mascot.NONE) return
+    val frames = rememberMascotFrames()
     val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
-    // Progress arrives in steps; glide between them so the pet walks instead of teleporting.
+    // Progress arrives in steps; glide between them so the kitty walks instead of teleporting.
     val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")
-    val time by androidx.compose.runtime.produceState(0f, reduce) {
-        if (reduce) return@produceState
+    // Paused, the mini kitty is asleep on one frame: no clock at all.
+    val time by androidx.compose.runtime.produceState(0f, reduce, playing) {
+        if (reduce || !playing) return@produceState
         val start = androidx.compose.animation.core.withInfiniteAnimationFrameMillis { it }
         while (true) androidx.compose.animation.core.withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
     }
     androidx.compose.foundation.Canvas(modifier.fillMaxWidth().height(22.dp)) {
         val px = size.width * x
         val feet = size.height - 1.dp.toPx()
-        scale(0.72f, androidx.compose.ui.geometry.Offset(px, feet)) {
-            drawPet(pet, px, feet, time, if (playing) PetMode.RUN else PetMode.SIT, 1f, costume)
-        }
+        drawMascot(frames, px, feet, time, if (playing) MascotMode.WALK else MascotMode.SLEEP, 1f, asleepFor = if (playing) 0f else 99f, heightDp = 21f)
     }
 }

@@ -62,7 +62,8 @@ class Leveler : BaseAudioProcessor() {
         }
         val rms = sqrt(meanSquare)
         measuredDb = if (rms > 0) (20 * log10(rms)).toFloat() else Float.NEGATIVE_INFINITY
-        val want = if (!enabled || heardMs == 0L) 1.0 else (TARGET / rms).coerceIn(MIN_GAIN, MAX_GAIN)
+        // Bit-perfect output to a USB DAC: samples pass at unity.
+        val want = if (!enabled || heardMs == 0L || BitPerfect.bypassEffects) 1.0 else (TARGET / rms).coerceIn(MIN_GAIN, MAX_GAIN)
 
         // ~250 ms glide per sample frame so gain changes never click.
         val k = 1 - exp(-1.0 / (0.25 * sampleRate))

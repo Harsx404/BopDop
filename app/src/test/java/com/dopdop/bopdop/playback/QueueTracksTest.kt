@@ -53,4 +53,18 @@ class QueueTracksTest {
         assertFalse(sameQueueSong(song, track("yt:c", "Naina", "Arijit Singh", 200)))
         assertFalse(sameQueueSong(song, track("yt:d", "Naina - Lofi Mix", "Diljit Dosanjh", 200)))
     }
+
+    @Test fun radioTakesOneVersionOfEachSong() {
+        val playing = track("yt:a", "Alfaaz", "Hamza Malik, Zain Zohaib", 185)
+        val related = listOf(
+            track("sv:b", "Alfaaz - Vocals", "Hamza Malik", 185),
+            track("yt:c", "Alfaaz (Slowed + Reverb)", "Hamza Malik", 230),
+            track("yt:d", "Faasle", "Aditya Rikhari", 200),
+            track("yt:e", "Faasle (Lofi)", "Aditya Rikhari", 210),
+            track("yt:f", "Alfaaz", "Abhishek Menon", 190),
+        )
+        assertEquals(listOf("yt:d", "yt:f"), uniqueQueueTracks(related, listOf(playing), anyVersion = true).map { it.id })
+        // Picking songs yourself keeps every version you chose.
+        assertEquals(5, uniqueQueueTracks(related, listOf(playing)).size)
+    }
 }

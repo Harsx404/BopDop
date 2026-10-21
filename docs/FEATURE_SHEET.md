@@ -28,7 +28,7 @@ in batch order. Update the **Status** column as items land.
 | F04 | Player | Lyrics timing offset, per song | BC | P1 | S | 1 | done | Timer button in the lyrics toolbar; also moves the live line and lock-screen lyrics |
 | F05 | QoL | Separate audio quality for Wi-Fi and mobile data | BC | P1 | M | 1 | done | Settings › Sound; High keeps the JioSaavn 320 kbps match; downloads always High |
 | F06 | Features | Scrobbling to ListenBrainz (user token) | BC, LW | P1 | M | 2 | done | Settings › Scrobbling; token checked with ListenBrainz; playing-now + a listen at half the song or 4 min; offline listens wait in a file |
-| F07 | Features | Scrobbling to Last.fm | BC, LW | P2 | M | later | blocked | needs a Last.fm API key + secret registered for BopDop |
+| F07 | Features | Scrobbling to Last.fm | BC, LW | P2 | M | later | done | Settings › Scrobbling › Last.fm: web approval (no password in the app), Libre.fm too; offline scrobbles queue. Needs an API key: local.properties lastfm.key/lastfm.secret, CI LASTFM_API_KEY/LASTFM_SECRET, or pasted in the sheet |
 | F08 | QoL | Remember shuffle and repeat across restarts | BC | P2 | S | 2 | done | Saved in settings; Play keeps the mode, Shuffle buttons turn it on |
 | F09 | QoL | Search inside Settings | BC, LW | P2 | M | 2 | done | Matches titles, descriptions, group names and a few extra words |
 | F10 | QoL | Swipe a song to add it to the queue (search, recents, lists) | BC | P2 | M | 2 | done | Right = play next, left = add to queue, with haptic at the trigger; off in sideways shelves |
@@ -38,21 +38,21 @@ in batch order. Update the **Status** column as items land.
 | F14 | QoL | Live search results while typing | BC | P2 | M | 3 | done | Top artist, four songs and two albums under the suggestions once typing pauses |
 | F15 | QoL | Queue history (what played before) | BC | P3 | S | 3 | done | History chip on the queue page: earlier songs in this queue, latest first, tap to go back |
 | F16 | Features | Dislike: skips the song and keeps it out of radio | BC | P2 | S | 3 | done | “Not for me” in the song menu; matches other copies of the same song; list in Settings › Sound |
-| F17 | Player | Song info panel: release date, album, credits, your plays | BC | P2 | M | 4 | todo | |
-| F18 | Player | Output device pill: phone speaker, Bluetooth name, USB | BC | P3 | S | 4 | todo | |
-| F19 | Player | Translation shown under each lyric line; right-to-left scripts | BC, LW | P2 | M | 4 | todo | |
-| F20 | QoL | Backup and restore library and settings to a file | BC | P1 | M | 4 | todo | |
-| F21 | UI | Grid or list toggle in Library | BC | P3 | S | 4 | todo | |
-| F22 | QoL | Cache controls: unlimited option, keep cached songs across updates, remove one | BC | P3 | S | 5 | todo | |
-| F23 | UI | Motion background behind lyrics from the cover | LW | P3 | M | 5 | todo | |
-| F24 | UI | Selectable app icon (light / dark glass) | BC | P3 | S | 5 | todo | |
-| F25 | QoL | One-tap update: download and install in the app | BC | P2 | M | 5 | todo | needs install-packages permission |
-| F26 | QoL | Per-ABI APKs alongside the universal one | BC, LW | P3 | S | 5 | todo | |
-| F27 | Features | Spotify account link: your playlists and Liked Songs | BC | P2 | L | later | todo | needs Spotify login |
-| F28 | UI | Animated cover art (Spotify Canvas, Apple motion art) | BC, LW | P2 | L | later | todo | |
-| F29 | Features | Lossless sources (FLAC/ALAC add-ons) | BC, LW | P3 | XL | later | todo | |
-| F30 | Features | Dolby Atmos when a surround version exists | BC, LW | P3 | L | later | todo | |
-| F31 | Features | Bit-perfect USB DAC output | BC, LW | P3 | XL | later | todo | |
+| F17 | Player | Song info panel: release date, album, credits, your plays | BC | P2 | M | 4 | done | Song menu › Song info. Release date, album, label, language, credits from JioSaavn or YouTube's auto-generated description (topped up from the JioSaavn match); your plays, first and latest |
+| F18 | Player | Output device pill: phone speaker, Bluetooth name, USB | BC | P3 | S | 4 | done | Fifth icon in the player's bottom row: phone / headphones / wired / USB, lit when not the speaker; live as devices come and go; tap opens the system output picker (Android 14+), Bluetooth settings before that |
+| F19 | Player | Translation shown under each lyric line; right-to-left scripts | BC, LW | P2 | M | 4 | done | Translate is its own toggle in the lyrics toolbar, under Original or Romanized; Urdu/Arabic/Hebrew lines right-aligned (lyrics page, art-page line, dots). Fixed translations never showing when lyrics had blank lines |
+| F20 | QoL | Backup and restore library and settings to a file | BC | P1 | M | 4 | done | Settings › Backup: library, settings, plays and lyric timings to a JSON file; restore shows what's in it and asks first. YouTube Music sign-in and ListenBrainz token stay on the phone |
+| F21 | UI | Grid or list toggle in Library | BC | P3 | S | 4 | done | Grid / list icon by “Your playlists”; covers playlists and saved albums; remembered |
+| F22 | QoL | Cache controls: unlimited option, keep cached songs across updates, remove one | BC | P3 | S | 5 | done | Unlimited size, “Keep cached songs” (moves the cache into app storage), “Remove from cache” in the song menu |
+| F23 | UI | Motion background behind lyrics from the cover | LW | P3 | M | 5 | done | Cover copies swirl, blurred, behind the lyrics while playing; Settings › Lyrics › Moving background |
+| F24 | UI | Selectable app icon (light / dark glass) | BC | P3 | S | 5 | done | Classic, Dark glass, Light glass via launcher aliases; Settings › Look & feel › App icon |
+| F25 | QoL | One-tap update: download and install in the app | BC | P2 | M | 5 | done | Update downloads the APK for this phone and opens Android's installer; asks for “Install unknown apps” once |
+| F26 | QoL | Per-ABI APKs alongside the universal one | BC, LW | P3 | S | 5 | done | arm64-v8a, armeabi-v7a, x86_64 + universal; release workflow uploads all; updater picks the phone's own |
+| F27 | Features | Spotify account link: your playlists and Liked Songs | BC | P2 | L | later | done | Spotify's own login page in-app (sp_dc), tokens minted by the web player in a hidden WebView, Pathfinder hashes read live; playlists + Liked Songs matched to YouTube Music; Save to library |
+| F28 | UI | Animated cover art (Spotify Canvas, Apple motion art) | BC, LW | P2 | L | later | done | Spotify Canvas over the cover when connected (Wi-Fi by default); Settings › Look & feel |
+| F29 | Features | Lossless sources (FLAC/ALAC add-ons) | BC, LW | P3 | XL | later | done | Add-on protocol (/manifest.json, /search, /stream): user adds URLs, none bundled; same-recording match; FLAC 24/96 shown in the badge |
+| F30 | Features | Dolby Atmos when a surround version exists | BC, LW | P3 | L | later | done | Asks add-ons for Atmos when the phone has an E-AC-3 JOC/AC-4 decoder; Atmos files and streams labelled “Dolby Atmos” |
+| F31 | Features | Bit-perfect USB DAC output | BC, LW | P3 | XL | later | done | Android 14+ bit-perfect mixer for USB DACs at the song's rate/depth; EQ and normalization step aside; shown in Stats for nerds |
 | F32 | Features | Beat-matched Automix (tempo, beat grid, phrase align) | BC | P3 | XL | later | todo | |
 | F33 | Features | Discord Rich Presence | BC, LW | P3 | M | later | todo | |
 | F34 | Features | Multiple accounts / profiles with PIN; guest mode | BC, LW | P3 | L | later | todo | |

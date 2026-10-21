@@ -1,5 +1,6 @@
 package com.dopdop.bopdop
 
+import kotlinx.coroutines.launch
 import android.app.Application
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -21,6 +22,18 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.data.lyrics.LyricsApi.init(this)
         com.dopdop.bopdop.data.scrobble.ListenBrainz.init(this)
         com.dopdop.bopdop.data.scrobble.ListenBrainz.flush()
+        com.dopdop.bopdop.data.scrobble.LastFm.init(this)
+        com.dopdop.bopdop.data.spotify.SpotifyAccount.init(this)
+        com.dopdop.bopdop.data.spotify.SpotifyToken.init(this)
+        com.dopdop.bopdop.data.spotify.SpotifyMatch.init(this)
+        // Spotify playlists sync quietly a little after launch (at most every 12 hours).
+        kotlinx.coroutines.MainScope().launch {
+            kotlinx.coroutines.delay(45_000)
+            com.dopdop.bopdop.data.spotify.SpotifyImport.auto(this@BopDopApp)
+        }
+        com.dopdop.bopdop.playback.BitPerfect.init(this)
+        com.dopdop.bopdop.data.addon.DeviceAudio.warm()
+        com.dopdop.bopdop.data.scrobble.LastFm.flush()
         com.dopdop.bopdop.playback.Downloads.init(this)
         com.dopdop.bopdop.data.ytm.PoTokens.init(this)
         com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)
@@ -32,6 +45,7 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
 
     override fun newImageLoader(context: PlatformContext): ImageLoader = ImageLoader.Builder(context)
         .crossfade(260)
+        .components { add(coil3.svg.SvgDecoder.Factory()) }
         .memoryCache { MemoryCache.Builder().maxSizePercent(context, 0.25).build() }
         .diskCache { DiskCache.Builder().directory(cacheDir.resolve("artwork")).maxSizeBytes(256L * 1024 * 1024).build() }
         .build()

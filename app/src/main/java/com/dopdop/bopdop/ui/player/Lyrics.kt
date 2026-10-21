@@ -3,6 +3,10 @@ package com.dopdop.bopdop.ui.player
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.rounded.Check
@@ -99,8 +103,24 @@ private sealed interface LyricState {
 
 private val LyricStyle = BopType.Lyric.copy(fontSize = 27.sp, lineHeight = 34.sp, fontWeight = FontWeight(760))
 
-/** Tight tracking suits Latin display type but makes Devanagari/Gurmukhi measure wide and wrap early. */
-internal fun androidx.compose.ui.text.TextStyle.forScript(text: String) = if (Romanize.hasIndic(text)) copy(letterSpacing = 0.sp) else this
+/** Tight tracking suits Latin display type but makes Devanagari/Gurmukhi measure wide and wrap early, and breaks joined Arabic letters. */
+internal fun androidx.compose.ui.text.TextStyle.forScript(text: String) = if (Romanize.hasIndic(text) || isRtl(text)) copy(letterSpacing = 0.sp) else this
+
+/** Urdu, Arabic, Hebrew, Persian…: the first letter with a direction decides. */
+internal fun isRtl(text: String): Boolean {
+    for (c in text) when (Character.getDirectionality(c)) {
+        Character.DIRECTIONALITY_RIGHT_TO_LEFT, Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC -> return true
+        Character.DIRECTIONALITY_LEFT_TO_RIGHT -> return false
+    }
+    return false
+}
+
+/**
+ * Right-to-left lines read from the right edge; their translation sits under them on the same side.
+ * Each text keeps its own direction, so an English translation's "?" stays at its end.
+ */
+internal fun androidx.compose.ui.text.TextStyle.aligned(rtl: Boolean) =
+    copy(textAlign = if (rtl) TextAlign.Right else TextAlign.Left, textDirection = TextDirection.Content)
 
 /** Soft fade at the top and bottom so lines dissolve instead of being cut. */
 private fun Modifier.edgeFade(): Modifier = this
@@ -113,10 +133,16 @@ private fun Modifier.edgeFade(): Modifier = this
         )
     }
 
-enum class LyricMode(val label: String) { ORIGINAL("Original"), ROMANIZED("Romanized"), TRANSLATED("Translate") }
+enum class LyricMode(val label: String) { ORIGINAL("Original"), ROMANIZED("Romanized") }
 
-/** How lyrics are shown; kept for the session so it carries across songs. */
-object LyricPrefs { var mode by mutableStateOf(LyricMode.ORIGINAL) }
+/**
+ * How lyrics are shown; kept for the session so it carries across songs. The translation is its
+ * own switch, so it can sit under the original or the romanized lines.
+ */
+object LyricPrefs {
+    var mode by mutableStateOf(LyricMode.ORIGINAL)
+    var translate by mutableStateOf(false)
+}
 
 @Composable
 fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
@@ -148,17 +174,18 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 val romanized = remember(texts, indic) {
                     if (!indic) texts else Romanize.isJapanese(texts).let { jp -> texts.map { Romanize.line(it, jp) } }
                 }
-                val translated by produceState<List<String?>>(emptyList(), t.id, mode) {
-                    if (mode == LyricMode.TRANSLATED) value = runCatching { LyricsTranslate.translate(t.id, texts) }.getOrDefault(emptyList())
+                val translating = LyricPrefs.translate
+                val translated by produceState<List<String?>>(emptyList(), t.id, translating) {
+                    if (translating) value = runCatching { LyricsTranslate.translate(t.id, texts) }.getOrDefault(emptyList())
                 }
                 val main: (Int) -> String = { i -> if (mode == LyricMode.ROMANIZED) romanized[i] else texts[i] }
                 val sub: (Int) -> String? = { i ->
-                    if (mode != LyricMode.TRANSLATED) null
-                    else translated.getOrNull(i)?.takeIf { !it.equals(texts[i].trim(), ignoreCase = true) }
+                    if (!translating) null
+                    else translated.getOrNull(i)?.takeIf { !it.equals(texts[i].trim(), ignoreCase = true) && !it.equals(romanized[i].trim(), ignoreCase = true) }
                 }
                 val toggle: (Int) -> Unit = { i -> if (i in selected) selected.remove(i) else if (selected.size < 5) selected.add(i) }
                 Column(Modifier.fillMaxSize()) {
-                    LyricControls(t.id, indic, mode, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
+                    LyricControls(t.id, indic, mode, translating, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
                     Box(Modifier.weight(1f)) {
                         if (s.l.isSynced) SyncedLyrics(s.l.synced, t, main, sub, selecting, selected, toggle)
                         else PlainLyrics(texts, main, sub, "unsynced · drifts with the song", selecting, selected, toggle)
@@ -174,30 +201,37 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
 }
 
 /**
- * One compact toolbar over the lyrics: a small segmented switch (Original / Romanized /
- * Translate) with the timing and share buttons on the right. Opening timing swaps the switch
- * for a stepper in the same row (− value +), so the lyrics never get pushed down.
+ * One compact toolbar over the lyrics: a small segmented switch (Original / Romanized, only when
+ * there is something to romanize) with translate, timing and share buttons on the right. Labels
+ * never wrap: at large font sizes the switch scrolls sideways instead. Opening timing swaps the
+ * switch for a stepper in the same row (− value +), so the lyrics never get pushed down.
  */
 @Composable
-private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, selecting: Boolean, timing: Boolean, synced: Boolean, onTiming: () -> Unit, onShare: () -> Unit) {
+private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, translating: Boolean, selecting: Boolean, timing: Boolean, synced: Boolean, onTiming: () -> Unit, onShare: () -> Unit) {
     // Lined up under the song header: starts at its cover; the last button sits right under its heart.
     Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) {
+        Box(Modifier.weight(1f).padding(end = 10.dp)) {
             androidx.compose.animation.AnimatedContent(timing, label = "lyricBar") { t ->
-                if (t) LyricTiming(trackId) else Row(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
+                if (t) LyricTiming(trackId) else if (indic) Row(
+                    Modifier.clip(RoundedCornerShape(50)).horizontalScroll(rememberScrollState())
+                        .background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    LyricMode.entries.filter { it != LyricMode.ROMANIZED || indic }.forEach { m ->
+                    LyricMode.entries.forEach { m ->
                         val on = m == mode
                         Text(
                             m.label, style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = if (on) Color(0xFF15161B) else Color.White.copy(alpha = 0.85f),
+                            maxLines = 1, softWrap = false,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
-                                .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 11.dp, vertical = 5.dp),
+                                .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 12.dp, vertical = 5.dp),
                         )
                     }
                 }
             }
+        }
+        if (!timing) {
+            BarIcon(Icons.Rounded.Translate, if (translating) "Hide translation" else "Translate lyrics", translating) { LyricPrefs.translate = !translating }
+            Spacer(Modifier.width(10.dp))
         }
         if (synced) BarIcon(if (timing) Icons.Rounded.Check else Icons.Rounded.Timer, if (timing) "Done" else "Lyrics timing", timing, onTiming)
         Spacer(Modifier.width(10.dp))
@@ -281,8 +315,9 @@ private fun PlainLyrics(
                     .then(if (selecting) Modifier.bounceClick(0.98f) { onToggle(i) } else Modifier)
                     .padding(vertical = 3.dp, horizontal = if (selecting) 8.dp else 0.dp),
             ) {
-                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp).forScript(main(i)), color = Color.White.copy(alpha = 0.9f))
-                sub(i)?.let { Text(it, style = BopType.Headline, color = Color.White.copy(alpha = 0.55f)) }
+                val rtl = isRtl(main(i))
+                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp).forScript(main(i)).aligned(rtl), color = Color.White.copy(alpha = 0.9f), modifier = Modifier.fillMaxWidth())
+                sub(i)?.let { Text(it, style = BopType.Headline.forScript(it).aligned(rtl), color = Color.White.copy(alpha = 0.55f), modifier = Modifier.fillMaxWidth()) }
             }
         }
         Spacer(Modifier.height(160.dp))
@@ -364,6 +399,9 @@ private fun SyncedLyrics(
                 )
                 val scale by animateFloatAsState(if (on) 1f else 0.955f, spring(dampingRatio = 0.75f, stiffness = 260f), label = "ls$i")
                 val blur = if (Build.VERSION.SDK_INT >= 31 && !dragging && user.value == 0f && !on) (abs(dist).coerceAtMost(4) * 0.7f).dp else 0.dp
+                // Instrumental dots follow the song's side: the next sung line's direction.
+                val textSrc = if (row.isGap) (rows.drop(i + 1).firstOrNull { !it.isGap } ?: rows.lastOrNull { !it.isGap })?.src else row.src
+                val rtl = textSrc != null && textSrc >= 0 && isRtl(main(textSrc))
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -371,7 +409,7 @@ private fun SyncedLyrics(
                         .graphicsLayer {
                             translationY = y + user.value
                             scaleX = scale; scaleY = scale
-                            transformOrigin = TransformOrigin(0f, 0.5f)
+                            transformOrigin = TransformOrigin(if (rtl) 1f else 0f, 0.5f)
                             this.alpha = alpha
                         }
                         .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier)
@@ -383,8 +421,10 @@ private fun SyncedLyrics(
                         }
                         .padding(vertical = if (row.isGap) 14.dp else 10.dp),
                 ) {
-                    if (row.isGap) BreathingDots(active = on, progress = if (on) ((pos - row.start).toFloat() / (row.end - row.start).coerceAtLeast(1)).coerceIn(0f, 1f) else 0f)
-                    else Column(Modifier.padding(horizontal = if (selecting) 8.dp else 0.dp)) {
+                    if (row.isGap) Box(Modifier.fillMaxWidth(), contentAlignment = if (rtl) Alignment.CenterEnd else Alignment.CenterStart) {
+                        BreathingDots(active = on, progress = if (on) ((pos - row.start).toFloat() / (row.end - row.start).coerceAtLeast(1)).coerceIn(0f, 1f) else 0f, rtl = rtl)
+                    }
+                    else Column(Modifier.fillMaxWidth().padding(horizontal = if (selecting) 8.dp else 0.dp)) {
                         val text = main(row.src)
                         val words = lines.getOrNull(row.src)?.words.orEmpty()
                         Text(
@@ -394,10 +434,16 @@ private fun SyncedLyrics(
                                 words.isNotEmpty() && words.joinToString("") { it.text } == text -> karaokeWords(words, pos, row.end)
                                 else -> karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f))
                             },
-                            style = LyricStyle.forScript(text).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
+                            style = LyricStyle.forScript(text).aligned(rtl).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
                             color = Color.White,
+                            modifier = Modifier.fillMaxWidth(),
                         )
-                        sub(row.src)?.let { Text(it, style = BopType.Headline.copy(fontWeight = FontWeight(560)), color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(top = 4.dp)) }
+                        sub(row.src)?.let {
+                            Text(
+                                it, style = BopType.Headline.copy(fontWeight = FontWeight(560)).forScript(it).aligned(rtl), color = Color.White.copy(alpha = 0.6f),
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -436,11 +482,12 @@ private fun karaoke(text: String, frac: Float): AnnotatedString = buildAnnotated
 
 /** Three dots that breathe; during an instrumental gap they fill one by one. */
 @Composable
-private fun BreathingDots(active: Boolean, modifier: Modifier = Modifier, progress: Float = 0f) {
+private fun BreathingDots(active: Boolean, modifier: Modifier = Modifier, progress: Float = 0f, rtl: Boolean = false) {
     val t = rememberInfiniteTransition(label = "dots")
     val breath by t.animateFloat(0.88f, 1.12f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Reverse), label = "b")
-    Row(modifier.graphicsLayer { val s = if (active) breath else 1f; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(0f, 0.5f) }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        repeat(3) { k ->
+    Row(modifier.graphicsLayer { val s = if (active) breath else 1f; scaleX = s; scaleY = s; transformOrigin = TransformOrigin(if (rtl) 1f else 0f, 0.5f) }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Right-to-left songs fill their dots from the right, like their words.
+        (if (rtl) (2 downTo 0) else (0..2)).forEach { k ->
             val fill = ((progress * 3f) - k).coerceIn(0f, 1f)
             Box(Modifier.size(13.dp).clip(CircleShape).background(Color.White.copy(alpha = if (active) 0.35f + 0.65f * fill else 0.3f)))
         }

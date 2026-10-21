@@ -265,7 +265,7 @@ object PlayerConnection {
             val more = runCatching { MusicRepository.related(t) }.getOrDefault(emptyList())
             withController { c ->
                 if (generation == playGeneration && c.currentMediaItem?.mediaId == t.id) {
-                    c.appendUnique(more.take(25))
+                    c.appendRadio(more, limit = 25)
                 }
             }
         }

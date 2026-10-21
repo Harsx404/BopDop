@@ -335,6 +335,12 @@ private fun AppNavHost(app: AppState) {
         composable(Routes.SHARE_QR, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ShareQrScreen(e.arguments!!.getString("key")!!) }
         composable(Routes.IMPORT, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ImportScreen(e.arguments!!.getString("key")!!) }
         composable(Routes.SCAN) { com.dopdop.bopdop.ui.share.ScanScreen() }
+        composable(Routes.SPOTIFY) { com.dopdop.bopdop.ui.screens.SpotifyLibraryScreen() }
+        composable(Routes.SPOTIFY_LOGIN) { com.dopdop.bopdop.ui.screens.SpotifyLoginScreen() }
+        composable(Routes.SPOTIFY_PLAYLIST, listOf(str("id"), str("name"), str("art"))) { e ->
+            val a = e.arguments!!
+            com.dopdop.bopdop.ui.screens.SpotifyPlaylistScreen(a.getString("id")!!, a.getString("name")!!, a.getString("art")!!)
+        }
     }
 }
 
@@ -343,7 +349,7 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
     // Full-screen tools (share code, scanner, sign-in) get the whole screen.
     val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
     val away by androidx.compose.animation.core.animateFloatAsState(
-        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.WRAPPED) 1f else 0f, tween(260), label = "chromeAway",
+        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.SPOTIFY_LOGIN || route == Routes.WRAPPED) 1f else 0f, tween(260), label = "chromeAway",
     )
     Column(
         Modifier

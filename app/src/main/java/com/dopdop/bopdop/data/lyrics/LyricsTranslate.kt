@@ -21,15 +21,17 @@ object LyricsTranslate {
     suspend fun translate(key: String, lines: List<String>, to: String = target): List<String?> =
         cache.getOrLoad("$key|$to") {
             val out = arrayOfNulls<String>(lines.size)
+            // Only lines with words go out: the endpoint drops empty lines, which would shift everything after them.
+            val idx = lines.indices.filter { lines[it].isNotBlank() && lines[it].trim() != "♪" }
             var start = 0
-            while (start < lines.size) {
+            while (start < idx.size) {
                 var end = start
                 var chars = 0
-                while (end < lines.size && (end == start || chars + lines[end].length + 1 <= MAX_CHARS)) { chars += lines[end].length + 1; end++ }
-                val chunk = lines.subList(start, end)
-                runCatching { request(chunk.joinToString("\n"), to) }.getOrNull()?.let { translated ->
-                    val back = translated.split("\n")
-                    if (back.size == chunk.size) back.forEachIndexed { i, s -> out[start + i] = s.trim().takeIf { chunk[i].isNotBlank() && it.isNotEmpty() } }
+                while (end < idx.size && (end == start || chars + lines[idx[end]].length + 1 <= MAX_CHARS)) { chars += lines[idx[end]].length + 1; end++ }
+                val chunk = idx.subList(start, end)
+                runCatching { request(chunk.joinToString("\n") { lines[it].trim() }, to) }.getOrNull()?.let { translated ->
+                    val back = translated.trimEnd('\n').split("\n")
+                    if (back.size == chunk.size) back.forEachIndexed { i, s -> out[chunk[i]] = s.trim().takeIf { it.isNotEmpty() } }
                 }
                 start = end
             }

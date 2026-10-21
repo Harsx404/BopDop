@@ -336,7 +336,7 @@ fun TrackTile(track: Track, playing: Boolean, modifier: Modifier = Modifier, wid
 }
 
 @Composable
-fun SectionHeader(title: String, subtitle: String = "", modifier: Modifier = Modifier, action: String? = null, onAction: (() -> Unit)? = null) {
+fun SectionHeader(title: String, subtitle: String = "", modifier: Modifier = Modifier, action: String? = null, trailing: (@Composable () -> Unit)? = null, onAction: (() -> Unit)? = null) {
     Row(modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 26.dp, bottom = 12.dp), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
             if (subtitle.isNotBlank()) Text(subtitle.uppercase(), style = BopType.Micro, color = Bop.Text3)
@@ -348,6 +348,7 @@ fun SectionHeader(title: String, subtitle: String = "", modifier: Modifier = Mod
                 modifier = Modifier.clip(RoundedCornerShape(50)).bounceClick(onClick = onAction).padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
+        trailing?.invoke()
     }
 }
 

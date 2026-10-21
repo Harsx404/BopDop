@@ -15,6 +15,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.datasource.DefaultDataSource
@@ -48,6 +49,9 @@ class PlaybackService : MediaLibraryService() {
     private val scope = MainScope()
     private var extending = false
     private val retried = HashSet<String>()
+    /** Where the playing video item was a second ago, to tell "the picture ended" from "the song ended". */
+    private data class VideoSpot(val index: Int, val id: String, val positionMs: Long, val songMs: Long)
+    @Volatile private var videoAt: VideoSpot? = null
     private var lastTrackId: String? = null
     private var audioSessionId = C.AUDIO_SESSION_ID_UNSET
     private lateinit var sources: VideoMediaSourceFactory
@@ -61,6 +65,7 @@ class PlaybackService : MediaLibraryService() {
         com.dopdop.bopdop.data.lyrics.LyricOffsets.init(this)
         PlayStats.init(this)
         com.dopdop.bopdop.data.scrobble.ListenBrainz.init(this)
+        com.dopdop.bopdop.data.scrobble.LastFm.init(this)
 
         val resolving = ResolvingDataSource.Factory(OkHttpDataSource.Factory(Http.client)) { spec -> StreamResolver.resolveSpec(spec) }
         val key = androidx.media3.datasource.cache.CacheKeyFactory { spec -> spec.key ?: spec.uri.getQueryParameter("id") ?: spec.uri.toString() }
@@ -76,6 +81,9 @@ class PlaybackService : MediaLibraryService() {
             .setCacheWriteDataSinkFactory(null)
             .setCacheKeyFactory(key)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
+        val playCache = cache(this)
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { StreamResolver.forgetLooseHiResMatches(this@PlaybackService, playCache) }
 
         sources = VideoMediaSourceFactory(DefaultMediaSourceFactory(dataSource), DefaultMediaSourceFactory(DefaultDataSource.Factory(this)))
         // Our own audio session so the equalizer can sit on it from the first note.
@@ -147,7 +155,10 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             while (isActive) {
                 delay(1000)
-                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it); com.dopdop.bopdop.data.scrobble.ListenBrainz.tick(it) }
+                player.currentMediaItem?.let { item ->
+                    videoAt = if (item.videoId != null) VideoSpot(player.currentMediaItemIndex, item.mediaId, player.currentPosition, (item.toTrack()?.durationSec ?: 0) * 1000L) else null
+                }
+                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it); com.dopdop.bopdop.data.scrobble.ListenBrainz.tick(it); com.dopdop.bopdop.data.scrobble.LastFm.tick(it) }
             }
         }
 
@@ -246,12 +257,27 @@ class PlaybackService : MediaLibraryService() {
     /** `bopdop://play?...` → real CDN url, carrying the User-Agent the url is bound to. */
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            val was = videoAt
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && was != null && was.songMs > 0 && was.positionMs < was.songMs - 8_000) {
+                // The picture ran out (or its source ended early), not the song: carry on with the song's audio.
+                val prev = player.getMediaItemAt(was.index.coerceAtMost(player.mediaItemCount - 1))
+                if (prev.mediaId == was.id) prev.toTrack()?.let { t ->
+                    Log.w("PlaybackService", "video item $was ended early; back to its audio")
+                    videoAt = null
+                    player.replaceMediaItem(was.index, t.toMediaItem())
+                    player.seekTo(was.index, was.positionMs)
+                    PlayerConnection.onVideoFailure(was.id)
+                    return
+                }
+            }
+            if (mediaItem?.videoId == null) videoAt = null
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
                 mediaItem?.mediaId == lastTrackId) return
             lastTrackId = mediaItem?.mediaId
             mediaItem?.toTrack()?.let(LibraryStore::recordPlay)
             PlayStats.newSession()
             com.dopdop.bopdop.data.scrobble.ListenBrainz.onTrack(mediaItem?.toTrack())
+            com.dopdop.bopdop.data.scrobble.LastFm.onTrack(mediaItem?.toTrack())
         }
 
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -298,8 +324,13 @@ class PlaybackService : MediaLibraryService() {
             Log.w("PlaybackService", "error on $id: ${error.errorCodeName}", error)
             if (item.videoId != null) {
                 VideoResolver.invalidate(item.videoId!!)
+                // The merged item also carried the song's own stream; a stale one would fail the fallback too.
+                StreamResolver.invalidate(id)
+                retried.remove(id)
+                videoAt = null
                 val index = player.currentMediaItemIndex
-                val position = player.currentPosition
+                val songMs = (item.toTrack()?.durationSec ?: 0) * 1000L
+                val position = player.currentPosition.let { if (songMs > 0) it.coerceIn(0, songMs - 1000) else it.coerceAtLeast(0) }
                 item.toTrack()?.let {
                     player.replaceMediaItem(index, it.toMediaItem())
                     player.seekTo(index, position)
@@ -342,7 +373,7 @@ class PlaybackService : MediaLibraryService() {
                     needsMoreMusic() && sameQueue) {
                     val firstNewIndex = player.mediaItemCount
                     val wasEnded = player.playbackState == Player.STATE_ENDED
-                    val added = player.appendUnique(more, limit = 20)
+                    val added = player.appendRadio(more, limit = 20)
                     if (wasEnded && added > 0) {
                         // Appending after STATE_ENDED alone does not advance the player.
                         // Seeking retains playWhenReady, including a pause while radio was loading.
@@ -416,10 +447,23 @@ class PlaybackService : MediaLibraryService() {
 
         fun cache(ctx: android.content.Context): SimpleCache = simpleCache ?: synchronized(this) {
             simpleCache ?: SimpleCache(
-                File(ctx.cacheDir, "audio"),
-                LeastRecentlyUsedCacheEvictor(LibraryStore.settings.cacheMb * 1024L * 1024L),
+                cacheDir(ctx),
+                LibraryStore.settings.cacheMb.let { mb -> if (mb <= 0) NoOpCacheEvictor() else LeastRecentlyUsedCacheEvictor(mb * 1024L * 1024L) },
                 Databases.provider(ctx),
             ).also { simpleCache = it }
+        }
+
+        /**
+         * cache/ can be emptied by Android when storage runs low (and by some phones on update);
+         * "Keep cached songs" moves the folder into app storage, which only the user clears.
+         * The folder moves with the setting, so nothing is re-downloaded.
+         */
+        private fun cacheDir(ctx: android.content.Context): File {
+            val kept = File(ctx.filesDir, "audio")
+            val loose = File(ctx.cacheDir, "audio")
+            val (want, other) = if (LibraryStore.settings.keepCache) kept to loose else loose to kept
+            if (!want.exists() && other.exists()) other.renameTo(want)
+            return want
         }
     }
 }

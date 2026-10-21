@@ -23,7 +23,7 @@ class FestivalsTest {
     }
 
     @Test fun pickingSwapsTheThemeOnlyWhileAFestivalIsOn() {
-        assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.LIMITED, FestivePick.HALLOWEEN, "IN", day(10, 15)))
+        assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.HALLOWEEN, "IN", day(10, 15)))
         assertEquals(Festival.NAVARATRI, Festivals.current(FestiveLevel.FULL, FestivePick.ALL, "US", day(10, 15)))
         assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.ALL, "IN", day(10, 30)))
         assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.HALLOWEEN, "US", day(12, 1)))
@@ -38,5 +38,14 @@ class FestivalsTest {
         assertEquals("Happy Dussehra", Festivals.greeting(Festival.NAVARATRI, day(10, 20)))
         assertEquals("Halloween in 5 days", Festivals.greeting(Festival.HALLOWEEN, day(10, 26)))
         assertEquals("Happy Halloween", Festivals.greeting(Festival.HALLOWEEN, day(10, 31)))
+    }
+
+    @Test fun festivalsThatAreOverDropOffTheList() {
+        val day = java.time.LocalDate.of(2026, 10, 21) // Navaratri 2026 ended on the 20th
+        org.junit.Assert.assertTrue(Festivals.passed(Festival.NAVARATRI, day))
+        org.junit.Assert.assertFalse(Festivals.passed(Festival.HALLOWEEN, day))
+        org.junit.Assert.assertEquals(listOf(FestivePick.AUTO, FestivePick.HALLOWEEN, FestivePick.ALL), Festivals.picks(day))
+        // Picking Navaratri after it ended shows nothing, even during Halloween week.
+        org.junit.Assert.assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.NAVARATRI, "IN", java.time.LocalDate.of(2026, 10, 28)))
     }
 }

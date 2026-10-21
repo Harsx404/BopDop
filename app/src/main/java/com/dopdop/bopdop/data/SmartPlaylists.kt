@@ -90,7 +90,7 @@ object SmartPlaylists {
     suspend fun discover(s: StatsState, lib: LibraryState): SmartPlaylist = coroutineScope {
         val seeds = seeds(s, lib)
         val related = seeds.map { t -> async { runCatching { MusicRepository.related(t) }.getOrDefault(emptyList()) } }.awaitAll()
-        val known = SongSet(s.tracks.values + lib.history + lib.liked)
+        val known = SongSet(s.tracks.values + lib.history + lib.liked, anyVersion = true)
         val artists = seeds.map { DailyMixes.primaryArtist(it) }.filter { it.isNotBlank() }.distinct().take(3)
         SmartPlaylist(
             DISCOVER, "Discover",

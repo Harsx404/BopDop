@@ -31,6 +31,14 @@ object LyricOffsets {
         prefs?.edit()?.apply { if (v == 0L) remove(trackId) else putLong(trackId, v) }?.apply()
     }
 
+    fun all(): Map<String, Long> = live.toMap()
+
+    /** Replace every song's offset (backup restore). */
+    fun replaceAll(offsets: Map<String, Long>) {
+        live.keys.toList().forEach { set(it, 0) }
+        offsets.forEach { (k, v) -> set(k, v) }
+    }
+
     fun nudge(trackId: String, by: Long) = set(trackId, of(trackId) + by)
 
     /** "+0.50 s" / "−0.25 s" / "In sync". */

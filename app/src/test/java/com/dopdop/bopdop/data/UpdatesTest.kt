@@ -18,4 +18,14 @@ class UpdatesTest {
         assertFalse(Updates.isNewer("1.3.0-beta.1", "1.3.0"))
         assertTrue(Updates.isNewer("1.3.0-beta.1", "1.2.0"))
     }
+
+    @Test fun picksThePhonesOwnBuildElseUniversal() {
+        val assets = listOf(
+            "BopDop-v1.4.0.apk" to "u", "BopDop-v1.4.0-arm64-v8a.apk" to "a64",
+            "BopDop-v1.4.0-armeabi-v7a.apk" to "a32", "BopDop-v1.4.0-x86_64.apk" to "x64",
+        )
+        org.junit.Assert.assertEquals("a64", Updates.pickApk(assets, listOf("arm64-v8a", "armeabi-v7a")))
+        org.junit.Assert.assertEquals("u", Updates.pickApk(assets, listOf("riscv64")))
+        org.junit.Assert.assertEquals("only", Updates.pickApk(listOf("BopDop-v1.3.0.apk" to "only"), listOf("arm64-v8a")))
+    }
 }

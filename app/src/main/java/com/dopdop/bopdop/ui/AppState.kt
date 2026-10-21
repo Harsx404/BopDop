@@ -32,6 +32,8 @@ sealed interface Sheet {
     data object ImportPlaylist : Sheet
     data class SortPlaylist(val id: String) : Sheet
     data object Scrobbling : Sheet
+    data object LastFm : Sheet
+    data class SongInfo(val track: Track) : Sheet
 }
 
 object Routes {
@@ -54,6 +56,9 @@ object Routes {
     const val IMPORT = "import?key={key}"
     const val SCAN = "scan"
     const val EQ = "eq"
+    const val SPOTIFY = "spotify"
+    const val SPOTIFY_LOGIN = "spotify/login"
+    const val SPOTIFY_PLAYLIST = "spotify/playlist?id={id}&name={name}&art={art}"
     val tabs = listOf(HOME, EXPLORE, LIBRARY)
 }
 

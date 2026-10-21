@@ -35,7 +35,6 @@ data class FestiveNow(val festival: Festival?, val level: FestiveLevel) {
     /** Home gets its decoration. */
     val decor: Boolean get() = festival != null && level == FestiveLevel.FULL
     /** Pets dress up (and the festival's own pet can be picked). */
-    val costume: Festival? get() = festival.takeIf { level != FestiveLevel.OFF }
 }
 
 val LocalFestive = staticCompositionLocalOf { FestiveNow(null, FestiveLevel.OFF) }

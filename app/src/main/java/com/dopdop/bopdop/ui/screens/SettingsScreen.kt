@@ -37,6 +37,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +66,10 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.SurroundSound
+import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.DownloadForOffline
@@ -108,15 +115,21 @@ fun SettingsScreen() {
     var query by remember { mutableStateOf("") }
     val total = remember { Hits() }
     LargeTitleScaffold(title = "Settings", showBack = true) {
-        item {
-            SettingsSearch(query) { query = it }
+        item { SettingsSearch(query) { query = it } }
+        item(key = "group:Account") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Account") {
+                    val spotify by com.dopdop.bopdop.data.spotify.SpotifyAccount.profile.collectAsState()
+                    NavRow(
+                        Icons.Rounded.GraphicEq, if (spotify != null) "Spotify · ${spotify!!.name}" else "Connect Spotify",
+                        if (spotify != null) "Your Spotify playlists and Liked Songs, and Canvas videos in the player." else "Sign in on Spotify's page to play your playlists and Liked Songs here.",
+                        keywords = "spotify account sign in canvas playlists liked", brand = com.dopdop.bopdop.ui.components.Brand.SPOTIFY,
+                    ) { app.nav.navigate(if (spotify != null) com.dopdop.bopdop.ui.Routes.SPOTIFY else com.dopdop.bopdop.ui.Routes.SPOTIFY_LOGIN) }
                     Searchable("Sign in to YouTube Music", "account sign out library liked playlists") {
                         val a = account
                         if (a == null) {
                             Row(Modifier.fillMaxWidth().bounceClick(0.99f) { app.nav.navigate(Routes.SIGN_IN) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                IconBadge(Icons.Rounded.AccountCircle)
+                                IconBadge(Icons.Rounded.AccountCircle, com.dopdop.bopdop.ui.components.Brand.YOUTUBE_MUSIC)
                                 Spacer(Modifier.width(14.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("Sign in to YouTube Music", style = BopType.BodyStrong, color = Bop.Text)
@@ -145,6 +158,10 @@ fun SettingsScreen() {
                         }
                     }
                 }
+            }
+        }
+        item(key = "group:Sound") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Sound") {
                     RowHead(Icons.Rounded.Wifi, "Audio quality on Wi-Fi", "High plays the best stream there is, including JioSaavn's 320 kbps copy.") {
                         ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioWifi, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioWifi = q) } }
@@ -197,11 +214,27 @@ fun SettingsScreen() {
                         app.sheet = Sheet.AudioPipeline
                     }
                 }
+            }
+        }
+        item(key = "group:Lossless & add-ons") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
+                Group("Lossless & add-ons") { AddonRows() }
+            }
+        }
+        item(key = "group:Lyrics") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Lyrics") {
+                    ToggleRow(Icons.Rounded.BlurOn, "Moving background", "The cover swirls slowly behind the lyrics.", s.lyricsMotion, keywords = "motion animated lyrics background") {
+                        LibraryStore.updateSettings { it.copy(lyricsMotion = !it.lyricsMotion) }
+                    }
                     ToggleRow(Icons.Rounded.Lyrics, "Lyrics on lock screen", "Shows the line being sung in the notification and on the lock screen.", s.lockScreenLyrics) {
                         LibraryStore.updateSettings { it.copy(lockScreenLyrics = !it.lockScreenLyrics) }
                     }
                 }
+            }
+        }
+        item(key = "group:Local music") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Local music") {
                     var allowed by remember { mutableStateOf(LocalMusic.hasPermission(ctx)) }
                     val folders by LocalMusic.folders.collectAsState()
@@ -220,6 +253,10 @@ fun SettingsScreen() {
                         LibraryStore.updateSettings { it.copy(filterNonMusic = !it.filterNonMusic) }
                     }
                 }
+            }
+        }
+        item(key = "group:Music video") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Music video") {
                     RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.") {
                         FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -235,7 +272,18 @@ fun SettingsScreen() {
                         }
                     }
                 }
+            }
+        }
+        item(key = "group:Look & feel") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Look & feel") {
+                    AppIconRow()
+                    ToggleRow(Icons.Rounded.Videocam, "Spotify Canvas", "The short looping video Spotify shows behind a song, over its cover. Needs Spotify connected.", s.canvas, keywords = "animated cover art motion video spotify") {
+                        LibraryStore.updateSettings { it.copy(canvas = !it.canvas) }
+                    }
+                    if (s.canvas) ToggleRow(Icons.Rounded.SignalCellularAlt, "Canvas on mobile data", "Off: Canvas plays on Wi-Fi only.", s.canvasOnData, keywords = "canvas data cellular") {
+                        LibraryStore.updateSettings { it.copy(canvasOnData = !it.canvasOnData) }
+                    }
                     RowHead(Icons.Rounded.DarkMode, "Theme", "Auto follows your phone's light or dark setting.", keywords = "dark light mode night") {
                         ChipRow(com.dopdop.bopdop.data.ThemeMode.entries, s.themeMode, { it.label }) { m -> LibraryStore.updateSettings { it.copy(themeMode = m) } }
                     }
@@ -259,28 +307,36 @@ fun SettingsScreen() {
                             ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
                         }
                     }
-                    NavRow(Icons.Rounded.Pets, "Seek bar & pet", "${s.seekStyle.label} seek bar${if (s.seekPet == com.dopdop.bopdop.data.SeekPet.NONE) "" else " with a running ${s.seekPet.label.lowercase()}"}. Long-press the seek bar to change it from the player.") {
+                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${if (s.mascot == com.dopdop.bopdop.data.Mascot.NONE) "" else " with the kitty walking along"}. Long-press the seek bar to change it from the player.") {
                         app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
                     }
                     ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
                         LibraryStore.updateSettings { it.copy(reduceMotion = !it.reduceMotion) }
                     }
                 }
+            }
+        }
+        item(key = "group:Festive") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Festive") {
                     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
                     val now = festive.festival?.let { f ->
                         val end = com.dopdop.bopdop.data.Festivals.window(f, java.time.LocalDate.now().year)?.endInclusive
                         "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
                     }.orEmpty()
-                    RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends. Full decorates Home and dresses up your pet; Pet only keeps it to the pet.") {
+                    RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends; festivals that are over for the year drop off the list.") {
                         ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l -> LibraryStore.updateSettings { it.copy(festiveLevel = l) } }
                     }
                     if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
                         RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.") {
-                            ChipRow(com.dopdop.bopdop.data.FestivePick.entries, s.festivePick, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
+                            ChipRow(com.dopdop.bopdop.data.Festivals.picks(java.time.LocalDate.now()), s.festivePick.takeIf { it in com.dopdop.bopdop.data.Festivals.picks(java.time.LocalDate.now()) } ?: com.dopdop.bopdop.data.FestivePick.AUTO, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
                         }
                     }
                 }
+            }
+        }
+        item(key = "group:Island") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Island") {
                     val native = com.dopdop.bopdop.ui.island.NativeIsland.name
                     ToggleRow(Icons.Rounded.Contactless, "Island in BopDop", "What's playing in a pill around your camera, while you browse the app. Tap it for controls.", s.islandInApp ?: true) {
@@ -304,6 +360,10 @@ fun SettingsScreen() {
                         }
                     }
                 }
+            }
+        }
+        item(key = "group:Home feed") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Home feed") {
                     ToggleRow(Icons.Rounded.AutoAwesome, "JioSaavn picks", "Mix Indian charts, new releases and stations into Home.", s.showSaavnHome) {
                         LibraryStore.updateSettings { it.copy(showSaavnHome = !it.showSaavnHome) }
@@ -329,18 +389,30 @@ fun SettingsScreen() {
                         }
                     }
                 }
+            }
+        }
+        item(key = "group:Storage") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Storage") {
-                    RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch.", keywords = "storage clear space data") {
+                    RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch. Remove one from its ⋯ menu.", keywords = "storage clear space data unlimited keep remove") {
                         Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(512, 1024, 2048, 4096).forEach { mb ->
+                            listOf(512, 1024, 2048, 4096, 0).forEach { mb ->
                                 val on = s.cacheMb == mb
                                 Text(
-                                    if (mb < 1024) "$mb MB" else "${mb / 1024} GB", style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
+                                    when { mb == 0 -> "Unlimited"; mb < 1024 -> "$mb MB"; else -> "${mb / 1024} GB" }, style = BopType.Caption, color = if (on) Bop.OnInk else Bop.Text,
                                     modifier = Modifier.bounceClick { LibraryStore.updateSettings { it.copy(cacheMb = mb) } }
                                         .clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                                         .padding(horizontal = 12.dp, vertical = 7.dp),
                                 )
                             }
+                        }
+                        Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Keep cached songs", style = BopType.BodyStrong, color = Bop.Text)
+                                Text("Store them where Android won't clear them to free space or after updates. Applies on next launch.", style = BopType.Caption, color = Bop.Text2)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Box(Modifier.bounceClick { LibraryStore.updateSettings { it.copy(keepCache = !it.keepCache) } }) { GlassSwitch(s.keepCache) }
                         }
                         Text(
                             "Clear cached audio", style = BopType.BodyStrong, color = Color(0xFFFF6B8B),
@@ -353,19 +425,41 @@ fun SettingsScreen() {
                         )
                     }
                 }
+            }
+        }
+        item(key = "group:Backup") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
+                Group("Backup") { BackupRows() }
+            }
+        }
+        item(key = "group:Scrobbling") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Scrobbling") {
                 NavRow(
                     Icons.Rounded.BarChart, "ListenBrainz",
                     if (s.listenBrainzToken.isNotBlank()) "Scrobbling as ${s.listenBrainzUser}" else "Keep a record of what you listen to on listenbrainz.org.",
-                    keywords = "scrobble last.fm history stats",
+                    keywords = "scrobble history stats", brand = com.dopdop.bopdop.ui.components.Brand.LISTENBRAINZ,
                 ) { app.sheet = Sheet.Scrobbling }
+                NavRow(
+                    Icons.Rounded.BarChart, if (s.lastFmLibre) "Libre.fm" else "Last.fm",
+                    if (s.lastFmSession.isNotBlank()) "Scrobbling as ${s.lastFmUser}" else "Scrobble to Last.fm or Libre.fm.",
+                    keywords = "scrobble last.fm lastfm libre.fm history",
+                    brand = if (s.lastFmLibre) com.dopdop.bopdop.ui.components.Brand.LIBREFM else com.dopdop.bopdop.ui.components.Brand.LASTFM,
+                ) { app.sheet = Sheet.LastFm }
             }
+            }
+        }
+        item(key = "group:With friends") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
             Group("With friends") {
                     NavRow(Icons.Rounded.Groups, "Listen Together", "Start or join a room and listen with friends.") {
                         app.nav.navigate("together?code=")
                     }
                 }
             }
+        }
+        // Built lazily: only the groups on screen are composed when Settings opens.
+        item {
             if (query.isNotBlank() && total.n == 0) {
                 Text("No settings match “${query.trim()}”", style = BopType.Body, color = Bop.Text2, modifier = Modifier.fillMaxWidth().padding(36.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -378,8 +472,10 @@ fun SettingsScreen() {
                     val update by com.dopdop.bopdop.data.Updates.available.collectAsState()
                     val scope = androidx.compose.runtime.rememberCoroutineScope()
                     val u = update
+                    val install by com.dopdop.bopdop.data.UpdateInstaller.state.collectAsState()
+                    (install as? com.dopdop.bopdop.data.InstallState.Failed)?.let { Text(it.message, style = BopType.Caption, color = Color(0xFFFF6B8B), modifier = Modifier.padding(top = 8.dp)) }
                     Text(
-                        if (u != null) "Get ${u.title}" else "Check for updates",
+                        if (u != null) com.dopdop.bopdop.ui.components.updateButtonLabel(install).let { if (it == "Update") "Install ${u.title}" else it } else "Check for updates",
                         style = BopType.BodyStrong, color = if (u != null) Bop.OnInk else Bop.Text,
                         modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
                             .background(if (u != null) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
@@ -469,9 +565,10 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun IconBadge(icon: ImageVector) {
+private fun IconBadge(icon: ImageVector, brand: com.dopdop.bopdop.ui.components.Brand? = null) {
     Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(Bop.Veil.copy(alpha = 0.9f)).glassEdges(RoundedCornerShape(10.dp), 0.8f, true), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
+        if (brand != null) com.dopdop.bopdop.ui.components.BrandLogo(brand, 22.dp, icon, fallbackTint = Bop.Ink)
+        else Icon(icon, null, tint = Bop.Ink, modifier = Modifier.size(19.dp))
     }
 }
 
@@ -544,11 +641,160 @@ private fun Segmented(options: List<String>, selected: Int, onPick: (Int) -> Uni
     }
 }
 
+/**
+ * Back up to a file the user picks, or restore one. Restoring replaces the library, so it shows
+ * what the file holds and asks first.
+ */
+@Composable
+private fun BackupRows() {
+    val app = LocalApp.current
+    val ctx = LocalContext.current
+    var pending by remember { mutableStateOf<org.json.JSONObject?>(null) }
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri != null) app.scope.launch {
+            runCatching { com.dopdop.bopdop.data.Backup.write(ctx, uri) }
+                .onSuccess { app.toast("Backed up") }.onFailure { app.toast("Couldn't save the backup") }
+        }
+    }
+    val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) app.scope.launch {
+            val o = runCatching { com.dopdop.bopdop.data.Backup.read(ctx, uri) }.getOrNull()
+            if (o == null) app.toast("That isn't a BopDop backup") else pending = o
+        }
+    }
+    NavRow(Icons.Rounded.Save, "Back up to a file", "Liked songs, playlists, saved albums, history, plays, settings and lyric timings.", keywords = "export backup save transfer phone") {
+        save.launch(com.dopdop.bopdop.data.Backup.fileName())
+    }
+    NavRow(Icons.Rounded.Restore, "Restore from a file", "Replaces what's on this phone with a backup.", keywords = "import restore backup transfer phone") {
+        open.launch(arrayOf("application/json", "application/octet-stream", "text/plain"))
+    }
+    pending?.let { o ->
+        val sum = remember(o) { com.dopdop.bopdop.data.Backup.summary(o) }
+        val date = remember(sum) {
+            java.time.Instant.ofEpochMilli(sum.createdAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"))
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pending = null },
+            title = { Text("Restore backup from $date?") },
+            text = { Text("${sum.liked} liked songs, ${sum.playlists} playlists and ${sum.plays} plays. This replaces your library, history and settings on this phone.") },
+            confirmButton = {
+                Text("Restore", style = BopType.BodyStrong, color = Color(0xFFFF6B8B), modifier = Modifier.bounceClick {
+                    com.dopdop.bopdop.data.Backup.restore(o); pending = null; app.toast("Library restored")
+                }.padding(12.dp))
+            },
+            dismissButton = {
+                Text("Cancel", style = BopType.BodyStrong, color = Bop.Text2, modifier = Modifier.bounceClick { pending = null }.padding(12.dp))
+            },
+        )
+    }
+}
+
+/**
+ * Lossless and Atmos sources the user adds by URL (the common music add-on protocol), with the
+ * switches that use them, plus bit-perfect USB output.
+ */
+@Composable
+private fun AddonRows() {
+    val app = LocalApp.current
+    val s = LibraryStore.state.collectAsState().value.settings
+    var url by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val names = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+    LaunchedEffect(s.addons) {
+        s.addons.forEach { base -> runCatching { com.dopdop.bopdop.data.addon.Addons.manifest(base) }.getOrNull()?.let { names[base] = it.name + if (it.version.isNotBlank()) " · v" + it.version else "" } }
+    }
+    ToggleRow(Icons.Rounded.HighQuality, "Lossless from add-ons", "Play FLAC/ALAC from your add-ons when they have the same recording. Everything else plays as usual.", s.lossless, keywords = "flac alac hi-res lossless addon source") {
+        LibraryStore.updateSettings { it.copy(lossless = !it.lossless) }
+    }
+    ToggleRow(Icons.Rounded.SurroundSound, "Dolby Atmos", if (com.dopdop.bopdop.data.addon.DeviceAudio.playsAtmos()) "Ask add-ons for Atmos mixes. This phone can play them." else "This phone has no Atmos decoder, so add-ons are asked for stereo.", s.atmos, keywords = "atmos dolby spatial surround") {
+        LibraryStore.updateSettings { it.copy(atmos = !it.atmos) }
+    }
+    if (com.dopdop.bopdop.playback.BitPerfect.supported) ToggleRow(Icons.Rounded.Usb, "Bit-perfect USB output", "With a USB DAC: the song's own sample rate and bit depth, untouched. Volume moves to the DAC; the equalizer and normalization pause.", s.bitPerfect, keywords = "usb dac bit perfect exclusive audiophile") {
+        LibraryStore.updateSettings { it.copy(bitPerfect = !it.bitPerfect) }
+    }
+    Searchable("Add-ons", "add-on server url manifest", "addon source") {
+        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
+            Text("Add-ons", style = BopType.BodyStrong, color = Bop.Text, modifier = Modifier.padding(start = 40.dp, top = 6.dp))
+            Text("Paste an add-on's URL. BopDop includes none; use only sources you have the right to play.", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(start = 40.dp, bottom = 8.dp))
+            s.addons.forEach { base ->
+                Row(Modifier.padding(start = 40.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(names[base] ?: "Checking…", style = BopType.Body, color = Bop.Text)
+                        Text(base, style = BopType.Caption, color = Bop.Text3, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                    Icon(Icons.Rounded.Close, "Remove", tint = Bop.Text2, modifier = Modifier.size(32.dp).clip(CircleShape).bounceClick {
+                        LibraryStore.updateSettings { it.copy(addons = it.addons - base) }
+                    }.padding(6.dp))
+                }
+            }
+            Row(Modifier.padding(start = 40.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(Bop.Veil.copy(alpha = 0.55f)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                    if (url.isEmpty()) Text("https://…", style = BopType.Body, color = Bop.Text3)
+                    androidx.compose.foundation.text.BasicTextField(url, { url = it; error = null }, singleLine = true, enabled = !busy,
+                        textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = androidx.compose.ui.graphics.SolidColor(Bop.Ink), modifier = Modifier.fillMaxWidth())
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(if (busy) "…" else "Add", style = BopType.BodyStrong, color = Bop.OnInk, modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick {
+                    val base = com.dopdop.bopdop.data.addon.Addons.normalize(url) ?: run { error = "Use an https:// address"; return@bounceClick }
+                    if (base in s.addons) { error = "Already added"; return@bounceClick }
+                    busy = true
+                    app.scope.launch {
+                        runCatching { com.dopdop.bopdop.data.addon.Addons.manifest(base) }
+                            .onSuccess { m -> LibraryStore.updateSettings { it.copy(addons = it.addons + base) }; names[base] = m.name; url = ""; app.toast("Added ${m.name}") }
+                            .onFailure { error = it.message ?: "That add-on didn't answer" }
+                        busy = false
+                    }
+                }.padding(horizontal = 16.dp, vertical = 10.dp))
+            }
+            error?.let { Text(it, style = BopType.Caption, color = Color(0xFFFF6B8B), modifier = Modifier.padding(start = 40.dp, top = 6.dp)) }
+        }
+    }
+}
+
+/** Home-screen icon: three looks, previewed as they'll appear. */
+@Composable
+private fun AppIconRow() = Searchable("App icon", "Classic, dark glass or light glass", "launcher home screen logo") {
+    val ctx = LocalContext.current
+    var current by remember { mutableStateOf<com.dopdop.bopdop.AppIcon?>(null) }
+    LaunchedEffect(Unit) { current = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.AppIcon.current(ctx) } }
+    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Rounded.AutoAwesome)
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text("App icon", style = BopType.BodyStrong, color = Bop.Text)
+                Text("Your launcher may take a moment to update it.", style = BopType.Caption, color = Bop.Text2)
+            }
+        }
+        Row(Modifier.padding(start = 56.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            com.dopdop.bopdop.AppIcon.entries.forEach { icon ->
+                val on = icon == current
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.bounceClick {
+                    if (!on) { com.dopdop.bopdop.AppIcon.set(ctx, icon); current = icon }
+                }) {
+                    Box(
+                        Modifier.size(58.dp).clip(RoundedCornerShape(16.dp))
+                            .border(if (on) 2.5.dp else 0.dp, if (on) Bop.Ink else Color.Transparent, RoundedCornerShape(16.dp)),
+                    ) {
+                        // Adaptive icons show the middle two thirds of their 108dp layers.
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(icon.background), null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f })
+                        androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(icon.foreground), null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f })
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(icon.label, style = BopType.Caption, color = if (on) Bop.Text else Bop.Text2)
+                }
+            }
+        }
+    }
+}
+
 /** A row that opens something else. */
 @Composable
-private fun NavRow(icon: ImageVector, title: String, sub: String, keywords: String = "", onClick: () -> Unit) = Searchable(title, sub, keywords) {
+private fun NavRow(icon: ImageVector, title: String, sub: String, keywords: String = "", brand: com.dopdop.bopdop.ui.components.Brand? = null, onClick: () -> Unit) = Searchable(title, sub, keywords) {
     Row(Modifier.fillMaxWidth().bounceClick(0.99f, onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconBadge(icon)
+        IconBadge(icon, brand)
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(title, style = BopType.BodyStrong, color = Bop.Text)

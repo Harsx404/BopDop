@@ -7,6 +7,7 @@ import com.dopdop.bopdop.data.model.Collection
 import com.dopdop.bopdop.data.model.SearchResults
 import com.dopdop.bopdop.data.model.Shelf
 import com.dopdop.bopdop.data.model.ShelfStyle
+import com.dopdop.bopdop.data.model.SongVersion
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.net.Http
 import com.dopdop.bopdop.data.net.TtlCache
@@ -15,6 +16,7 @@ import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
+import kotlin.math.abs
 
 /**
  * JioSaavn official API — port of the DopDop desktop music catalogue
@@ -175,6 +177,12 @@ object SaavnApi {
         return ids.mapNotNull { byId[it] }
     }
 
+    /** The raw song object for one id, with release date, label and credits (song info panel). */
+    suspend fun songObject(id: String): JSONObject? {
+        val d = obj("song.getDetails", mapOf("pids" to id))
+        return d.optJSONArray("songs")?.objects()?.firstOrNull() ?: d.optJSONObject(id)
+    }
+
     suspend fun reco(id: String): List<Track> {
         val d = call("reco.getreco", mapOf("pid" to id), ctx = "android")
         val list = when (d) {
@@ -227,38 +235,19 @@ object SaavnApi {
         tracks(obj("search.getResults", mapOf("q" to q, "n" to n.toString(), "p" to "1")).optJSONArray("results").objects())
 
     // --- Hi-Res: find the same recording on JioSaavn for a YouTube Music track (desktop musicHiRes) ---
-    private fun norm(s: String) = s.lowercase().replace(Regex("\\(.*?\\)|\\[.*?]"), " ")
-        .replace(Regex("\\b(feat|ft|from|official|audio|video|lyrical|remastered)\\b.*$"), " ")
-        .replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
-
-    private fun raw(s: String) = s.lowercase().replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
-
+    /**
+     * JioSaavn's copy of a YouTube Music song, for Hi-Res playback. Only the same recording counts
+     * (SongVersion.sameRecording): same name, same version, an artist in common and within 8 s.
+     * "Alfaaz - Vocals" or "Alfaaz (Lofi)" never stand in for "Alfaaz"; with no sure match the
+     * song keeps its YouTube stream.
+     */
     suspend fun hiResMatch(title: String, artist: String, duration: Int): Track? {
-        val t = norm(title)
-        if (t.isEmpty()) return null
-        val a = norm(artist).split(" ").filter { it.length > 1 }.toSet()
-        val cands = searchSongs("$title $artist".trim())
-        var best: Track? = null
-        var bestScore = 0.0
-        for (s in cands) {
-            val st = norm(s.title)
-            var score = when {
-                st == t -> 3.0
-                st.contains(t) || t.contains(st) -> 1.5
-                else -> 0.0
-            }
-            if (score == 0.0) continue
-            val shared = norm(s.artist).split(" ").any { it in a }
-            if (a.isNotEmpty()) score += if (shared) 2.0 else -1.5
-            // Different artist AND different full title → a cover / another recording.
-            if (a.isNotEmpty() && !shared && raw(title) != raw(s.title)) continue
-            if (duration > 0 && s.durationSec > 0) {
-                val d = kotlin.math.abs(s.durationSec - duration)
-                score += when { d <= 3 -> 2.0; d <= 8 -> 1.0; d > 25 -> -2.0; else -> 0.0 }
-            }
-            if (s.bitrate == 320) score += 0.5
-            if (score > bestScore) { best = s; bestScore = score }
-        }
-        return if (bestScore >= 4) best else null
+        val want = Track("yt:want", title, artist, durationSec = duration)
+        if (SongVersion.parse(title).core.isEmpty()) return null
+        val q = (title + " " + artist.split(",").first()).trim()
+        return searchSongs(q).filter { SongVersion.sameRecording(want, it, toleranceSec = HI_RES_DRIFT) }
+            .minWithOrNull(compareBy<Track>({ if (duration > 0 && it.durationSec > 0) abs(it.durationSec - duration) else HI_RES_DRIFT }, { -it.bitrate }))
     }
+
+    private const val HI_RES_DRIFT = 8
 }

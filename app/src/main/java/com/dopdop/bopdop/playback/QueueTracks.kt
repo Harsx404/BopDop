@@ -1,44 +1,21 @@
 package com.dopdop.bopdop.playback
 
 import androidx.media3.common.Player
+import com.dopdop.bopdop.data.model.SongVersion
 import com.dopdop.bopdop.data.model.Track
-import kotlin.math.abs
 
 /**
  * Treat catalogue copies of the same recording as one queue entry: "Lutt Le Gaya (From
  * "Dhurandhar")" by Shashwat Sachdev, Simran Choudhary and "Lutt Le Gaya" by Simran Choudhary are
- * one song. Same core title, at least one artist in common, lengths within 25 s. A remix, lofi,
- * slowed, live or cover version stays a different song.
+ * one song. A remix, lofi, slowed, vocals or live version stays a different song (see SongVersion).
  */
-internal fun sameQueueSong(a: Track, b: Track): Boolean {
-    if (a.id == b.id) return true
-    if (titleKey(a.title) != titleKey(b.title)) return false
-    if ((artists(a.artist) intersect artists(b.artist)).isEmpty()) return false
-    return a.durationSec <= 0 || b.durationSec <= 0 || abs(a.durationSec - b.durationSec) <= 25
-}
+internal fun sameQueueSong(a: Track, b: Track): Boolean = SongVersion.sameRecording(a, b)
 
-private val VERSION = Regex("\\b(remix|mix|lofi|lo-fi|slowed|reverb|sped|nightcore|unplugged|acoustic|live|cover|mashup|reprise|instrumental|karaoke|8d|version)\\b", RegexOption.IGNORE_CASE)
-
-/** Title without credits ("From …", "feat. …"), but keeping what kind of version it is. */
-internal fun titleKey(title: String): String {
-    val versions = VERSION.findAll(title).map { it.value.lowercase() }.toSortedSet().joinToString(" ")
-    val core = title.lowercase()
-        .replace(Regex("\\(.*?\\)|\\[.*?]"), " ")
-        .replace(Regex("\\s[-|–]\\s.*$"), " ")
-        .replace(Regex("\\b(feat|ft|with)\\b.*$"), " ")
-        .replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
-    return if (versions.isEmpty()) core else "$core|$versions"
-}
-
-private fun artists(s: String): Set<String> = s.lowercase()
-    .split(Regex(",|&|\\band\\b|\\bx\\b|\\bfeat\\.?|\\bft\\.?|/"))
-    .map { it.replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim() }
-    .filter { it.isNotEmpty() }.toSet()
-
-internal fun uniqueQueueTracks(tracks: List<Track>, existing: List<Track> = emptyList()): List<Track> {
+internal fun uniqueQueueTracks(tracks: List<Track>, existing: List<Track> = emptyList(), anyVersion: Boolean = false): List<Track> {
     val seen = existing.toMutableList()
+    val same: (Track, Track) -> Boolean = if (anyVersion) SongVersion::sameSong else ::sameQueueSong
     return tracks.filter { track ->
-        if (seen.any { sameQueueSong(it, track) }) false else {
+        if (seen.any { same(it, track) }) false else {
             seen += track
             true
         }
@@ -54,3 +31,17 @@ internal fun Player.appendUnique(tracks: List<Track>, limit: Int = Int.MAX_VALUE
     if (additions.isNotEmpty()) addMediaItems(additions.map { it.toMediaItem() })
     return additions.size
 }
+
+/**
+ * Radio and autoplay: one version of a song is enough. Anything that is another take of a song
+ * already in the queue or among the last [RECENT] played ("Alfaaz (Lofi)", "Alfaaz - Vocals") is
+ * skipped. Songs you pick yourself are never filtered this way.
+ */
+internal fun Player.appendRadio(tracks: List<Track>, limit: Int = Int.MAX_VALUE): Int {
+    val recent = com.dopdop.bopdop.data.LibraryStore.state.value.history.take(RECENT)
+    val additions = uniqueQueueTracks(tracks, queueTracks() + recent, anyVersion = true).take(limit)
+    if (additions.isNotEmpty()) addMediaItems(additions.map { it.toMediaItem() })
+    return additions.size
+}
+
+private const val RECENT = 25

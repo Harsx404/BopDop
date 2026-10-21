@@ -94,15 +94,23 @@ object PlayStats {
         return StatsState(events, tracks, daily)
     }
 
+    /** Listening history as stored, for backups. */
+    fun toJson(): JSONObject = toJson(_state.value)
+
+    fun restore(o: JSONObject) { _state.value = read(o) }
+
     private fun write(s: StatsState) {
+        val tmp = File(file.parentFile, "plays.json.tmp")
+        tmp.writeText(toJson(s).toString())
+        tmp.renameTo(file)
+    }
+
+    private fun toJson(s: StatsState): JSONObject {
         val used = s.events.mapTo(HashSet()) { it.id }
-        val o = JSONObject()
+        return JSONObject()
             .put("tracks", JSONObject().also { m -> s.tracks.forEach { (k, t) -> if (k in used) m.put(k, t.toJson()) } })
             .put("events", JSONArray().also { a -> s.events.forEach { e -> a.put(JSONArray().put(e.id).put(e.at)) } })
             .put("daily", JSONObject().also { m -> s.daily.forEach { (d, v) -> m.put(d.toString(), v) } })
-        val tmp = File(file.parentFile, "plays.json.tmp")
-        tmp.writeText(o.toString())
-        tmp.renameTo(file)
     }
 }
 

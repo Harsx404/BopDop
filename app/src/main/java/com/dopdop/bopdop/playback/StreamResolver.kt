@@ -43,10 +43,12 @@ object StreamResolver {
     private val _quality = MutableStateFlow<Map<String, StreamQuality>>(emptyMap())
     val quality: StateFlow<Map<String, StreamQuality>> = _quality.asStateFlow()
     private var prefs: android.content.SharedPreferences? = null
+    private var appContext: android.content.Context? = null
 
     /** Cached replays never hit the resolver, so remember what each track streamed as. */
     fun init(context: android.content.Context) {
         if (prefs != null) return
+        appContext = context.applicationContext
         val p = context.getSharedPreferences("stream_quality", android.content.Context.MODE_PRIVATE)
         prefs = p
         val all = p.all
@@ -55,6 +57,23 @@ object StreamResolver {
             val f = (v as? String)?.split('|') ?: return@mapNotNull null
             if (f.size < 4) null else k to StreamQuality(f[0], f[1].toIntOrNull() ?: 0, f[2], f[3] == "1")
         }.toMap()
+    }
+
+    /**
+     * Once, after Hi-Res matching became strict: YouTube songs whose audio came from a JioSaavn
+     * match may hold the wrong version ("Alfaaz - Vocals") in the play cache under their own id.
+     * Drop those so the next play matches again. Downloads are left alone.
+     */
+    fun forgetLooseHiResMatches(context: android.content.Context, cache: androidx.media3.datasource.cache.Cache) {
+        val p = prefs ?: return
+        val flags = context.getSharedPreferences("migrations", android.content.Context.MODE_PRIVATE)
+        if (flags.getBoolean("strictHiRes", false)) return
+        val stale = p.all.filter { (k, v) -> k.startsWith("yt:") && (v as? String)?.split('|')?.getOrNull(2) == "JioSaavn" }.keys
+        stale.forEach { id -> runCatching { cache.removeResource(id) } }
+        p.edit().apply { stale.forEach(::remove) }.apply()
+        _quality.update { it - stale }
+        flags.edit().putBoolean("strictHiRes", true).apply()
+        Log.i(TAG, "dropped ${stale.size} cached Hi-Res matches")
     }
 
     fun playUri(t: Track): Uri = Uri.Builder().scheme(SCHEME).authority("play")
@@ -94,7 +113,9 @@ object StreamResolver {
         val quality = uri.getQueryParameter("q")?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: VideoQualityPolicy.audio()
         val key = "$id@${quality.name}"
         cache[key]?.let { if (it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000) return it }
-        val s = when {
+        // Lossless (and Atmos) from the user's add-ons first, when on; any miss falls through.
+        val lossless = if (LibraryStore.settings.lossless && quality == AudioQuality.HIGH) addon(uri, id) else null
+        val s = lossless ?: when {
             id.startsWith("sv:") -> {
                 val u = saavnAt(uri.getQueryParameter("u") ?: throw IOException("missing saavn url"), quality)
                 ResolvedStream(u, null, saavnKbps(u), "AAC", "JioSaavn", Long.MAX_VALUE)
@@ -109,7 +130,7 @@ object StreamResolver {
         Log.i(TAG, "$id → ${s.via} ${s.codec} ${s.bitrate}kbps (${quality.label})")
         cache[key] = s
         cache[id] = s
-        val q = StreamQuality(s.codec, s.bitrate, s.via, s.via == "JioSaavn" && !id.startsWith("sv:") || s.bitrate >= 320)
+        val q = StreamQuality(s.codec, s.bitrate, s.via, lossless != null || s.via == "JioSaavn" && !id.startsWith("sv:") || s.bitrate >= 320)
         _quality.update { it + (id to q) }
         prefs?.edit()?.putString(id, "${q.codec}|${q.kbps}|${q.via}|${if (q.hiRes) 1 else 0}")?.apply()
         return s
@@ -120,6 +141,20 @@ object StreamResolver {
         if (q == AudioQuality.HIGH) url else url.replace(Regex("_(96|160|320)\\."), "${q.saavn}.")
 
     private fun saavnKbps(url: String) = when { url.contains("_320") -> 320; url.contains("_96.") -> 96; else -> 160 }
+
+    /** The same recording from an add-on, as "FLAC 24/96" or "Dolby Atmos", within 6 s. Downloads ask with ?q=. */
+    private fun addon(uri: Uri, id: String): ResolvedStream? {
+        val ctx = appContext ?: return null
+        val t = Track(id, uri.getQueryParameter("t").orEmpty(), uri.getQueryParameter("a").orEmpty(), durationSec = uri.getQueryParameter("d")?.toIntOrNull() ?: 0)
+        val download = uri.getQueryParameter("q") != null
+        val (s, name) = runCatching { runBlocking { withTimeoutOrNull(6000) { com.dopdop.bopdop.data.addon.Addons.resolve(ctx, t, download) } } }.getOrNull() ?: return null
+        val codec = when {
+            s.atmos -> "Dolby Atmos"
+            s.bitDepth > 0 && s.sampleRate > 0 -> "${s.codec} ${s.bitDepth}/${if (s.sampleRate % 1000 == 0) s.sampleRate / 1000 else "%.1f".format(s.sampleRate / 1000f)}"
+            else -> s.codec
+        }
+        return ResolvedStream(s.url, null, s.kbps, codec, name, System.currentTimeMillis() + 30 * 60_000)
+    }
 
     private fun hiRes(uri: Uri): ResolvedStream? = runCatching {
         runBlocking {

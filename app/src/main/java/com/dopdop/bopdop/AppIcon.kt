@@ -1,0 +1,33 @@
+package com.dopdop.bopdop
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.pm.PackageManager
+
+/** The home-screen icon: one launcher alias per look, exactly one enabled (see the manifest). */
+enum class AppIcon(val alias: String, val label: String, val background: Int, val foreground: Int) {
+    CLASSIC(".IconClassic", "Classic", R.drawable.ic_launcher_bg, R.drawable.ic_launcher_fg),
+    DARK(".IconDark", "Dark glass", R.drawable.ic_launcher_bg_dark, R.drawable.ic_launcher_fg_dark),
+    LIGHT(".IconLight", "Light glass", R.drawable.ic_launcher_bg_light, R.drawable.ic_launcher_fg_light);
+
+    private fun component(context: Context) = ComponentName(context.packageName, "com.dopdop.bopdop" + alias)
+
+    companion object {
+        fun current(context: Context): AppIcon = entries.firstOrNull { icon ->
+            when (context.packageManager.getComponentEnabledSetting(icon.component(context))) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+                PackageManager.COMPONENT_ENABLED_STATE_DEFAULT -> icon == CLASSIC
+                else -> false
+            }
+        } ?: CLASSIC
+
+        /** Enable [icon]'s alias first, then turn the others off, so there is never a moment without a launcher entry. */
+        fun set(context: Context, icon: AppIcon) {
+            val pm = context.packageManager
+            pm.setComponentEnabledSetting(icon.component(context), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+            entries.filter { it != icon }.forEach {
+                pm.setComponentEnabledSetting(it.component(context), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+            }
+        }
+    }
+}

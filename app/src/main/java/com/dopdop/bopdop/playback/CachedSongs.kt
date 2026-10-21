@@ -25,4 +25,16 @@ object CachedSongs {
                 length > 0 && cache.getCachedBytes(t.id, 0, length) >= length
             }
     }
+
+    /** True when [t] is fully in the play cache. */
+    fun isCached(context: Context, t: Track): Boolean = runCatching {
+        val cache = PlaybackService.cache(context)
+        val length = ContentMetadata.getContentLength(cache.getContentMetadata(t.id))
+        length > 0 && cache.getCachedBytes(t.id, 0, length) >= length
+    }.getOrDefault(false)
+
+    /** Drop one song from the play cache (it streams again next time). Downloads are separate. */
+    suspend fun remove(context: Context, t: Track) = withContext(Dispatchers.IO) {
+        runCatching { PlaybackService.cache(context).removeResource(t.id) }
+    }
 }

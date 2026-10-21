@@ -36,15 +36,29 @@ import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.data.AppUpdate
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.Updates
+import com.dopdop.bopdop.data.UpdateInstaller
+import com.dopdop.bopdop.data.InstallState
+import kotlinx.coroutines.launch
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 
-/** Downloads the update's APK (or opens its release page) in the browser. */
+/** One tap: downloads the update and opens Android's installer. Without an APK, opens the release page. */
 fun openUpdate(ctx: android.content.Context, u: AppUpdate) {
-    runCatching {
-        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.apkUrl ?: u.pageUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    if (u.apkUrl == null) {
+        runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.pageUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        return
     }
+    val busy = UpdateInstaller.state.value
+    if (busy is InstallState.Downloading || busy == InstallState.Installing) return
+    kotlinx.coroutines.MainScope().launch { UpdateInstaller.install(ctx.applicationContext, u) }
+}
+
+/** "Update" / "42%" / "Installing…" for the update buttons. */
+fun updateButtonLabel(s: InstallState) = when (s) {
+    is InstallState.Downloading -> "${(s.fraction * 100).toInt()}%"
+    InstallState.Installing -> "Installing…"
+    else -> "Update"
 }
 
 /**
@@ -73,12 +87,13 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
                 Icon(Icons.Rounded.SystemUpdate, null, tint = Bop.OnInk, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(12.dp))
+            val install by UpdateInstaller.state.collectAsState()
             Column(Modifier.weight(1f)) {
                 Text("${u.title} is out", style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("A new BopDop is ready to install", style = BopType.Caption, color = Bop.Text2, maxLines = 1)
+                Text((install as? InstallState.Failed)?.message ?: "Tap Update to install it in place", style = BopType.Caption, color = Bop.Text2, maxLines = 2)
             }
             Text(
-                "Update", style = BopType.BodyStrong, color = Bop.OnInk,
+                updateButtonLabel(install), style = BopType.BodyStrong, color = Bop.OnInk,
                 modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick { openUpdate(ctx, u) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )

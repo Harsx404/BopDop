@@ -1,6 +1,8 @@
 package com.dopdop.bopdop.ui.player
 
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ThumbDown
 import com.dopdop.bopdop.data.pinnedFirst
 import com.dopdop.bopdop.data.PlaylistSort
@@ -180,6 +182,8 @@ fun SheetHost(app: AppState) {
                     Sheet.ImportPlaylist -> ImportPlaylistSheet(app)
                     is Sheet.SortPlaylist -> SortPlaylistSheet(app, s.id)
                     Sheet.Scrobbling -> ScrobblingSheet(app)
+                    Sheet.LastFm -> LastFmSheet(app)
+                    is Sheet.SongInfo -> SongInfoSheet(s.track)
                     null -> {}
                 }
             }
@@ -227,6 +231,14 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
     val close = { app.sheet = null }
     Header({ Artwork(t.artwork, Modifier.size(56.dp), corner = 10.dp, size = 226) }, t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · "))
     Column(Modifier.verticalScroll(rememberScrollState())) {
+        // The player's own controls (sleep, speed, cast, stats) lead when this is the song playing.
+        if (PlayerConnection.current.value?.id == t.id) {
+            val sleepAt by PlayerConnection.sleepAt.collectAsState()
+            Action(Icons.Rounded.Bedtime, sleepLabel(sleepAt)?.let { "Sleep timer · ${it.removePrefix("Sleep ")}" } ?: "Sleep timer") { app.sheet = Sheet.SleepTimer }
+            Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
+            Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
+            Action(Icons.Rounded.Insights, "Stats for nerds") { app.sheet = Sheet.AudioPipeline }
+        }
         Action(Icons.Rounded.SkipNext, "Play next") { PlayerConnection.playNext(t); app.toast("Playing next"); close() }
         Action(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { PlayerConnection.addToQueue(listOf(t)); app.toast("Added to queue"); close() }
         Action(Icons.Rounded.Radio, "Start radio") { PlayerConnection.startRadio(t); close() }
@@ -256,13 +268,13 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
                 else -> Action(Icons.Rounded.Download, "Download") { com.dopdop.bopdop.playback.Downloads.download(ctx, listOf(t)); app.toast("Downloading"); close() }
             }
         }
-        Action(Icons.Rounded.Share, "Share") { close(); app.shareTrack = t }
-        // Speed belongs to the player, so it's offered for the song that's playing.
-        if (PlayerConnection.current.value?.id == t.id) {
-            Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
-            Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
-            Action(Icons.Rounded.Insights, "Stats for nerds") { app.sheet = Sheet.AudioPipeline }
+        if (t.source != com.dopdop.bopdop.data.model.Source.LOCAL && remember(t.id) { com.dopdop.bopdop.playback.CachedSongs.isCached(ctx, t) }) {
+            Action(Icons.Rounded.DeleteSweep, "Remove from cache") {
+                app.scope.launch { com.dopdop.bopdop.playback.CachedSongs.remove(ctx, t) }; app.toast("Removed from cache"); close()
+            }
         }
+        Action(Icons.Rounded.Share, "Share") { close(); app.shareTrack = t }
+        Action(Icons.Rounded.Info, "Song info") { app.sheet = Sheet.SongInfo(t) }
     }
 }
 
@@ -462,6 +474,93 @@ private fun ColumnScope.ScrobblingSheet(app: AppState) {
     ) { Text(if (busy) "Checking…" else "Connect", style = BopType.BodyStrong, color = if (ready) Bop.OnInk else Bop.Text2) }
 }
 
+/**
+ * Last.fm / Libre.fm: allow BopDop on the site in the browser, come back, tap Done. With no API
+ * key in this build, paste your own (last.fm/api/account/create) under "Use your own API key".
+ */
+@Composable
+private fun ColumnScope.LastFmSheet(app: AppState) {
+    val ctx = LocalContext.current
+    val lib by LibraryStore.state.collectAsState()
+    val s = lib.settings
+    val scope = rememberCoroutineScope()
+    val fm = com.dopdop.bopdop.data.scrobble.LastFm
+    var token by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var ownKey by remember { mutableStateOf(false) }
+    val site = if (s.lastFmLibre) "Libre.fm" else "Last.fm"
+    Text(site, style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp))
+    if (s.lastFmSession.isNotBlank()) {
+        Text("Scrobbling as ${s.lastFmUser}. A song counts after half of it, or four minutes.", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp))
+        Box(
+            Modifier.padding(18.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50)).background(Bop.Veil.copy(alpha = 0.7f))
+                .bounceClick { LibraryStore.updateSettings { it.copy(lastFmSession = "", lastFmUser = "") }; app.toast("$site disconnected"); app.sheet = null },
+            contentAlignment = Alignment.Center,
+        ) { Text("Disconnect", style = BopType.BodyStrong, color = Bop.Danger) }
+        return
+    }
+    Row(Modifier.padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(false to "Last.fm", true to "Libre.fm").forEach { (libre, label) ->
+            val on = s.lastFmLibre == libre
+            Text(label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.6f))
+                    .bounceClick { LibraryStore.updateSettings { it.copy(lastFmLibre = libre) }; token = null }.padding(horizontal = 14.dp, vertical = 8.dp))
+        }
+    }
+    if (!fm.hasKeys || ownKey) {
+        Text("This build has no Last.fm API key. Create one at last.fm/api/account/create and paste it here.", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp))
+        @Composable
+        fun Field(hint: String, value: String, onChange: (String) -> Unit) = Box(
+            Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth().height(50.dp).glassLite(RoundedCornerShape(16.dp), alpha = 0.6f).padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (value.isEmpty()) Text(hint, style = BopType.Body, color = Bop.Text3)
+            BasicTextField(value, onChange, singleLine = true, textStyle = BopType.Body.copy(color = Bop.Text), cursorBrush = SolidColor(Bop.Ink), modifier = Modifier.fillMaxWidth())
+        }
+        Field("API key", s.lastFmKey) { v -> LibraryStore.updateSettings { it.copy(lastFmKey = v.trim()) } }
+        Field("Shared secret", s.lastFmSecret) { v -> LibraryStore.updateSettings { it.copy(lastFmSecret = v.trim()) } }
+    } else {
+        Text("Use your own API key", style = BopType.Caption, color = Bop.Text3, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp).bounceClick { ownKey = true })
+    }
+    Text(
+        if (token == null) "You'll allow BopDop on $site in your browser, then come back here."
+        else "Allowed it on $site? Tap Done.",
+        style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
+    )
+    error?.let { Text(it, style = BopType.Caption, color = Bop.Danger, modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp)) }
+    val ready = fm.hasKeys && !busy
+    Box(
+        Modifier.padding(18.dp).fillMaxWidth().height(50.dp).clip(RoundedCornerShape(50))
+            .background(if (ready) Bop.Ink else Bop.Ink.copy(alpha = 0.25f))
+            .bounceClick {
+                if (!ready) return@bounceClick
+                busy = true; error = null
+                scope.launch {
+                    try {
+                        val t = token
+                        if (t == null) {
+                            val (fresh, url) = fm.startAuth()
+                            token = fresh
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } else {
+                            val sess = fm.finishAuth(t)
+                            if (sess == null) error = "$site hasn't confirmed yet. Allow BopDop there, then tap Done."
+                            else {
+                                LibraryStore.updateSettings { it.copy(lastFmSession = sess.first, lastFmUser = sess.second) }
+                                fm.flush()
+                                app.toast("Scrobbling to $site as ${sess.second}"); app.sheet = null
+                            }
+                        }
+                    } catch (e: Exception) {
+                        error = e.message?.takeIf { it.startsWith("Last.fm") } ?: "Couldn't reach $site. Check your connection."
+                    } finally { busy = false }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) { Text(when { busy -> "Working…"; token == null -> "Sign in with $site"; else -> "Done" }, style = BopType.BodyStrong, color = if (ready) Bop.OnInk else Bop.Text2) }
+}
+
 @Composable
 private fun ColumnScope.NameInput(app: AppState, title: String, cta: String, initial: String, onDone: (String) -> Unit) {
     var name by remember { mutableStateOf(initial) }
@@ -591,6 +690,47 @@ private fun ColumnScope.AudioPipelineSheet() {
             "Buffer" to if (info.bufferMs > 0) "${info.bufferMs} ms" else "—",
             "Loaded ahead" to remember(tick) { ((PlayerConnection.bufferedPosition - PlayerConnection.position) / 1000).coerceAtLeast(0).let { "$it s" } },
             "Offload" to if (info.offload) "Yes" else "No",
+            "Bit-perfect" to (com.dopdop.bopdop.playback.BitPerfect.active.collectAsState().value ?: if (settings.bitPerfect) "Waiting for a USB DAC" else "Off"),
+        ))
+    }
+}
+
+/** Release date, album, label and credits from the catalogue, plus how much you've played it. */
+@Composable
+private fun ColumnScope.SongInfoSheet(t: Track) {
+    val info by androidx.compose.runtime.produceState<com.dopdop.bopdop.data.SongInfo?>(null, t.id) {
+        value = runCatching { com.dopdop.bopdop.data.SongInfo.load(t) }.getOrDefault(com.dopdop.bopdop.data.SongInfo())
+    }
+    val stats by com.dopdop.bopdop.data.PlayStats.state.collectAsState()
+    val lib by LibraryStore.state.collectAsState()
+    val plays = remember(stats, t.id) { stats.events.filter { it.id == t.id } }
+    val fmt = remember { java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy") }
+    fun day(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toLocalDate().format(fmt)
+    fun released(s: String) = runCatching { java.time.LocalDate.parse(s).format(fmt) }.getOrDefault(s)
+    Header({ Artwork(t.artwork, Modifier.size(56.dp), corner = 10.dp, size = 226) }, t.title, t.artist)
+    Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 12.dp)) {
+        val i = info
+        if (i == null) {
+            Text("Looking it up…", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(vertical = 14.dp))
+        } else {
+            val about = listOf(
+                "Released" to released(i.released), "Album" to i.album, "Label" to i.label, "Language" to i.language,
+                "Length" to if (t.durationSec > 0) "%d:%02d".format(t.durationSec / 60, t.durationSec % 60) else "",
+                "Source" to when (t.source) {
+                    com.dopdop.bopdop.data.model.Source.SAAVN -> "JioSaavn"
+                    com.dopdop.bopdop.data.model.Source.LOCAL -> "This phone"
+                    else -> "YouTube Music"
+                },
+            ).filter { it.second.isNotBlank() }
+            PipeStage("About", about)
+            if (i.credits.isNotEmpty()) PipeStage("Credits", i.credits.map { it.role to it.names.joinToString(", ") })
+            if (i.copyright.isNotBlank()) Text(i.copyright, style = BopType.Caption, color = Bop.Text3, modifier = Modifier.padding(top = 10.dp))
+        }
+        PipeStage("Your plays", if (plays.isEmpty()) listOf("Plays" to "Not yet") else listOf(
+            "Plays" to plays.size.toString(),
+            "First" to day(plays.first().at),
+            "Latest" to day(plays.last().at),
+            "Liked" to if (t.id in lib.likedIds) "Yes" else "No",
         ))
     }
 }

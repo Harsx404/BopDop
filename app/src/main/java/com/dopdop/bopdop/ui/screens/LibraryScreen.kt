@@ -4,6 +4,9 @@ import com.dopdop.bopdop.data.SmartPlaylists
 import androidx.compose.material.icons.rounded.Explore
 import com.dopdop.bopdop.data.pinnedFirst
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -121,33 +124,55 @@ fun LibraryScreen() {
 
         item(key = "madeForYou") { MadeForYou() }
 
-        item(key = "plHeader") { SectionHeader("Your playlists", action = "New") { app.sheet = Sheet.NewPlaylist(emptyList()) } }
+        val asList = lib.settings.libraryList
+        item(key = "plHeader") {
+            SectionHeader("Your playlists", trailing = {
+                Icon(
+                    if (asList) Icons.Rounded.GridView else Icons.AutoMirrored.Rounded.ViewList, if (asList) "Show as grid" else "Show as list", tint = Bop.Text2,
+                    modifier = Modifier.clip(CircleShape).bounceClick { LibraryStore.updateSettings { it.copy(libraryList = !asList) } }.padding(6.dp).size(22.dp),
+                )
+            })
+        }
         val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists.pinnedFirst()
-        val rows = tiles.chunked(2)
-        items(rows.size, key = { "pl$it" }) { r ->
-            Row(Modifier.riseIn(r + 2).padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                rows[r].forEach { item ->
-                    Box(Modifier.weight(1f)) {
-                        when (item) {
-                            is UserPlaylist -> PlaylistCard(item)
-                            "import" -> NewPlaylistCard(Icons.Rounded.PlaylistAdd, "Import", "From Spotify or YouTube") { app.sheet = Sheet.ImportPlaylist }
-                            else -> NewPlaylistCard(Icons.Rounded.Add, "New playlist", "Make it yours") { app.sheet = Sheet.NewPlaylist(emptyList()) }
+        if (asList) items(tiles.size, key = { i -> (tiles[i] as? UserPlaylist)?.id ?: "pl-${tiles[i]}" }) { i ->
+            Box(Modifier.riseIn(i + 2)) {
+                when (val item = tiles[i]) {
+                    is UserPlaylist -> PlaylistRow(item)
+                    "import" -> NewRow(Icons.Rounded.PlaylistAdd, "Import", "From Spotify or YouTube") { app.sheet = Sheet.ImportPlaylist }
+                    else -> NewRow(Icons.Rounded.Add, "New playlist", "Make it yours") { app.sheet = Sheet.NewPlaylist(emptyList()) }
+                }
+            }
+        } else {
+            val rows = tiles.chunked(2)
+            items(rows.size, key = { "pl$it" }) { r ->
+                Row(Modifier.riseIn(r + 2).padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    rows[r].forEach { item ->
+                        Box(Modifier.weight(1f)) {
+                            when (item) {
+                                is UserPlaylist -> PlaylistCard(item)
+                                "import" -> NewPlaylistCard(Icons.Rounded.PlaylistAdd, "Import", "From Spotify or YouTube") { app.sheet = Sheet.ImportPlaylist }
+                                else -> NewPlaylistCard(Icons.Rounded.Add, "New playlist", "Make it yours") { app.sheet = Sheet.NewPlaylist(emptyList()) }
+                            }
                         }
                     }
+                    if (rows[r].size == 1) Spacer(Modifier.weight(1f))
                 }
-                if (rows[r].size == 1) Spacer(Modifier.weight(1f))
             }
         }
 
         if (account != null) item(key = "ytm") { YtMusicLibrary() }
+        item(key = "spotify") { SpotifyDoor() }
 
         if (savedCollections.isNotEmpty()) {
             item(key = "savedHeader") { SectionHeader("Saved albums & playlists") }
-            val sr = savedCollections.chunked(2)
-            items(sr.size, key = { "sv$it" }) { r ->
-                Row(Modifier.padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    sr[r].forEach { c -> Box(Modifier.weight(1f)) { SavedCard(c) } }
-                    if (sr[r].size == 1) Spacer(Modifier.weight(1f))
+            if (asList) items(savedCollections, key = { "sv${it.id}" }) { c -> SavedRow(c) }
+            else {
+                val sr = savedCollections.chunked(2)
+                items(sr.size, key = { "sv$it" }) { r ->
+                    Row(Modifier.padding(horizontal = 20.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        sr[r].forEach { c -> Box(Modifier.weight(1f)) { SavedCard(c) } }
+                        if (sr[r].size == 1) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
@@ -363,6 +388,68 @@ private fun SavedCard(c: Card) {
         Artwork(c.artwork, m, corner = 0.dp, size = 500)
     }
 }
+
+/** Spotify: connect, or open your Spotify playlists once connected. */
+@Composable
+private fun SpotifyDoor() {
+    val app = LocalApp.current
+    val profile by com.dopdop.bopdop.data.spotify.SpotifyAccount.profile.collectAsState()
+    Row(
+        Modifier.padding(horizontal = 20.dp, vertical = 10.dp).fillMaxWidth()
+            .bounceClick(0.98f) { app.nav.navigate(if (profile != null) com.dopdop.bopdop.ui.Routes.SPOTIFY else com.dopdop.bopdop.ui.Routes.SPOTIFY_LOGIN) }
+            .glassLite(RoundedCornerShape(22.dp), alpha = 0.5f).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        com.dopdop.bopdop.ui.components.BrandLogo(com.dopdop.bopdop.ui.components.Brand.SPOTIFY, 44.dp, Icons.Rounded.GraphicEq, fallbackTint = Color(0xFF1ED760))
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (profile != null) "Your Spotify" else "Connect Spotify", style = BopType.BodyStrong, color = Bop.Text)
+            Text(if (profile != null) "Playlists and Liked Songs, played here" else "Play your Spotify playlists and Liked Songs here", style = BopType.Caption, color = Bop.Text2)
+        }
+    }
+}
+
+// --- List layout (Library › list toggle) -----------------------------------------------
+
+@Composable
+private fun PlaylistRow(p: UserPlaylist) {
+    val app = LocalApp.current
+    LibraryRow(
+        title = p.name, sub = songs(p.tracks.size), pinned = p.pinned,
+        onLong = { app.sheet = Sheet.CardOptions(Card(p.cardId, CardKind.PLAYLIST, p.name, "Your playlist", p.artwork)) },
+        onClick = { app.openLocal(p.id) },
+    ) { m -> Collage(p.tracks.map { it.artwork }.distinct(), m, 0.dp) }
+}
+
+@Composable
+private fun SavedRow(c: Card) {
+    val app = LocalApp.current
+    LibraryRow(c.title, c.subtitle.ifBlank { if (c.kind == CardKind.ALBUM) "Album" else "Playlist" }, onLong = { app.sheet = Sheet.CardOptions(c) }, onClick = { app.open(c) }) { m ->
+        Artwork(c.artwork, m, corner = 0.dp, size = 226)
+    }
+}
+
+@Composable
+private fun LibraryRow(title: String, sub: String, pinned: Boolean = false, onLong: (() -> Unit)? = null, onClick: () -> Unit, art: @Composable (Modifier) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().bounceClick(0.98f, onLongClick = onLong, onClick = onClick).padding(horizontal = 20.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(58.dp).clip(RoundedCornerShape(14.dp))) { art(Modifier.fillMaxSize()) }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(sub, style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (pinned) Icon(Icons.Rounded.PushPin, "Pinned", tint = Bop.Text3, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun NewRow(icon: ImageVector, title: String, sub: String, onClick: () -> Unit) =
+    LibraryRow(title, sub, onClick = onClick) { m ->
+        Box(m.background(Bop.Ink), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Bop.OnInk, modifier = Modifier.size(26.dp)) }
+    }
 
 @Composable
 private fun CaptionCard(title: String, sub: String, onLong: () -> Unit, onClick: () -> Unit, art: @Composable (Modifier) -> Unit) {

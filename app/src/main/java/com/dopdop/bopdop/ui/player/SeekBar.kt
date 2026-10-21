@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -31,7 +32,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.data.LibraryStore
-import com.dopdop.bopdop.data.SeekPet
+import com.dopdop.bopdop.data.Mascot
 import com.dopdop.bopdop.data.SeekStyle
 import com.dopdop.bopdop.data.model.formatDuration
 import com.dopdop.bopdop.ui.glass.LocalReduceMotion
@@ -57,13 +58,13 @@ fun SeekBar(
     caption: String? = null,
     seed: Int = 0,
     style: SeekStyle? = null,
-    pet: SeekPet? = null,
+    mascot: Mascot? = null,
     onLongPress: (() -> Unit)? = null,
 ) {
     val settings by LibraryStore.state.collectAsState()
     val look = style ?: settings.settings.seekStyle
-    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
-    val friend = (pet ?: settings.settings.seekPet).inSeason(costume)
+    val friend = mascot ?: settings.settings.mascot
+    val frames = if (friend == Mascot.NONE) null else rememberMascotFrames()
     val dur = durationMs.coerceAtLeast(1L)
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)
@@ -71,20 +72,26 @@ fun SeekBar(
     val amp by animateFloatAsState(if (playing && drag == null) 1f else 0f, tween(420), label = "amp")
     val thumbH by animateFloatAsState(if (drag != null) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 700f), label = "thumb")
     val moving = (playing || drag != null) && !reduce
-    // Seconds of animation; keeps running while paused only when a pet is napping.
+    // Seconds of animation; keeps running while paused only when the kitty is asleep.
     val time by produceState(0f, moving, friend, reduce) {
-        if (reduce || (!moving && friend == SeekPet.NONE)) return@produceState
+        if (reduce || (!moving && friend == Mascot.NONE)) return@produceState
+        if (!moving) {
+            // Paused: only the kitty's slow sleep frames change, so a few ticks a second, not every frame.
+            while (true) { kotlinx.coroutines.delay(150); value += 0.15f }
+        }
         val start = withInfiniteAnimationFrameMillis { it }
         val base = value
         while (true) withInfiniteAnimationFrameMillis { value = base + (it - start) / 1000f }
     }
-    val phase = time * 2f * PI.toFloat() * 0.9f
-    // Which way the pet faces: back to the left while you scrub backwards.
+    // When playback paused, so the kitty lies down once and then dozes.
+    var pausedAt by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(playing) { if (!playing) pausedAt = time }
+    // Which way the mascot faces: back to the left while you scrub backwards.
     var facing by remember { mutableFloatStateOf(1f) }
     var last by remember { mutableFloatStateOf(frac) }
     if (drag != null && frac != last) { facing = if (frac < last) -1f else 1f; last = frac }
     if (drag == null) { if (facing < 0f) facing = 1f; last = frac }
-    val petRoom = if (friend == SeekPet.NONE) 0.dp else 26.dp
+    val petRoom = if (friend == Mascot.NONE) 0.dp else 30.dp
 
     Column(modifier.fillMaxWidth()) {
         Canvas(
@@ -95,14 +102,20 @@ fun SeekBar(
             val w = size.width - 2 * pad
             val cy = petRoom.toPx() + 19.dp.toPx()
             val x = pad + w * frac
+            // Read here, in drawing, so each animation frame redraws the bar without recomposing it.
+            val phase = time * 2f * PI.toFloat() * 0.9f
             val top = when (look) {
                 SeekStyle.WAVE -> drawWave(pad, w, cy, x, amp, phase, thumbH)
                 SeekStyle.LINE -> drawPlainLine(pad, w, cy, x, thumbH)
                 SeekStyle.BARS -> drawBars(pad, w, cy, x, amp, phase, thumbH, seed)
                 SeekStyle.DOTS -> drawDots(pad, w, cy, x, amp, phase, thumbH)
             }
-            val mode = when { drag != null -> PetMode.JUMP; playing -> PetMode.RUN; else -> PetMode.SIT }
-            drawPet(friend, x, top - 1.dp.toPx(), if (reduce) 0f else time, if (reduce && mode != PetMode.SIT) PetMode.RUN else mode, facing, costume)
+            if (frames != null) {
+                val mode = when { drag != null -> MascotMode.HOP; playing -> MascotMode.WALK; else -> MascotMode.SLEEP }
+                // Reduced motion: a still kitty, asleep when paused.
+                drawMascot(frames, x, top - 1.dp.toPx(), if (reduce) 0f else time, if (reduce && mode == MascotMode.HOP) MascotMode.WALK else mode, facing,
+                    asleepFor = if (reduce) 99f else (time - pausedAt).coerceAtLeast(0f))
+            }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Text(formatDuration((frac * dur / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Caption, color = if (drag != null) Bop.OnMedia else Bop.OnMedia2)

@@ -11,7 +11,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioSink
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -84,9 +88,33 @@ object AudioPipeline {
         return OutputDevice(android.os.Build.MODEL, "Speaker")
     }
 
+    /** [output], kept current as headphones, Bluetooth or USB come and go. */
+    fun outputFlow(context: Context): Flow<OutputDevice> = callbackFlow {
+        val am = context.getSystemService(AudioManager::class.java)
+        trySend(output(context))
+        val cb = object : android.media.AudioDeviceCallback() {
+            override fun onAudioDevicesAdded(added: Array<out AudioDeviceInfo>?) { trySend(output(context)) }
+            override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>?) { trySend(output(context)) }
+        }
+        am?.registerAudioDeviceCallback(cb, android.os.Handler(android.os.Looper.getMainLooper()))
+        awaitClose { am?.unregisterAudioDeviceCallback(cb) }
+    }.distinctUntilChanged()
+
+    /** The system's own "play on" picker (Android 14+); older phones get Bluetooth settings. */
+    fun showOutputSwitcher(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT >= 34 &&
+            runCatching { android.media.MediaRouter2.getInstance(context).showSystemOutputSwitcher() }.getOrDefault(false)) return
+        runCatching {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+
     private fun codecName(f: Format) = when (f.sampleMimeType) {
         MimeTypes.AUDIO_OPUS -> "Opus"
         MimeTypes.AUDIO_AAC -> "AAC"
+        MimeTypes.AUDIO_E_AC3_JOC, MimeTypes.AUDIO_AC4 -> "Dolby Atmos"
+        MimeTypes.AUDIO_E_AC3 -> "Dolby Digital Plus"
+        MimeTypes.AUDIO_AC3 -> "Dolby Digital"
         MimeTypes.AUDIO_FLAC -> "FLAC"
         MimeTypes.AUDIO_MPEG -> "MP3"
         MimeTypes.AUDIO_VORBIS -> "Vorbis"

@@ -39,7 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.dopdop.bopdop.data.LibraryStore
-import com.dopdop.bopdop.data.SeekPet
+import com.dopdop.bopdop.data.Mascot
 import com.dopdop.bopdop.data.SeekStyle
 import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.theme.Bop
@@ -49,7 +49,7 @@ private const val DEMO_MS = 24_000L
 
 /**
  * Pick how the seek bar looks and who runs along it, with a live preview that plays (and pauses,
- * so you can see the pet nap) right in the sheet.
+ * so you can see the kitty nap) right in the sheet.
  */
 @Composable
 fun ColumnScope.SeekLookSheet() {
@@ -82,17 +82,14 @@ fun ColumnScope.SeekLookSheet() {
             Choice(st.label, st == s.seekStyle, Modifier.weight(1f)) { LibraryStore.updateSettings { it.copy(seekStyle = st) } }
         }
     }
-    Label("Pet")
-    val costume = com.dopdop.bopdop.ui.festive.LocalFestive.current.costume
-    // Festival pets join the line-up only while their festival is on.
-    val pets = SeekPet.entries.filter { it.festival == null || it.festival == costume }
+    Label("Mascot")
     Row(
         Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        pets.forEach { p ->
-            Choice(p.label, p == s.seekPet.inSeason(costume), Modifier.width(64.dp), art = if (p == SeekPet.NONE) null else ({ PetIcon(p, costume) }), keepArtSpace = true) {
-                LibraryStore.updateSettings { it.copy(seekPet = p) }
+        Mascot.entries.forEach { m ->
+            Choice(m.label, m == s.mascot, Modifier.width(72.dp), art = if (m == Mascot.NONE) null else ({ MascotIcon() }), keepArtSpace = true) {
+                LibraryStore.updateSettings { it.copy(mascot = m) }
             }
         }
     }
@@ -114,15 +111,16 @@ private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Compos
     }
 }
 
-/** The pet, trotting in place. */
+/** The kitty, walking in place. */
 @Composable
-private fun PetIcon(pet: SeekPet, costume: com.dopdop.bopdop.data.Festival?) {
+private fun MascotIcon() {
+    val frames = rememberMascotFrames()
     val t by produceState(0f) {
         val start = withInfiniteAnimationFrameMillis { it }
         while (true) withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
     }
-    // On a dusk backing, like the player, so a white bunny shows up on a light sheet too.
-    Canvas(Modifier.size(42.dp, 32.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2E2640))) {
-        drawPet(pet, size.width / 2, size.height - 4.dp.toPx(), t, PetMode.RUN, 1f, costume)
+    // On a dusk backing, like the player.
+    Canvas(Modifier.size(48.dp, 36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2E2640))) {
+        drawMascot(frames, size.width / 2, size.height - 3.dp.toPx(), t, MascotMode.WALK, 1f, heightDp = 28f)
     }
 }

@@ -147,19 +147,22 @@ fun List<Card>.cardsToJson() = JSONArray().also { a -> forEach { a.put(it.toJson
 fun JSONArray?.toCards(): List<Card> =
     if (this == null) emptyList() else (0 until length()).mapNotNull { runCatching { Card.fromJson(getJSONObject(it)) }.getOrNull() }
 
-/** Normalised "title|artist" used to dedupe the same recording across sources. */
+/**
+ * "title|tags|artist" used to dedupe the same recording across sources. Versions keep their own
+ * key: "Kesariya" and "Kesariya (Lofi Flip)" both stay in search results.
+ */
 fun Track.matchKey(): String {
-    val t = title.lowercase().replace(Regex("\\(.*?\\)|\\[.*?]"), " ")
-        .replace(Regex("\\b(feat|ft)\\b.*$"), " ").replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
-    val a = artist.lowercase().split(',', '&').firstOrNull()?.replace(Regex("[^\\p{L}\\p{N}]+"), " ")?.trim().orEmpty()
-    return "$t|$a"
+    val a = SongVersion.artists(artist.split(',', '&').firstOrNull().orEmpty()).firstOrNull().orEmpty()
+    return SongVersion.recordingKey(title) + "|" + a
 }
 
 /**
  * Songs to recognise again, whichever source a copy comes from: the same id, or the same title
  * with at least one artist in common (YouTube Music and JioSaavn list artists in different orders).
+ * By default only the same version counts ("Not for me" on a song leaves its lofi cut alone);
+ * [anyVersion] treats every version as the song (Discover: nothing you've heard in any form).
  */
-class SongSet(tracks: Iterable<Track> = emptyList()) {
+class SongSet(tracks: Iterable<Track> = emptyList(), private val anyVersion: Boolean = false) {
     private val ids = HashSet<String>()
     private val byTitle = HashMap<String, MutableSet<String>>()
 
@@ -167,15 +170,13 @@ class SongSet(tracks: Iterable<Track> = emptyList()) {
 
     fun add(t: Track) {
         ids += t.id
-        byTitle.getOrPut(titleKey(t)) { HashSet() } += artistKeys(t)
+        byTitle.getOrPut(titleKey(t)) { HashSet() } += SongVersion.artists(t.artist)
     }
 
     operator fun contains(t: Track): Boolean =
-        t.id in ids || byTitle[titleKey(t)]?.let { known -> artistKeys(t).any { it in known } } == true
+        t.id in ids || byTitle[titleKey(t)]?.let { known -> SongVersion.artists(t.artist).any { it in known } } == true
 
-    private fun titleKey(t: Track) = t.matchKey().substringBefore('|')
-    private fun artistKeys(t: Track) = t.artist.lowercase().split(',', '&')
-        .map { it.replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim() }.filter { it.isNotEmpty() }
+    private fun titleKey(t: Track) = if (anyVersion) SongVersion.parse(t.title).core else SongVersion.recordingKey(t.title)
 }
 
 fun formatDuration(sec: Int): String {

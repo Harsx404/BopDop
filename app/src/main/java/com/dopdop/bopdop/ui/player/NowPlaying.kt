@@ -53,6 +53,13 @@ import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Headset
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Usb
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -223,6 +230,7 @@ fun NowPlaying(app: AppState) {
                     val active = swipeFrom == t.id
                     val sv = if (active) swipe.value else 0f
                     val incoming = if (sv < -1f) nextArt else if (sv > 1f) prevArt else null
+                    val canvasUrl = rememberCanvasUrl(t)
                     AnimatedContent(
                         targetState = t.artwork,
                         // A swipe already brought the new cover in — don't crossfade it again.
@@ -240,7 +248,11 @@ fun NowPlaying(app: AppState) {
                             alpha = 1f - prog
                             liquidBlur(prog)
                         },
-                    ) { art -> KenBurnsArt(art) }
+                    ) { art -> KenBurnsArt(art, still = canvasUrl != null || video.active) }
+                    // Spotify Canvas, when the song has one: loops over the cover, under the music video.
+                    if (canvasUrl != null && !video.active) CanvasVideo(canvasUrl, Modifier.fillMaxSize().graphicsLayer {
+                        if (swipeFrom == t.id) alpha = 1f - (kotlin.math.abs(swipe.value) / w).coerceIn(0f, 1f)
+                    })
                     // The music video takes the cover's place; it fades with the swipe like the art does.
                     AnimatedVisibility(video.active, enter = fadeIn(tween(500)), exit = fadeOut(tween(300))) {
                         MusicVideoHero(video, Modifier.fillMaxSize().graphicsLayer {
@@ -267,6 +279,11 @@ fun NowPlaying(app: AppState) {
                         Brush.verticalGradient(0f to Color.Black.copy(alpha = 0.28f), 0.2f to Color.Transparent, 0.5f to Color.Transparent, 0.86f to wash.copy(alpha = 0.85f), 1f to wash),
                     ),
                 )
+                // Lyrics: the cover swirls slowly behind the words instead of sitting still.
+                val motion = app.nowPlayingPage == NowPlayingPage.LYRICS && LibraryStore.settings.lyricsMotion &&
+                    !LocalReduceMotion.current && android.os.Build.VERSION.SDK_INT >= 31
+                val motionA by animateFloatAsState(if (motion) 1f else 0f, tween(900), label = "motionBg")
+                if (motionA > 0.01f) LyricsMotionBackground(t.artwork, Modifier.fillMaxSize().graphicsLayer { alpha = motionA })
                 Box(Modifier.fillMaxSize().background(washDeep.copy(alpha = dim)))
                 // Contrast floor: light covers wash out white controls, so deepen the bottom a touch.
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.62f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f))))
@@ -300,14 +317,45 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.liquidBlur(amount: F
     renderEffect = if (r < 0.5f) null else androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp)
 }
 
+/**
+ * Lyrics backdrop from the cover: three heavily blurred, oversized copies turning and drifting at
+ * different speeds, so its colours swirl like a lava lamp. Still while paused.
+ */
+@Composable
+private fun LyricsMotionBackground(art: String, modifier: Modifier = Modifier) {
+    val playing by PlayerConnection.isPlaying.collectAsState()
+    val turn = remember { Animatable(0f) }
+    LaunchedEffect(playing) {
+        if (!playing) return@LaunchedEffect
+        while (true) turn.animateTo(turn.value + 360f, tween(60_000, easing = androidx.compose.animation.core.LinearEasing))
+    }
+    BoxWithConstraints(modifier.clipToBounds().blur(72.dp, androidx.compose.ui.draw.BlurredEdgeTreatment.Rectangle)) {
+        val side = maxOf(maxWidth, maxHeight) * 0.95f
+        listOf(Triple(-0.30f, -0.25f, 1f), Triple(0.35f, 0.15f, -0.7f), Triple(-0.10f, 0.45f, 0.45f)).forEach { (fx, fy, speed) ->
+            Artwork(
+                art,
+                Modifier.align(Alignment.Center).size(side).graphicsLayer {
+                    val a = Math.toRadians((turn.value * speed).toDouble())
+                    translationX = (fx + 0.12f * kotlin.math.cos(a).toFloat()) * size.width
+                    translationY = (fy + 0.12f * kotlin.math.sin(a).toFloat()) * size.height
+                    rotationZ = turn.value * speed
+                    alpha = 0.85f
+                },
+                corner = 0.dp, size = 400,
+            )
+        }
+    }
+}
+
 /** Slow Ken Burns drift while playing — the photo feels alive, like the reference's hero shots. */
 @Composable
-private fun KenBurnsArt(art: String) {
+private fun KenBurnsArt(art: String, still: Boolean = false) {
     val playing by PlayerConnection.isPlaying.collectAsState()
     val reduce = LocalReduceMotion.current
     val zoom = remember { Animatable(1.02f) }
-    LaunchedEffect(playing, reduce) {
-        if (!playing || reduce) return@LaunchedEffect
+    // Hidden under a Canvas or video, the zoom would only make every glass control re-blur each frame.
+    LaunchedEffect(playing, reduce, still) {
+        if (!playing || reduce || still) return@LaunchedEffect
         while (true) {
             zoom.animateTo(1.12f, tween(16000))
             zoom.animateTo(1.02f, tween(16000))
@@ -420,7 +468,6 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
     val buffering by PlayerConnection.buffering.collectAsState()
     val shuffle by PlayerConnection.shuffle.collectAsState()
     val repeat by PlayerConnection.repeat.collectAsState()
-    val sleepAt by PlayerConnection.sleepAt.collectAsState()
     val ctxLabel by PlayerConnection.context.collectAsState()
     val lib by LibraryStore.state.collectAsState()
     val quality by StreamResolver.quality.collectAsState()
@@ -463,7 +510,7 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
                 app.collapsePlayer()
                 app.nav.navigate("together?code=") { launchSingleTop = true }
             }
-            PageToggle(Icons.Rounded.Bedtime, "Sleep", sleepAt != null, haze) { app.sheet = Sheet.SleepTimer }
+            OutputToggle(haze)
             PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", app.nowPlayingPage == NowPlayingPage.QUEUE, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.QUEUE) NowPlayingPage.ART else NowPlayingPage.QUEUE
             }
@@ -497,8 +544,8 @@ private fun LiveLyricLine(t: Track, onOpen: () -> Unit) {
             label = "liveLyric",
         ) { text ->
             Text(
-                text, style = BopType.BodyStrong.copy(fontSize = 15.sp, lineHeight = 18.sp).forScript(text), color = Bop.OnMedia,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                text, style = BopType.BodyStrong.copy(fontSize = 15.sp, lineHeight = 18.sp).forScript(text).aligned(isRtl(text)), color = Bop.OnMedia,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -550,6 +597,7 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
     val pos by produceState(0L, t.id) { while (true) { value = PlayerConnection.position; delay(200) } }
     val playing by PlayerConnection.isPlaying.collectAsState()
     val video by PlayerConnection.video.collectAsState()
+    val sleepAt by PlayerConnection.sleepAt.collectAsState()
     val app = com.dopdop.bopdop.ui.LocalApp.current
     SeekBar(
         positionMs = pos, durationMs = PlayerConnection.duration, playing = playing,
@@ -562,11 +610,40 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
             // Short while a video plays: the picture already says a lot.
             listOfNotNull(q?.let { if (it.hiRes) "Hi-Res" else it.codec }, res).joinToString(" · ")
         } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label }
-            .let { cap -> val sp = LibraryStore.settings.playbackSpeed; if (sp == 1f) cap else listOfNotNull(speedLabel(sp), cap).joinToString(" · ") },
+            .let { cap -> val sp = LibraryStore.settings.playbackSpeed; if (sp == 1f) cap else listOfNotNull(speedLabel(sp), cap).joinToString(" · ") }
+            // The sleep timer lives in the ⋯ menu now; while it runs, the caption says so.
+            .let { cap -> sleepLabel(sleepAt, pos)?.let { listOfNotNull(it, cap).joinToString(" · ") } ?: cap },
     )
 }
 
 // --- Small pieces ---------------------------------------------------------------------
+
+/** "Sleep 12 min" / "Sleep after this song" while a timer runs; [tick] only re-reads the clock. */
+internal fun sleepLabel(at: Long?, @Suppress("UNUSED_PARAMETER") tick: Long = 0): String? = when {
+    at == null -> null
+    at == Long.MAX_VALUE -> "Sleep after this song"
+    else -> "Sleep " + ((at - System.currentTimeMillis()) / 60_000 + 1).coerceAtLeast(1) + " min"
+}
+
+/**
+ * Where the sound is going, as one icon in the bottom row: phone, headphones, wired or USB. Lit
+ * when it's not the phone's own speaker. Tap for the system's output picker.
+ */
+@Composable
+private fun OutputToggle(haze: HazeState) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val flow = remember { com.dopdop.bopdop.playback.AudioPipeline.outputFlow(ctx.applicationContext) }
+    val out by flow.collectAsState(remember { com.dopdop.bopdop.playback.AudioPipeline.output(ctx) })
+    val icon = when (out.route) {
+        "Bluetooth" -> Icons.Rounded.Headphones
+        "Wired" -> Icons.Rounded.Headset
+        "USB" -> Icons.Rounded.Usb
+        else -> Icons.Rounded.PhoneAndroid
+    }
+    PageToggle(icon, if (out.route == "Speaker") "Playing on this phone" else "Playing on ${out.name}", out.route != "Speaker", haze) {
+        com.dopdop.bopdop.playback.AudioPipeline.showOutputSwitcher(ctx)
+    }
+}
 
 @Composable
 private fun MediaCircle(icon: ImageVector, desc: String, haze: HazeState, size: Dp, modifier: Modifier = Modifier, onClick: () -> Unit) {
@@ -653,9 +730,11 @@ private fun SmallToggle(icon: ImageVector, desc: String, on: Boolean, onClick: (
 
 @Composable
 private fun PageToggle(icon: ImageVector, desc: String, on: Boolean, haze: HazeState, onClick: () -> Unit) {
+    // No clip before the glass: the glass draws its own circle and rim, and an early clip shaves the rim flat.
+    val press = remember { MutableInteractionSource() }
     Box(
-        Modifier.size(44.dp).clip(CircleShape).bounceClick(0.85f, onClick = onClick)
-            .then(if (on) Modifier.mediaGlass(CircleShape, haze, emphasis = 1.6f) else Modifier),
+        Modifier.size(48.dp).bounceClick(0.85f, interactionSource = press, onClick = onClick)
+            .then(if (on) Modifier.mediaGlass(CircleShape, haze, emphasis = 1.6f, interactionSource = press, strong = true) else Modifier.clip(CircleShape)),
         contentAlignment = Alignment.Center,
     ) { Icon(icon, desc, tint = if (on) Color.White else Color.White.copy(alpha = 0.92f), modifier = Modifier.size(24.dp)) }
 }

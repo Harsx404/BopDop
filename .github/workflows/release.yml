@@ -36,13 +36,17 @@ jobs:
       - name: Build release APK
         run: sh gradlew --no-daemon :app:assembleRelease
 
-      - name: Name the APK after the tag
-        run: cp app/build/outputs/apk/release/app-release.apk "BopDop-${TAG}.apk"
+      - name: Name the APKs after the tag
+        run: |
+          cp app/build/outputs/apk/release/app-universal-release.apk "BopDop-${TAG}.apk"
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cp "app/build/outputs/apk/release/app-${abi}-release.apk" "BopDop-${TAG}-${abi}.apk"
+          done
 
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           target_commitish: ${{ github.sha }}
           name: BopDop ${{ env.TAG }}
-          files: BopDop-${{ env.TAG }}.apk
+          files: BopDop-${{ env.TAG }}*.apk
           generate_release_notes: true

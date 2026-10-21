@@ -1,6 +1,7 @@
 package com.dopdop.bopdop.data
 
 import com.dopdop.bopdop.data.model.CardKind
+import com.dopdop.bopdop.data.model.SongVersion
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.net.Http
 import com.dopdop.bopdop.data.ytm.YtMusic
@@ -66,23 +67,62 @@ object PlaylistImport {
         return entity.optString("name").ifBlank { "Imported playlist" } to songs
     }
 
-    /** Best YouTube Music song for [s]: same title words, an artist in common, length within 15 s. */
+    /**
+     * Best YouTube Music song for [s]: same title words, an artist in common, length within 15 s.
+     * When "title artist" doesn't surface it, the title alone is tried.
+     */
     internal suspend fun match(s: ForeignSong): Track? {
         val artist = s.artist.split(",").first().trim()
-        val results = runCatching { YtMusic.searchSongs("${cleanTitle(s.title)} $artist") }.getOrDefault(emptyList())
-        return results.take(6).map { it to score(s, it) }.filter { it.second > 0 }.maxByOrNull { it.second }?.first
+        val title = cleanTitle(s.title).trim()
+        var results = emptyList<Track>()
+        for (q in listOf("$title $artist", title).distinct()) {
+            results = runCatching { YtMusic.searchSongs(q) }.getOrDefault(emptyList())
+            results.take(6).map { it to score(s, it) }.filter { it.second > 0 }.maxByOrNull { it.second }?.let { return it.first }
+        }
+        android.util.Log.i("PlaylistImport", "miss “${s.title}” / ${s.artist} / ${s.durationSec}s among: " +
+            results.take(6).joinToString(" | ") { "“${it.title}” / ${it.artist} / ${it.durationSec}s" })
+        return null
     }
 
+    /**
+     * How well [t] stands for [s] (0 = not the same song). Titles match on the whole or on either
+     * side of " - ", since Japanese and Korean releases are listed as "心做し - Kokoronashi".
+     * Artists match as written or romanized ("たかやん" = "Takayan"). When the artist is written in
+     * another script that doesn't romanize the same way ("Yoh kamiyama" / "神山 羊"), an exact
+     * title within 3 s still counts, ranked below an artist match.
+     */
     internal fun score(s: ForeignSong, t: Track): Int {
+        // The playlist's own version only: "Song" never imports as "Song (Lofi)", nor the other way round.
+        if (SongVersion.parse(s.title).tags != SongVersion.parse(t.title).tags) return 0
         val want = words(cleanTitle(s.title))
-        val got = words(cleanTitle(t.title))
-        if (want.isEmpty() || !got.containsAll(want) && !want.containsAll(got)) return 0
-        val artists = s.artist.split(",").map { words(it) }.filter { it.isNotEmpty() }
-        val theirs = words(t.artist)
-        if (artists.isNotEmpty() && artists.none { theirs.containsAll(it) }) return 0
+        if (want.isEmpty()) return 0
+        val got = titleOptions(t.title).firstOrNull { g -> g.containsAll(want) || want.containsAll(g) } ?: return 0
         val drift = if (s.durationSec > 0 && t.durationSec > 0) abs(s.durationSec - t.durationSec) else 0
         if (drift > 15) return 0
-        return 100 - drift - (got - want).size * 3
+        val artists = s.artist.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        val theirs = artistWords(t.artist)
+        val artistOk = artists.isEmpty() || artists.any { a -> artistWords(a).let { it.isNotEmpty() && theirs.containsAll(it) } }
+        return when {
+            artistOk -> 100 - drift - (got - want).size * 3
+            // Only when the names are in different scripts, so they can't be compared; a same-script
+            // mismatch is another artist (a cover), never the song.
+            got == want && drift <= 3 && s.durationSec > 0 &&
+                com.dopdop.bopdop.data.lyrics.Romanize.canRomanize(s.artist) != com.dopdop.bopdop.data.lyrics.Romanize.canRomanize(t.artist) -> 50 - drift
+            else -> 0
+        }
+    }
+
+    /** The title's words, plus each side of a " - " ("心做し - Kokoronashi" → both). */
+    private fun titleOptions(title: String): List<Set<String>> {
+        val clean = cleanTitle(title)
+        val parts = clean.split(Regex("\\s[-–]\\s")).map { words(it) }.filter { it.isNotEmpty() }
+        return (listOf(words(clean)) + parts).distinct()
+    }
+
+    /** An artist's words as written and romanized, with Japanese name brackets dropped ("『ユイカ』"). */
+    private fun artistWords(a: String): Set<String> {
+        val plain = a.replace(Regex("[『』「」【】]"), " ")
+        return words(plain) + words(com.dopdop.bopdop.data.lyrics.Romanize.line(plain))
     }
 
     private fun cleanTitle(s: String) = s.replace(Regex("\\((feat|ft|with)\\.?[^)]*\\)|\\[(feat|ft)\\.?[^]]*]|\\s-\\s.*(remaster|version|mix).*$", RegexOption.IGNORE_CASE), " ")

@@ -513,6 +513,10 @@ object YtMusic {
             artwork = bigThumb(v.optJSONObject("thumbnail")?.optJSONArray("thumbnails")),
         )
     }
+    /** The video's description; for label uploads it's the auto-generated one with release date and credits. */
+    suspend fun description(videoId: String): String =
+        post("player", JSONObject().put("videoId", videoId)).optJSONObject("videoDetails")?.optString("shortDescription").orEmpty()
+
     suspend fun explore(): List<Shelf> = feed("FEmusic_explore", 2)
 
     /** Moods & genres grid: (title, params) pairs for FEmusic_moods_and_genres_category. */

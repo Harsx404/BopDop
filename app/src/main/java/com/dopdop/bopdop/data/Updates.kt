@@ -41,8 +41,10 @@ object Updates {
             if (!r.isSuccessful) return null
             val o = JSONObject(r.body?.string() ?: return null)
             val assets = o.optJSONArray("assets")
-            val apk = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
-                .firstOrNull { it.optString("name").endsWith(".apk") }?.optString("browser_download_url")
+            val apks = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
+                .filter { it.optString("name").endsWith(".apk") }
+                .map { it.optString("name") to it.optString("browser_download_url") }
+            val apk = pickApk(apks, android.os.Build.SUPPORTED_ABIS.toList())
             return AppUpdate(
                 version = o.optString("tag_name").removePrefix("v"),
                 title = o.optString("name").ifBlank { o.optString("tag_name") },
@@ -51,6 +53,17 @@ object Updates {
                 pageUrl = o.optString("html_url"),
             )
         }
+    }
+
+    private val ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+
+    /**
+     * The release asset for this phone: the build for its processor ("BopDop-v1.4.0-arm64-v8a.apk")
+     * when there is one, else the universal APK (the one without a processor in its name).
+     */
+    internal fun pickApk(assets: List<Pair<String, String>>, deviceAbis: List<String>): String? {
+        deviceAbis.forEach { abi -> assets.firstOrNull { (name, _) -> name.endsWith("-$abi.apk") }?.let { return it.second } }
+        return (assets.firstOrNull { (name, _) -> ABIS.none { name.endsWith("-$it.apk") } } ?: assets.firstOrNull())?.second
     }
 
     /**

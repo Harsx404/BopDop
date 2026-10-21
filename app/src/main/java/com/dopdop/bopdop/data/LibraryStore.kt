@@ -50,7 +50,24 @@ data class Settings(
     val autoplay: Boolean = true,
     val glass: GlassLevel = GlassLevel.REGULAR,
     val languages: String = "hindi,english",
+    /** Play cache size; 0 = unlimited. */
     val cacheMb: Int = 1024,
+    /** Keep the play cache where Android never clears it (app storage, not cache). Applies on next launch. */
+    val keepCache: Boolean = false,
+    /** Lyrics page: the cover slowly swirls behind the words. */
+    val lyricsMotion: Boolean = true,
+    /** Spotify Canvas loops behind the cover (signed in to Spotify); on mobile data only when allowed. */
+    val canvas: Boolean = true,
+    val canvasOnData: Boolean = false,
+    /** Add-on servers (base URLs), asked in order for lossless copies when [lossless] is on. */
+    val addons: List<String> = emptyList(),
+    val lossless: Boolean = false,
+    /** Ask add-ons for Dolby Atmos mixes when this phone can decode them. */
+    val atmos: Boolean = true,
+    /** USB DACs: hand the DAC the file's own sample rate and bit depth, untouched (Android 14+). */
+    val bitPerfect: Boolean = false,
+    /** Keep your own Spotify playlists (and Liked Songs) copied into the library, synced on launch. */
+    val spotifyAutoImport: Boolean = true,
     val reduceMotion: Boolean = false,
     val showSaavnHome: Boolean = true,
     val videoQuality: VideoQuality = VideoQuality.AUTO,
@@ -71,7 +88,7 @@ data class Settings(
     /** Show the line being sung in the media notification / lock screen. */
     val lockScreenLyrics: Boolean = false,
     val seekStyle: SeekStyle = SeekStyle.WAVE,
-    val seekPet: SeekPet = SeekPet.NONE,
+    val mascot: Mascot = Mascot.KITTY,
     val festiveLevel: FestiveLevel = FestiveLevel.FULL,
     val festivePick: FestivePick = FestivePick.AUTO,
     /** An update the user waved away; the next newer one is offered again. */
@@ -95,21 +112,31 @@ data class Settings(
     /** Shuffle and repeat as last left, so they survive restarts. [repeat] is a Media3 REPEAT_MODE_*. */
     val shuffle: Boolean = false,
     val repeat: Int = 0,
+    /** Library playlists and saved albums as a list instead of a grid of covers. */
+    val libraryList: Boolean = false,
     /** ListenBrainz user token (scrobbling is on while it's set) and the account it belongs to. */
     val listenBrainzToken: String = "",
     val listenBrainzUser: String = "",
+    /** Last.fm (or Libre.fm) session from the web approval; key/secret only when the user pasted their own. */
+    val lastFmSession: String = "",
+    val lastFmUser: String = "",
+    val lastFmKey: String = "",
+    val lastFmSecret: String = "",
+    val lastFmLibre: Boolean = false,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
-        .put("languages", languages).put("cacheMb", cacheMb).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
+        .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("canvas", canvas).put("canvasOnData", canvasOnData)
+            .put("addons", JSONArray(addons)).put("lossless", lossless).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
-        .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
+        .put("seekStyle", seekStyle.name).put("mascot", mascot.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
         .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name)
         .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
-        .put("shuffle", shuffle).put("repeat", repeat).put("listenBrainzToken", listenBrainzToken).put("listenBrainzUser", listenBrainzUser).apply { islandInApp?.let { put("islandInApp", it) } }
+        .put("shuffle", shuffle).put("repeat", repeat).put("libraryList", libraryList).put("listenBrainzToken", listenBrainzToken).put("listenBrainzUser", listenBrainzUser)
+            .put("lastFmSession", lastFmSession).put("lastFmUser", lastFmUser).put("lastFmKey", lastFmKey).put("lastFmSecret", lastFmSecret).put("lastFmLibre", lastFmLibre).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
     companion object {
@@ -119,6 +146,15 @@ data class Settings(
             glass = runCatching { GlassLevel.valueOf(o.optString("glass")) }.getOrDefault(GlassLevel.REGULAR),
             languages = o.optString("languages", "hindi,english"),
             cacheMb = o.optInt("cacheMb", 1024),
+            keepCache = o.optBoolean("keepCache", false),
+            lyricsMotion = o.optBoolean("lyricsMotion", true),
+            canvas = o.optBoolean("canvas", true),
+            canvasOnData = o.optBoolean("canvasOnData", false),
+            addons = o.optJSONArray("addons")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+            lossless = o.optBoolean("lossless", false),
+            atmos = o.optBoolean("atmos", true),
+            bitPerfect = o.optBoolean("bitPerfect", false),
+            spotifyAutoImport = o.optBoolean("spotifyAutoImport", true),
             reduceMotion = o.optBoolean("reduceMotion", false),
             showSaavnHome = o.optBoolean("showSaavnHome", true),
             videoQuality = runCatching { VideoQuality.valueOf(o.optString("videoQuality")) }.getOrDefault(VideoQuality.AUTO),
@@ -131,8 +167,12 @@ data class Settings(
             crossfadeSec = o.optInt("crossfadeSec", 0),
             lockScreenLyrics = o.optBoolean("lockScreenLyrics", false),
             seekStyle = runCatching { SeekStyle.valueOf(o.optString("seekStyle")) }.getOrDefault(SeekStyle.WAVE),
-            seekPet = runCatching { SeekPet.valueOf(o.optString("seekPet")) }.getOrDefault(SeekPet.NONE),
-            festiveLevel = runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
+            // The old pets all became the kitty; "no pet" stays no mascot.
+            mascot = runCatching { Mascot.valueOf(o.optString("mascot")) }.getOrNull()
+                ?: if (o.optString("seekPet") == "NONE") Mascot.NONE else Mascot.KITTY,
+            // "Pet only" dressed up the old pets; with them gone it showed nothing, so it reads as Off.
+            festiveLevel = if (o.optString("festiveLevel") == "LIMITED") FestiveLevel.OFF
+                else runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
             festivePick = runCatching { FestivePick.valueOf(o.optString("festivePick")) }.getOrDefault(FestivePick.AUTO),
             skippedUpdate = o.optString("skippedUpdate"),
             islandInApp = if (o.has("islandInApp")) o.optBoolean("islandInApp") else null,
@@ -144,8 +184,14 @@ data class Settings(
             playbackSpeed = o.optDouble("playbackSpeed", 1.0).toFloat().coerceIn(0.5f, 2f),
             shuffle = o.optBoolean("shuffle", false),
             repeat = o.optInt("repeat", 0).coerceIn(0, 2),
+            libraryList = o.optBoolean("libraryList", false),
             listenBrainzToken = o.optString("listenBrainzToken"),
             listenBrainzUser = o.optString("listenBrainzUser"),
+            lastFmSession = o.optString("lastFmSession"),
+            lastFmUser = o.optString("lastFmUser"),
+            lastFmKey = o.optString("lastFmKey"),
+            lastFmSecret = o.optString("lastFmSecret"),
+            lastFmLibre = o.optBoolean("lastFmLibre"),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }
@@ -232,8 +278,29 @@ object LibraryStore {
         settings = Settings.fromJson(o.optJSONObject("settings")),
     )
 
+    /** The whole library as stored, for backups. */
+    fun toJson(): JSONObject = toJson(_state.value)
+
+    /** Replace the library with a backup's; the ListenBrainz sign-in on this phone is kept if the backup has none. */
+    fun restore(o: JSONObject) {
+        val next = read(o)
+        val cur = _state.value.settings
+        // Sign-ins never travel in backups: keep this phone's.
+        _state.value = next.copy(settings = next.settings.copy(
+            listenBrainzToken = cur.listenBrainzToken, listenBrainzUser = cur.listenBrainzUser,
+            lastFmSession = cur.lastFmSession, lastFmUser = cur.lastFmUser, lastFmKey = cur.lastFmKey, lastFmSecret = cur.lastFmSecret,
+        ))
+        com.dopdop.bopdop.playback.AudioFx.state.value = _state.value.settings.eq
+    }
+
     private fun write(s: LibraryState) {
-        val o = JSONObject()
+        val tmp = File(file.parentFile, "library.json.tmp")
+        tmp.writeText(toJson(s).toString())
+        tmp.renameTo(file)
+    }
+
+    private fun toJson(s: LibraryState): JSONObject {
+        return JSONObject()
             .put("liked", s.liked.toJsonArray())
             .put("playlists", JSONArray().also { a ->
                 s.playlists.forEach { p -> a.put(JSONObject().put("id", p.id).put("name", p.name).put("createdAt", p.createdAt).put("tracks", p.tracks.toJsonArray())
@@ -244,9 +311,6 @@ object LibraryStore {
             .put("recentSearches", JSONArray(s.recentSearches))
             .put("disliked", s.disliked.toJsonArray())
             .put("settings", s.settings.toJson())
-        val tmp = File(file.parentFile, "library.json.tmp")
-        tmp.writeText(o.toString())
-        tmp.renameTo(file)
     }
 
     fun isLiked(id: String) = id in _state.value.likedIds

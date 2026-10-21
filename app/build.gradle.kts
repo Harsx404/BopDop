@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -13,6 +15,16 @@ android {
         targetSdk = 36
         versionCode = 8
         versionName = "1.3.0-beta.5"
+
+        // Last.fm API key and secret: local.properties lastfm.key / lastfm.secret, or the
+        // LASTFM_API_KEY / LASTFM_SECRET environment (CI secrets). Blank keeps Last.fm on the
+        // user's own pasted key.
+        val local = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        fun secret(prop: String, env: String) = (local.getProperty(prop) ?: System.getenv(env) ?: "").replace("\"", "")
+        buildConfigField("String", "LASTFM_KEY", "\"${secret("lastfm.key", "LASTFM_API_KEY")}\"")
+        buildConfigField("String", "LASTFM_SECRET", "\"${secret("lastfm.secret", "LASTFM_SECRET")}\"")
     }
 
     buildTypes {
@@ -34,6 +46,16 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // One APK per processor alongside the universal one; the in-app updater picks the right one.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
     }
 
     packaging {
@@ -74,6 +96,8 @@ dependencies {
 
     implementation("io.coil-kt.coil3:coil-compose:3.6.3")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    // Brand logos come from Simple Icons as SVG.
+    implementation("io.coil-kt.coil3:coil-svg:3.6.3")
 
     implementation("dev.chrisbanes.haze:haze:2.0.1")
     implementation("dev.chrisbanes.haze:haze-blur:2.0.1")
