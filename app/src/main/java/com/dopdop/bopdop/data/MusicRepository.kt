@@ -104,7 +104,7 @@ object MusicRepository {
         }
         list.ifEmpty {
             runCatching { YtMusic.searchSongs("${t.artist.split(",").first()} songs") }.getOrDefault(emptyList())
-        }.filter { it.id != t.id }
+        }.filter { it.id != t.id && !LibraryStore.isDisliked(it) }
     }
 
     /** Tracks for shared ids ("yt:…" / "sv:…"), in the order given; unknown ids are dropped. */

@@ -22,6 +22,8 @@ data class PipelineInfo(
     val sampleRate: Int = 0,
     val channels: Int = 0,
     val bitrateKbps: Int = 0,
+    /** Bits per sample of the source, when it has one (lossless and PCM); 0 for lossy codecs. */
+    val bitDepth: Int = 0,
     val decoder: String = "—",
     val sinkEncoding: String = "—",
     val sinkRate: Int = 0,
@@ -45,6 +47,7 @@ object AudioPipeline {
                 it.copy(
                     codec = codecName(format), sampleRate = format.sampleRate, channels = format.channelCount,
                     bitrateKbps = maxOf(format.averageBitrate, format.bitrate).takeIf { b -> b > 0 }?.div(1000) ?: 0,
+                    bitDepth = bytesPer(format.pcmEncoding) * 8,
                 )
             }
         }

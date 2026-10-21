@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.ui.screens
 
+import com.dopdop.bopdop.data.SmartPlaylists
+import androidx.compose.material.icons.rounded.Explore
 import com.dopdop.bopdop.data.pinnedFirst
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.foundation.background
@@ -116,6 +118,8 @@ fun LibraryScreen() {
                 DeviceShortcuts()
             }
         }
+
+        item(key = "madeForYou") { MadeForYou() }
 
         item(key = "plHeader") { SectionHeader("Your playlists", action = "New") { app.sheet = Sheet.NewPlaylist(emptyList()) } }
         val tiles: List<Any> = listOf<Any>("new", "import") + lib.playlists.pinnedFirst()
@@ -294,6 +298,46 @@ private fun MiniCollage(arts: List<String>, modifier: Modifier) {
 }
 
 /** Square collage with a frosted caption bar floating inside the bottom edge. */
+/** Playlists made from your listening, and Discover. Hidden until there's enough to make one. */
+@Composable
+private fun MadeForYou() {
+    val app = LocalApp.current
+    val lib by LibraryStore.state.collectAsState()
+    val stats by com.dopdop.bopdop.data.PlayStats.state.collectAsState()
+    val lists = remember(stats.events.size, lib.liked, lib.disliked) { SmartPlaylists.build(stats, lib) }
+    val canDiscover = remember(stats.events.size, lib.history.size) { SmartPlaylists.seeds(stats, lib).isNotEmpty() }
+    if (lists.isEmpty() && !canDiscover) return
+    Column(Modifier.riseIn(2)) {
+        SectionHeader("Made for you")
+        androidx.compose.foundation.lazy.LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            items(lists.size, key = { lists[it].id }) { i ->
+                val p = lists[i]
+                SmartCard(p.title, p.subtitle, p.artworks) { app.openLocal("smart:${p.id}") }
+            }
+            if (canDiscover) item(key = "discover") {
+                SmartCard("Discover", "New to you, picked from your recent favourites", emptyList()) { app.openLocal("smart:${SmartPlaylists.DISCOVER}") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmartCard(title: String, sub: String, arts: List<String>, onClick: () -> Unit) {
+    Column(Modifier.width(150.dp).bounceClick(onClick = onClick)) {
+        Box(Modifier.size(150.dp).clip(RoundedCornerShape(18.dp))) {
+            if (arts.isEmpty()) GradientArt(Modifier.fillMaxSize(), Icons.Rounded.Explore, DISCOVER_COLORS)
+            else Collage(arts, Modifier.fillMaxSize())
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.5f))))
+            Text(title, style = BopType.BodyStrong, color = Color.White, maxLines = 2, modifier = Modifier.align(Alignment.BottomStart).padding(10.dp))
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(sub, style = BopType.Caption, color = Bop.Text2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 @Composable
 private fun PlaylistCard(p: UserPlaylist) {
     val app = LocalApp.current

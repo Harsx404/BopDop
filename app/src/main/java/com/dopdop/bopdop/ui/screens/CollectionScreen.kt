@@ -1,5 +1,8 @@
 package com.dopdop.bopdop.ui.screens
 
+import com.dopdop.bopdop.data.SmartPlaylists
+import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.ThumbDown
 import kotlin.math.roundToInt
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.data.UserPlaylist
@@ -256,6 +259,7 @@ fun LocalCollectionScreen(id: String) {
     val app = LocalApp.current
     val lib by LibraryStore.state.collectAsState()
     if (id.startsWith("mix:")) { MixCollection(id.removePrefix("mix:")); return }
+    if (id.startsWith("smart:")) { SmartCollection(id.removePrefix("smart:")); return }
     when (id) {
         "liked" -> CollectionLayout(
             title = "Liked Songs", subtitle = "", meta = songs(lib.liked.size), artUrl = lib.liked.firstOrNull()?.artwork,
@@ -269,6 +273,12 @@ fun LocalCollectionScreen(id: String) {
             art = { m -> GradientArt(m, Icons.Rounded.History, listOf(Color(0xFFADC27A), Color(0xFF6F8B3C))) },
             onMore = { LibraryStore.clearHistory(); app.toast("History cleared") },
             empty = "Start listening — your history shows up here.",
+        )
+        "disliked" -> CollectionLayout(
+            title = "Not for me", subtitle = "Kept out of radio, autoplay and mixes", meta = songs(lib.disliked.size),
+            artUrl = lib.disliked.firstOrNull()?.artwork, tracks = lib.disliked, context = "Not for me", numbered = false,
+            art = { m -> GradientArt(m, Icons.Rounded.ThumbDown, listOf(Color(0xFFB4B7C2), Color(0xFF6B6F7E))) },
+            empty = "Nothing here. Mark a song “Not for me” from its ⋯ menu and it won't come up in radio or mixes.",
         )
         "device" -> {
             val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -437,6 +447,38 @@ fun Collage(arts: List<String>, modifier: Modifier, corner: androidx.compose.ui.
         Row(Modifier.weight(1f)) { Artwork(arts[2], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300); Artwork(arts[3], Modifier.weight(1f).fillMaxSize(), corner = 0.dp, size = 300) }
     }
 }
+
+/** A playlist made from your listening (see [SmartPlaylists]); Discover is fetched when opened. */
+@Composable
+private fun SmartCollection(smartId: String) {
+    val lib by LibraryStore.state.collectAsState()
+    val stats by com.dopdop.bopdop.data.PlayStats.state.collectAsState()
+    if (smartId == SmartPlaylists.DISCOVER) {
+        val load = rememberLoad("smart:discover", 6 * 3600_000L) { SmartPlaylists.discover(stats, lib) }
+        val p = (load.state as? Load.Ready)?.value
+        CollectionLayout(
+            title = "Discover", subtitle = p?.subtitle ?: "New to you",
+            meta = p?.let { songs(it.tracks.size) + " · from your recent favourites" }.orEmpty(),
+            artUrl = p?.artworks?.firstOrNull(), tracks = p?.tracks, context = "Discover", numbered = false,
+            art = { m -> if (p != null && p.artworks.isNotEmpty()) Collage(p.artworks, m) else GradientArt(m, Icons.Rounded.Explore, DISCOVER_COLORS) },
+            loading = load.state is Load.Loading, error = (load.state as? Load.Failed)?.message, onRetry = load.retry,
+            empty = "Play a few songs first, and Discover finds more like them.",
+        )
+        return
+    }
+    val p = remember(stats.events.size, lib.liked, lib.disliked) { SmartPlaylists.build(stats, lib) }.firstOrNull { it.id == smartId }
+    if (p == null) {
+        Text("Not enough listening for this one yet", style = BopType.Body, color = Bop.Text2, modifier = Modifier.statusBarsPad().padding(40.dp))
+        return
+    }
+    CollectionLayout(
+        title = p.title, subtitle = p.subtitle, meta = songs(p.tracks.size) + " · updates as you listen",
+        artUrl = p.artworks.firstOrNull(), tracks = p.tracks, context = p.title, numbered = false,
+        art = { m -> Collage(p.artworks, m) },
+    )
+}
+
+internal val DISCOVER_COLORS = listOf(Color(0xFF9DB0F2), Color(0xFF6A4FC0))
 
 /** One of today's daily mixes. */
 @Composable

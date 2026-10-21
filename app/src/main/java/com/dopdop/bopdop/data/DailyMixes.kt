@@ -72,7 +72,7 @@ object DailyMixes {
         seeds.mapIndexed { i, artist ->
             async {
                 val rnd = Random(day * 31 + i)
-                val own = known.values.filter { primaryArtist(it) == artist }.shuffled(rnd)
+                val own = known.values.filter { primaryArtist(it) == artist && !LibraryStore.isDisliked(it) }.shuffled(rnd)
                 val seed = own.firstOrNull() ?: return@async null
                 val related = runCatching { MusicRepository.related(seed) }.getOrDefault(emptyList())
                     .filter { it.source != Source.LOCAL }

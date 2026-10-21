@@ -155,6 +155,29 @@ fun Track.matchKey(): String {
     return "$t|$a"
 }
 
+/**
+ * Songs to recognise again, whichever source a copy comes from: the same id, or the same title
+ * with at least one artist in common (YouTube Music and JioSaavn list artists in different orders).
+ */
+class SongSet(tracks: Iterable<Track> = emptyList()) {
+    private val ids = HashSet<String>()
+    private val byTitle = HashMap<String, MutableSet<String>>()
+
+    init { tracks.forEach(::add) }
+
+    fun add(t: Track) {
+        ids += t.id
+        byTitle.getOrPut(titleKey(t)) { HashSet() } += artistKeys(t)
+    }
+
+    operator fun contains(t: Track): Boolean =
+        t.id in ids || byTitle[titleKey(t)]?.let { known -> artistKeys(t).any { it in known } } == true
+
+    private fun titleKey(t: Track) = t.matchKey().substringBefore('|')
+    private fun artistKeys(t: Track) = t.artist.lowercase().split(',', '&')
+        .map { it.replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim() }.filter { it.isNotEmpty() }
+}
+
 fun formatDuration(sec: Int): String {
     if (sec <= 0) return ""
     val h = sec / 3600; val m = (sec % 3600) / 60; val s = sec % 60

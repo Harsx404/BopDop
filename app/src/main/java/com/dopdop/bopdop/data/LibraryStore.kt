@@ -1,5 +1,6 @@
 package com.dopdop.bopdop.data
 
+import com.dopdop.bopdop.data.model.SongSet
 import android.content.Context
 import com.dopdop.bopdop.data.model.Card
 import com.dopdop.bopdop.data.model.Track
@@ -184,9 +185,15 @@ data class LibraryState(
     val history: List<Track> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val settings: Settings = Settings(),
+    /** Marked "Not for me": skipped, and kept out of radio, autoplay and mixes. */
+    val disliked: List<Track> = emptyList(),
 ) {
     val likedIds: Set<String> by lazy { liked.mapTo(HashSet()) { it.id } }
     val savedIds: Set<String> by lazy { saved.mapTo(HashSet()) { it.id } }
+    private val dislikedSet: SongSet by lazy { SongSet(disliked) }
+
+    /** The same recording from any source counts. */
+    fun isDisliked(t: Track) = t in dislikedSet
 }
 
 /** Single JSON file in app storage; writes are debounced off the main thread. */
@@ -221,6 +228,7 @@ object LibraryStore {
         saved = o.optJSONArray("saved").toCards(),
         history = o.optJSONArray("history").toTracks(),
         recentSearches = o.optJSONArray("recentSearches")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
+        disliked = o.optJSONArray("disliked").toTracks(),
         settings = Settings.fromJson(o.optJSONObject("settings")),
     )
 
@@ -234,6 +242,7 @@ object LibraryStore {
             .put("saved", s.saved.cardsToJson())
             .put("history", s.history.toJsonArray())
             .put("recentSearches", JSONArray(s.recentSearches))
+            .put("disliked", s.disliked.toJsonArray())
             .put("settings", s.settings.toJson())
         val tmp = File(file.parentFile, "library.json.tmp")
         tmp.writeText(o.toString())
@@ -246,9 +255,21 @@ object LibraryStore {
         var nowLiked = false
         _state.update { s ->
             if (t.id in s.likedIds) s.copy(liked = s.liked.filterNot { it.id == t.id })
-            else { nowLiked = true; s.copy(liked = listOf(t) + s.liked) }
+            else { nowLiked = true; s.copy(liked = listOf(t) + s.liked, disliked = s.disliked.filterNot { it in SongSet(listOf(t)) }) }
         }
         return nowLiked
+    }
+
+    fun isDisliked(t: Track) = _state.value.isDisliked(t)
+
+    /** "Not for me" on or off; returns true when the song is now marked. Marking it also unlikes it. */
+    fun toggleDislike(t: Track): Boolean {
+        var now = false
+        _state.update { s ->
+            if (s.isDisliked(t)) s.copy(disliked = s.disliked.filterNot { it in SongSet(listOf(t)) })
+            else { now = true; s.copy(disliked = listOf(t) + s.disliked, liked = s.liked.filterNot { it.id == t.id }) }
+        }
+        return now
     }
 
     fun toggleSaved(c: Card): Boolean {

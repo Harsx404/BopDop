@@ -1,5 +1,6 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.SignalCellularAlt
@@ -185,8 +186,14 @@ fun SettingsScreen() {
                     ToggleRow(Icons.Rounded.AllInclusive, "Autoplay", "When your queue ends, keep going with similar songs.", s.autoplay) {
                         LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) }
                     }
+                    NavRow(
+                        Icons.Rounded.ThumbDown, "Not for me",
+                        if (lib.disliked.isEmpty()) "Songs you mark “Not for me” stay out of radio, autoplay and mixes."
+                        else "${com.dopdop.bopdop.data.model.songs(lib.disliked.size)} kept out of radio, autoplay and mixes",
+                        keywords = "dislike hide block skip",
+                    ) { app.openLocal("disliked") }
                     val pipe by com.dopdop.bopdop.playback.AudioPipeline.info.collectAsState()
-                    NavRow(Icons.Rounded.Insights, "Audio pipeline", if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
+                    NavRow(Icons.Rounded.Insights, "Stats for nerds", keywords = "audio pipeline codec bitrate bit depth sample rate decoder", sub = if (pipe.sinkRate > 0) "${pipe.codec} → ${pipe.sinkEncoding} · ${"%.1f".format(pipe.sinkRate / 1000f).removeSuffix(".0")} kHz" else "Live signal path, decoder to output") {
                         app.sheet = Sheet.AudioPipeline
                     }
                 }

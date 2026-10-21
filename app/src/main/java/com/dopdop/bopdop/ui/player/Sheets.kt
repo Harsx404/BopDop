@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.ui.player
 
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.ThumbDown
 import com.dopdop.bopdop.data.pinnedFirst
 import com.dopdop.bopdop.data.PlaylistSort
 import androidx.compose.material.icons.rounded.Check
@@ -231,6 +233,12 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         Action(if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, if (liked) "Remove from Liked" else "Like", if (liked) Color(0xFFFF4D7E) else Bop.Text) {
             LibraryStore.toggleLike(t); close()
         }
+        val disliked = lib.isDisliked(t)
+        Action(Icons.Rounded.ThumbDown, if (disliked) "Undo “Not for me”" else "Not for me") {
+            val now = LibraryStore.toggleDislike(t)
+            if (now && PlayerConnection.current.value?.id == t.id) PlayerConnection.next()
+            app.toast(if (now) "Got it. It stays out of radio and mixes" else "Back in rotation"); close()
+        }
         Action(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist…") { app.sheet = Sheet.AddToPlaylist(listOf(t)) }
         if (playlistId != null) Action(Icons.Rounded.RemoveCircleOutline, "Remove from this playlist") { LibraryStore.removeFromPlaylist(playlistId, t.id); close() }
         t.albumId?.let { id -> Action(Icons.Rounded.Album, "Go to album") { close(); app.collapsePlayer(); app.openAlbum(id, t.album, t.artwork) } }
@@ -253,6 +261,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         if (PlayerConnection.current.value?.id == t.id) {
             Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
             Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
+            Action(Icons.Rounded.Insights, "Stats for nerds") { app.sheet = Sheet.AudioPipeline }
         }
     }
 }
@@ -551,11 +560,17 @@ private fun ColumnScope.AudioPipelineSheet() {
         current?.source == com.dopdop.bopdop.data.model.Source.LOCAL -> "This phone"
         else -> current?.let { quality[it.id]?.via } ?: "—"
     }
-    Text("Audio pipeline", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
+    Text("Stats for nerds", style = BopType.Title, color = Bop.Text, modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp))
     Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp).padding(bottom = 12.dp)) {
         PipeStage("Source", listOf(
             "From" to source, "Format" to info.codec, "Sample rate" to khz(info.sampleRate),
             "Bitrate" to if (info.bitrateKbps > 0) "${info.bitrateKbps} kbps" else (current?.let { quality[it.id]?.kbps?.takeIf { k -> k > 0 }?.let { k -> "$k kbps" } } ?: "—"),
+            "Bit depth" to when {
+                info.bitDepth > 0 -> "${info.bitDepth}-bit"
+                info.codec in setOf("FLAC", "ALAC", "PCM") -> "Lossless"
+                info.codec == "—" -> "—"
+                else -> "None (lossy)"
+            },
             "Channels" to when (info.channels) { 0 -> "—"; 1 -> "Mono"; 2 -> "Stereo"; else -> "${info.channels} ch" },
         ))
         PipeStage("Decoder", listOf("Decoder" to info.decoder))
@@ -574,6 +589,7 @@ private fun ColumnScope.AudioPipelineSheet() {
             "Device" to out.name, "Route" to out.route,
             "AudioTrack" to "${info.sinkEncoding} · ${khz(info.sinkRate)}",
             "Buffer" to if (info.bufferMs > 0) "${info.bufferMs} ms" else "—",
+            "Loaded ahead" to remember(tick) { ((PlayerConnection.bufferedPosition - PlayerConnection.position) / 1000).coerceAtLeast(0).let { "$it s" } },
             "Offload" to if (info.offload) "Yes" else "No",
         ))
     }

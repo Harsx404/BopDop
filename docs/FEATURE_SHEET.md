@@ -33,11 +33,11 @@ in batch order. Update the **Status** column as items land.
 | F09 | QoL | Search inside Settings | BC, LW | P2 | M | 2 | done | Matches titles, descriptions, group names and a few extra words |
 | F10 | QoL | Swipe a song to add it to the queue (search, recents, lists) | BC | P2 | M | 2 | done | Right = play next, left = add to queue, with haptic at the trigger; off in sideways shelves |
 | F11 | QoL | Playlist tools: reorder, add to several playlists, total length, sort, pin | BC | P2 | M | 2 | done | Edit mode with drag handles and remove; multi-select add sheet; sort sheet; pin in ⋯. Drag does not auto-scroll long lists yet |
-| F12 | Features | Smart playlists from history, likes, seed artists and genres; weekly recap | LW | P1 | L | 3 | todo | |
-| F13 | Player | Stats for nerds: codec, bitrate, sample rate, bit depth, channels, source | BC, LW | P2 | S | 3 | todo | |
-| F14 | QoL | Live search results while typing | BC | P2 | M | 3 | todo | today only word suggestions |
-| F15 | QoL | Queue history (what played before) | BC | P3 | S | 3 | todo | |
-| F16 | Features | Dislike: skips the song and keeps it out of radio | BC | P2 | S | 3 | todo | |
+| F12 | Features | Smart playlists from history, likes, seed artists and genres; weekly recap | LW | P1 | L | 3 | done | Library › Made for you: Your week (minutes + top artist), On repeat, Forgotten favourites, Night owl, and Discover (related to your top songs, minus anything heard). No genres: the catalogues don't give us any |
+| F13 | Player | Stats for nerds: codec, bitrate, sample rate, bit depth, channels, source | BC, LW | P2 | S | 3 | done | Player ⋯ and Settings › Sound; adds bit depth and how far ahead it's loaded to the old Audio pipeline sheet |
+| F14 | QoL | Live search results while typing | BC | P2 | M | 3 | done | Top artist, four songs and two albums under the suggestions once typing pauses |
+| F15 | QoL | Queue history (what played before) | BC | P3 | S | 3 | done | History chip on the queue page: earlier songs in this queue, latest first, tap to go back |
+| F16 | Features | Dislike: skips the song and keeps it out of radio | BC | P2 | S | 3 | done | “Not for me” in the song menu; matches other copies of the same song; list in Settings › Sound |
 | F17 | Player | Song info panel: release date, album, credits, your plays | BC | P2 | M | 4 | todo | |
 | F18 | Player | Output device pill: phone speaker, Bluetooth name, USB | BC | P3 | S | 4 | todo | |
 | F19 | Player | Translation shown under each lyric line; right-to-left scripts | BC, LW | P2 | M | 4 | todo | |

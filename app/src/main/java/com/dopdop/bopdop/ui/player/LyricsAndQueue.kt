@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.ui.player
 
+import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material.icons.rounded.History
 import android.os.Build
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -88,20 +90,31 @@ fun QueueView(app: AppState, modifier: Modifier = Modifier) {
     val rowPx = with(LocalDensity.current) { rowH.toPx() }
     var dragFrom by remember { mutableIntStateOf(-1) }
     var dragDy by remember { mutableFloatStateOf(0f) }
+    var played by remember { mutableStateOf(false) }
     val target = if (dragFrom >= 0) (dragFrom + (dragDy / rowPx).roundToInt()).coerceIn(0, upNext.size - 1) else -1
 
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Up next", style = BopType.Title, color = Color.White)
-                Text(if (lib.settings.autoplay) "Autoplay keeps it going" else "${upNext.size} songs", style = BopType.Caption, color = Color.White.copy(alpha = 0.55f))
+                Text(if (played) "Played" else "Up next", style = BopType.Title, color = Color.White)
+                Text(
+                    when {
+                        played -> if (index == 1) "1 song earlier in this queue" else "$index songs earlier in this queue"
+                        lib.settings.autoplay -> "Autoplay keeps it going"
+                        else -> "${upNext.size} songs"
+                    },
+                    style = BopType.Caption, color = Color.White.copy(alpha = 0.55f),
+                )
             }
+            QueueChip(Icons.Rounded.History, played) { played = !played }
+            Spacer(Modifier.width(6.dp))
             QueueChip(Icons.Rounded.Shuffle, shuffle) { PlayerConnection.toggleShuffle() }
             Spacer(Modifier.width(6.dp))
             QueueChip(if (repeat == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat, repeat != RepeatMode.OFF) { PlayerConnection.cycleRepeat() }
             Spacer(Modifier.width(6.dp))
             QueueChip(Icons.Rounded.AllInclusive, lib.settings.autoplay) { LibraryStore.updateSettings { it.copy(autoplay = !it.autoplay) } }
         }
+        if (played) { PlayedList(queue, index); return@Column }
         if (upNext.isEmpty()) {
             Text("Nothing queued. Add songs with “Play next” or let Autoplay surprise you.", style = BopType.Body, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(24.dp))
             return@Column
@@ -159,6 +172,35 @@ fun QueueView(app: AppState, modifier: Modifier = Modifier) {
                         contentAlignment = Alignment.Center,
                     ) { Icon(Icons.Rounded.DragHandle, "Reorder", tint = Color.White.copy(alpha = 0.6f)) }
                 }
+            }
+        }
+    }
+}
+
+/** What already played in this queue, latest first; tap one to go back to it. */
+@Composable
+private fun PlayedList(queue: List<com.dopdop.bopdop.data.model.Track>, index: Int) {
+    val before = queue.take(index)
+    if (before.isEmpty()) {
+        Text("Nothing has played yet in this queue.", style = BopType.Body, color = Color.White.copy(alpha = 0.6f), modifier = Modifier.padding(24.dp))
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        items(before.size, key = { "p$it:" + before[before.size - 1 - it].id }) { k ->
+            val i = before.size - 1 - k
+            val t = before[i]
+            Row(
+                Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 12.dp)
+                    .bounceClick(0.99f) { PlayerConnection.skipTo(i) }.padding(horizontal = 10.dp).graphicsLayer { alpha = 0.8f },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Artwork(t.artwork, Modifier.size(46.dp), corner = 8.dp, size = 226)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(t.title, style = BopType.BodyStrong, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(t.artist, style = BopType.Caption, color = Color.White.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Icon(Icons.Rounded.Replay, "Play again", tint = Color.White.copy(alpha = 0.55f), modifier = Modifier.size(20.dp))
             }
         }
     }

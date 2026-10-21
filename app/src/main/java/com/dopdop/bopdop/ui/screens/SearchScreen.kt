@@ -105,6 +105,14 @@ fun SearchScreen() {
         delay(220)
         suggestions = MusicRepository.suggestions(text)
     }
+    // Results while typing: once the typing pauses, the top songs, artist and albums for it.
+    var live by remember { mutableStateOf<SearchResults?>(null) }
+    LaunchedEffect(text) {
+        val q = text.trim()
+        if (q.length < 2) { live = null; return@LaunchedEffect }
+        delay(450)
+        runCatching { MusicRepository.search(q) }.getOrNull()?.let { live = it }
+    }
 
     fun submit(q: String) {
         val v = q.trim()
@@ -118,7 +126,7 @@ fun SearchScreen() {
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().hazeSource(haze)) {
             when {
-                showSuggestions -> SuggestionList(text, suggestions, ::submit)
+                showSuggestions -> SuggestionList(text, suggestions, live, ::submit)
                 submitted.isNotBlank() -> Results(submitted, filter) { filter = it }
                 else -> Browse(lib.recentSearches, ::submit)
             }
@@ -156,9 +164,12 @@ fun SearchScreen() {
 private val TOP_PAD = 84.dp
 
 @Composable
-private fun SuggestionList(q: String, suggestions: List<String>, onPick: (String) -> Unit) {
+private fun SuggestionList(q: String, suggestions: List<String>, live: SearchResults?, onPick: (String) -> Unit) {
+    val app = LocalApp.current
+    val current by PlayerConnection.current.collectAsState()
+    val keep = { LibraryStore.addRecentSearch(q) }
     LazyColumn(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars), contentPadding = PaddingValues(top = TOP_PAD, bottom = 300.dp)) {
-        items(listOf(q) + suggestions.filterNot { it.equals(q, true) }) { s ->
+        items((listOf(q) + suggestions.filterNot { it.equals(q, true) }).take(if (live == null) 12 else 4)) { s ->
             Row(
                 Modifier.fillMaxWidth().bounceClick(0.98f) { onPick(s) }.padding(horizontal = 22.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -168,6 +179,33 @@ private fun SuggestionList(q: String, suggestions: List<String>, onPick: (String
                 Text(s, style = BopType.Body, color = Bop.Text, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Icon(Icons.Rounded.NorthWest, null, tint = Bop.Text3, modifier = Modifier.size(18.dp))
             }
+        }
+        if (live != null && !live.isEmpty) {
+            item { SectionHeader("Top results") }
+            live.artists.firstOrNull()?.let { a -> item { CardLine(a) { keep(); app.open(a) } } }
+            val songs = live.tracks.take(4)
+            items(songs.size) { i ->
+                val t = songs[i]
+                TrackRow(t, playing = current?.id == t.id, onMore = { app.sheet = Sheet.TrackOptions(t) }) { keep(); PlayerConnection.startRadio(t, "Search · $q") }
+            }
+            live.albums.take(2).forEach { c -> item { CardLine(c) { keep(); app.open(c) } } }
+        }
+    }
+}
+
+/** An artist, album or playlist as one line in the results while typing. */
+@Composable
+private fun CardLine(c: Card, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().bounceClick(0.98f, onClick = onClick).padding(horizontal = 20.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        val artist = c.kind == com.dopdop.bopdop.data.model.CardKind.ARTIST
+        Artwork(c.artwork, Modifier.size(52.dp), corner = 14.dp, circle = artist, size = 226)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(c.title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                c.subtitle.ifBlank { c.kind.name.lowercase().replaceFirstChar { it.uppercase() } },
+                style = BopType.Caption, color = Bop.Text2, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
