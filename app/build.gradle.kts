@@ -11,8 +11,8 @@ android {
         applicationId = "com.dopdop.bopdop"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.3.0-beta.4"
+        versionCode = 8
+        versionName = "1.3.0-beta.5"
     }
 
     buildTypes {
