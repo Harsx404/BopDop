@@ -33,12 +33,14 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Explicit
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -166,6 +168,8 @@ fun TrackRow(
     onMore: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
+    val downloaded = com.dopdop.bopdop.playback.Downloads.status.collectAsState().value[track.id]?.state ==
+        androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
     Row(
         modifier
             .fillMaxWidth()
@@ -199,6 +203,10 @@ fun TrackRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (track.explicit) {
                     Icon(Icons.Rounded.Explicit, null, tint = Bop.Text3, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                }
+                if (downloaded) {
+                    Icon(Icons.Rounded.DownloadDone, "Downloaded", tint = Bop.Text2, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                 }
                 if (track.bitrate >= 320) {

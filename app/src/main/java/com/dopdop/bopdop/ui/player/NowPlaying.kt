@@ -452,6 +452,22 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
             }
         }
         ProgressPill(t, quality[t.id])
+        // Lyrics and queue get the room: one slim row (back to cover · previous · play · next ·
+        // the other page) instead of the full transport plus a row of five buttons.
+        if (!onArt) {
+            Spacer(Modifier.height(4.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                val lyrics = app.nowPlayingPage == NowPlayingPage.LYRICS
+                PageToggle(Icons.Rounded.Lyrics, "Lyrics", lyrics, haze) {
+                    app.nowPlayingPage = if (lyrics) NowPlayingPage.ART else NowPlayingPage.LYRICS
+                }
+                CompactTransport(playing, buffering, app)
+                PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", !lyrics, haze) {
+                    app.nowPlayingPage = if (!lyrics) NowPlayingPage.ART else NowPlayingPage.QUEUE
+                }
+            }
+            return@Column
+        }
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TransportCluster(playing, buffering, haze, app) }
         Spacer(Modifier.height(16.dp))
@@ -486,7 +502,7 @@ private fun LiveLyricLine(t: Track, onOpen: () -> Unit) {
     if (synced.isEmpty()) return
     val line by produceState("", synced) {
         while (true) {
-            val pos = PlayerConnection.position
+            val pos = PlayerConnection.position + com.dopdop.bopdop.data.lyrics.LyricOffsets.of(t.id)
             value = synced.lastOrNull { it.timeMs <= pos + 150 }?.text?.trim().orEmpty().takeIf { it != "♪" }.orEmpty()
             delay(250)
         }
@@ -501,6 +517,27 @@ private fun LiveLyricLine(t: Track, onOpen: () -> Unit) {
                 text, style = BopType.BodyStrong.copy(fontSize = 15.sp, lineHeight = 18.sp).forScript(text), color = Bop.OnMedia,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
+        }
+    }
+}
+
+/** Previous · play · next, small, for the lyrics and queue pages. */
+@Composable
+private fun CompactTransport(playing: Boolean, buffering: Boolean, app: AppState) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Box(Modifier.size(44.dp).clip(CircleShape).bounceClick(0.88f) { PlayerConnection.previous() }, contentAlignment = Alignment.Center) {
+            LineSkip(false, Modifier.size(22.dp), color = Color.White, stroke = 2.2.dp)
+        }
+        Box(
+            Modifier.size(56.dp).bounceClick(0.9f) { PlayerConnection.toggle() }
+                .softShadow(CircleShape, 12.dp, color = Color.Black, alpha = 0.16f, dy = 3.dp).clip(CircleShape).background(Color.White),
+            contentAlignment = Alignment.Center,
+        ) {
+            LinePlayPause(playing, Modifier.size(20.dp), color = Bop.Graphite, stroke = 2.2.dp)
+            if (buffering) androidx.compose.material3.CircularProgressIndicator(Modifier.size(52.dp), color = Bop.Graphite.copy(alpha = 0.25f), strokeWidth = 1.5.dp)
+        }
+        Box(Modifier.size(44.dp).clip(CircleShape).bounceClick(0.88f) { PlayerConnection.next() }, contentAlignment = Alignment.Center) {
+            LineSkip(true, Modifier.size(22.dp), color = Color.White, stroke = 2.2.dp)
         }
     }
 }
@@ -562,7 +599,8 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
             val res = when { video.height >= 2160 -> "4K"; video.height >= 1440 -> "1440p"; video.height > 0 -> "${video.height}p"; else -> "Video" }
             // Short while a video plays: the picture already says a lot.
             listOfNotNull(q?.let { if (it.hiRes) "Hi-Res" else it.codec }, res).joinToString(" · ")
-        } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label },
+        } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label }
+            .let { cap -> val sp = LibraryStore.settings.playbackSpeed; if (sp == 1f) cap else listOfNotNull(speedLabel(sp), cap).joinToString(" · ") },
     )
 }
 

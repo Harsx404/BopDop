@@ -48,7 +48,7 @@ internal class LockScreenLyrics(private val scope: CoroutineScope, private val p
             }
         }
         val line = if (!on || !p.isPlaying) null
-            else lines.lastOrNull { it.timeMs <= p.currentPosition + 200 }?.text?.trim()?.takeIf { it.isNotEmpty() && it != "♪" }
+            else lines.lastOrNull { it.timeMs <= p.currentPosition + 200 + com.dopdop.bopdop.data.lyrics.LyricOffsets.of(track.id) }?.text?.trim()?.takeIf { it.isNotEmpty() && it != "♪" }
         if (line == shown) return
         shown = line
         val meta = item.mediaMetadata.buildUpon().setArtist(line ?: track.artist).build()

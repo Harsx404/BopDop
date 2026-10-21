@@ -61,14 +61,15 @@ object YtStreams {
     /** Clients whose urls recently failed the mid-file probe (YouTube wants a PoToken from this network). */
     @Volatile private var directBlockedUntil = 0L
 
-    fun resolve(videoId: String): ResolvedStream {
+    /** The best audio for [videoId] at or under [maxKbps] (the lowest there is when none fit). */
+    fun resolve(videoId: String, maxKbps: Int = Int.MAX_VALUE): ResolvedStream {
         var last = "no playable audio"
         if (System.currentTimeMillis() > directBlockedUntil) {
             val order = CLIENTS.indices.sortedBy { if (it == preferred) -1 else it }
             var probeFailures = 0
             for (i in order) {
                 try {
-                    val s = innertube(CLIENTS[i], videoId)
+                    val s = innertube(CLIENTS[i], videoId, maxKbps)
                     // Some networks get urls that serve only the first chunk then 403 — catch that before playback.
                     if (!probe(s)) { probeFailures++; throw IOException("url refused mid-file") }
                     preferred = i
@@ -82,7 +83,7 @@ object YtStreams {
             if (probeFailures > 0) directBlockedUntil = System.currentTimeMillis() + 20 * 60_000L
         }
         return try {
-            newPipe(videoId).also { if (!probe(it)) { PoTokens.invalidate(); throw IOException("PoToken stream refused") } }
+            newPipe(videoId, maxKbps).also { if (!probe(it)) { PoTokens.invalidate(); throw IOException("PoToken stream refused") } }
         } catch (e: Exception) {
             Log.w(TAG, "NewPipe failed for $videoId: ${e.message}")
             throw IOException(e.message ?: last)
@@ -176,20 +177,22 @@ object YtStreams {
         return p
     }
 
-    private fun innertube(c: Client, videoId: String): ResolvedStream {
+    private fun innertube(c: Client, videoId: String, maxKbps: Int = Int.MAX_VALUE): ResolvedStream {
         val p = playerResponse(c, videoId)
         val fmts = p.optJSONObject("streamingData")?.optJSONArray("adaptiveFormats") ?: throw IOException("no formats")
-        var best: JSONObject? = null
+        val usable = ArrayList<JSONObject>()
         for (i in 0 until fmts.length()) {
             val f = fmts.optJSONObject(i) ?: continue
             if (!f.optString("mimeType").startsWith("audio/") || f.optString("url").isEmpty()) continue
-            // Skip DRC / dubbed tracks; prefer the original audio at the highest bitrate.
+            // Skip DRC / dubbed tracks; prefer the original audio.
             if (f.optBoolean("isDrc")) continue
             val track = f.optJSONObject("audioTrack")
             if (track != null && !track.optBoolean("audioIsDefault", true)) continue
-            if (best == null || f.optInt("bitrate") > best.optInt("bitrate")) best = f
+            usable += f
         }
-        best ?: throw IOException("no direct audio")
+        // The highest bitrate within the quality cap; the smallest one when even that is over it.
+        val best = usable.filter { it.optInt("bitrate") / 1000 <= maxKbps }.maxByOrNull { it.optInt("bitrate") }
+            ?: usable.minByOrNull { it.optInt("bitrate") } ?: throw IOException("no direct audio")
         val url = best.optString("url")
         val expire = Regex("[?&]expire=(\\d+)").find(url)?.groupValues?.get(1)?.toLongOrNull()?.times(1000)
             ?: (System.currentTimeMillis() + 3 * 3600_000L)
@@ -210,11 +213,12 @@ object YtStreams {
         true
     }
 
-    private fun newPipe(videoId: String): ResolvedStream {
+    private fun newPipe(videoId: String, maxKbps: Int = Int.MAX_VALUE): ResolvedStream {
         check(newPipeReady)
         val info = StreamInfo.getInfo(ServiceList.YouTube, "https://www.youtube.com/watch?v=$videoId")
-        val best = info.audioStreams.filter { !it.content.isNullOrEmpty() && it.isUrl }.maxByOrNull { it.averageBitrate }
-            ?: throw IOException("NewPipe: no audio")
+        val usable = info.audioStreams.filter { !it.content.isNullOrEmpty() && it.isUrl }
+        val best = usable.filter { it.averageBitrate <= maxKbps }.maxByOrNull { it.averageBitrate }
+            ?: usable.minByOrNull { it.averageBitrate } ?: throw IOException("NewPipe: no audio")
         val url = best.content
         val expire = Regex("[?&]expire=(\\d+)").find(url)?.groupValues?.get(1)?.toLongOrNull()?.times(1000)
             ?: (System.currentTimeMillis() + 3 * 3600_000L)

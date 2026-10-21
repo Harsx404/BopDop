@@ -26,6 +26,14 @@ import java.util.UUID
 
 enum class GlassLevel(val label: String) { CLEAR("Clear"), REGULAR("Regular"), FROSTED("Frosted") }
 
+/**
+ * Streaming audio quality. [maxKbps] caps YouTube formats; [saavn] is the JioSaavn file suffix.
+ * High takes the best there is (and JioSaavn's 320 kbps match); the others save data.
+ */
+enum class AudioQuality(val label: String, val maxKbps: Int, val saavn: String) {
+    HIGH("High", Int.MAX_VALUE, "_320"), NORMAL("Normal", 140, "_160"), SAVER("Data saver", 80, "_96"),
+}
+
 /** Light or dark look; [SYSTEM] follows the phone. */
 enum class ThemeMode(val label: String) { SYSTEM("Auto"), LIGHT("Light"), DARK("Dark") }
 
@@ -77,6 +85,12 @@ data class Settings(
     /** Android 16 Live Update: what's playing in the phone's own island / status chip. */
     val liveUpdate: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Audio quality on Wi-Fi and other unmetered networks. */
+    val audioWifi: AudioQuality = AudioQuality.HIGH,
+    /** Audio quality on mobile data (metered networks). */
+    val audioMobile: AudioQuality = AudioQuality.HIGH,
+    /** Playback speed, 0.5x to 2x; pitch stays the same. */
+    val playbackSpeed: Float = 1f,
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
@@ -86,7 +100,8 @@ data class Settings(
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("seekPet", seekPet.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
-        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).apply { islandInApp?.let { put("islandInApp", it) } }
+        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name)
+        .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble()).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
     companion object {
@@ -116,6 +131,9 @@ data class Settings(
             islandOverlay = o.optBoolean("islandOverlay", false),
             liveUpdate = o.optBoolean("liveUpdate", true),
             themeMode = runCatching { ThemeMode.valueOf(o.optString("themeMode")) }.getOrDefault(ThemeMode.SYSTEM),
+            audioWifi = runCatching { AudioQuality.valueOf(o.optString("audioWifi")) }.getOrDefault(AudioQuality.HIGH),
+            audioMobile = runCatching { AudioQuality.valueOf(o.optString("audioMobile")) }.getOrDefault(AudioQuality.HIGH),
+            playbackSpeed = o.optDouble("playbackSpeed", 1.0).toFloat().coerceIn(0.5f, 2f),
             eq = com.dopdop.bopdop.playback.EqState.fromJson(o.optJSONObject("eq")),
         )
     }

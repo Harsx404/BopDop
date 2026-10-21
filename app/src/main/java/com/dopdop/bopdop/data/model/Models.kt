@@ -127,10 +127,16 @@ data class SearchResults(
     val isEmpty get() = tracks.isEmpty() && albums.isEmpty() && artists.isEmpty() && playlists.isEmpty()
 }
 
-data class LyricLine(val timeMs: Long, val text: String)
+/** One timed word of a word-synced line (enhanced LRC): when it starts and its text, spaces included. */
+data class LyricWord(val timeMs: Long, val text: String)
+
+/** A timed lyric line; [words] is filled when the source times every word (karaoke). */
+data class LyricLine(val timeMs: Long, val text: String, val words: List<LyricWord> = emptyList())
 
 data class Lyrics(val synced: List<LyricLine>, val plain: String?) {
     val isSynced get() = synced.isNotEmpty()
+    /** Every line is timed word by word. */
+    val isWordSynced get() = synced.any { it.words.isNotEmpty() }
 }
 
 fun List<Track>.toJsonArray() = JSONArray().also { a -> forEach { a.put(it.toJson()) } }

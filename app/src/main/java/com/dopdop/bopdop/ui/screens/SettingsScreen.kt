@@ -1,6 +1,8 @@
 package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Contactless
 import kotlinx.coroutines.launch
@@ -130,6 +132,12 @@ fun SettingsScreen() {
                 }
             }
             Group("Sound") {
+                RowHead(Icons.Rounded.Wifi, "Audio quality on Wi-Fi", "High plays the best stream there is, including JioSaavn's 320 kbps copy.")
+                ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioWifi, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioWifi = q) } }
+                RowHead(Icons.Rounded.SignalCellularAlt, "Audio quality on mobile data", "Normal is about 128–160 kbps; Data saver about 70–96 kbps. Applies from the next song.")
+                ChipRow(com.dopdop.bopdop.data.AudioQuality.entries, s.audioMobile, { it.label }) { q -> LibraryStore.updateSettings { it.copy(audioMobile = q) } }
+                RowHead(Icons.Rounded.Speed, "Playback speed", "Faster or slower without changing the pitch. Also in the player's ⋯ menu.")
+                ChipRow(listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f), s.playbackSpeed, { com.dopdop.bopdop.ui.player.speedLabel(it) }) { v -> LibraryStore.updateSettings { it.copy(playbackSpeed = v) } }
                 ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
                     LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
                 }

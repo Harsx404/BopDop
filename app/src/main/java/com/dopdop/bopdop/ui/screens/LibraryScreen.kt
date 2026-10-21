@@ -71,6 +71,7 @@ import com.dopdop.bopdop.ui.components.Load
 import com.dopdop.bopdop.ui.components.rememberLoad
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -179,15 +180,23 @@ private fun DeviceShortcuts() {
         allowed = granted
         if (granted) app.openLocal("device") else app.toast("Allow music access to play songs on this phone")
     }
+    val downloads by com.dopdop.bopdop.playback.Downloads.tracks.collectAsState()
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Shortcut(
+            "Downloads", if (downloads.isEmpty()) "Save for offline" else songs(downloads.size), Icons.Rounded.Download, Modifier.weight(1f),
+            art = { m -> if (downloads.isEmpty()) GradientArt(m, Icons.Rounded.Download, listOf(Color(0xFF9DB0F2), Color(0xFF4B5FC0))) else MiniCollage(downloads.map { it.artwork }.distinct().take(4), m) },
+        ) { app.openLocal("downloads") }
+        Shortcut(
+            "Cached songs", if (cached.isEmpty()) "Plays offline" else songs(cached.size), Icons.Rounded.OfflinePin, Modifier.weight(1f),
+            art = { m -> MiniCollage(cached.map { it.artwork }.distinct().take(4), m) },
+        ) { app.openLocal("cached") }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Shortcut(
             "On this device", if (!allowed) "Tap to allow" else songs(local.size), Icons.Rounded.PhoneAndroid, Modifier.weight(1f),
             art = { m -> GradientArt(m, Icons.Rounded.PhoneAndroid, listOf(Color(0xFFE0B98A), Color(0xFFB07A45))) },
         ) { if (allowed) app.openLocal("device") else ask.launch(com.dopdop.bopdop.data.local.LocalMusic.permission) }
-        Shortcut(
-            "Cached songs", if (cached.isEmpty()) "Plays offline" else songs(cached.size), Icons.Rounded.OfflinePin, Modifier.weight(1f),
-            art = { m -> MiniCollage(cached.map { it.artwork }.distinct().take(4), m) },
-        ) { app.openLocal("cached") }
+        Spacer(Modifier.weight(1f))
     }
 }
 

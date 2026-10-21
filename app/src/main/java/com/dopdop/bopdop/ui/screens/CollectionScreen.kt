@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -251,6 +252,15 @@ fun LocalCollectionScreen(id: String) {
                 artUrl = tracks.firstOrNull()?.artwork, tracks = tracks, context = "On this device", numbered = false,
                 art = { m -> GradientArt(m, Icons.Rounded.PhoneAndroid, listOf(Color(0xFFE0B98A), Color(0xFFB07A45))) },
                 empty = "No music found on this phone. Pick a folder in Settings › Local music.",
+            )
+        }
+        "downloads" -> {
+            val tracks by com.dopdop.bopdop.playback.Downloads.tracks.collectAsState()
+            CollectionLayout(
+                title = "Downloads", subtitle = "Plays with no internet", meta = songs(tracks.size),
+                artUrl = tracks.firstOrNull()?.artwork, tracks = tracks, context = "Downloads", numbered = false,
+                art = { m -> GradientArt(m, Icons.Rounded.Download, listOf(Color(0xFF9DB0F2), Color(0xFF4B5FC0))) },
+                empty = "Download songs, albums and playlists from their ⋯ menu to play them offline.",
             )
         }
         "cached" -> {

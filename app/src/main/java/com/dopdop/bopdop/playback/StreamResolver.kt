@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import com.dopdop.bopdop.data.AudioQuality
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.saavn.SaavnApi
@@ -75,29 +76,50 @@ object StreamResolver {
         if (dead.via != "JioSaavn" && dead.via != "PoToken") YtStreams.reportDirectFailure()
     }
 
+    /** An ExoPlayer request for a bopdop:// song, pointed at its real stream url (with the user agent it needs). */
+    fun resolveSpec(spec: androidx.media3.datasource.DataSpec): androidx.media3.datasource.DataSpec {
+        if (spec.uri.scheme != SCHEME) return spec
+        val s = resolve(spec.uri)
+        val headers = HashMap(spec.httpRequestHeaders)
+        s.userAgent?.let { headers["User-Agent"] = it }
+        return spec.buildUpon().setUri(s.url).setHttpRequestHeaders(headers).build()
+    }
+
     /** Blocking — called on ExoPlayer's loader thread. */
     fun resolve(uri: Uri): ResolvedStream {
         if (uri.authority == "watch") return VideoResolver.resolve(uri)
         val id = uri.getQueryParameter("id") ?: throw IOException("bad uri")
-        cache[id]?.let { if (it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000) return it }
+        // Wi-Fi and mobile data each have their own quality (downloads ask for one with ?q=);
+        // a resolved url is reused only at the same quality.
+        val quality = uri.getQueryParameter("q")?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: VideoQualityPolicy.audio()
+        val key = "$id@${quality.name}"
+        cache[key]?.let { if (it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000) return it }
         val s = when {
             id.startsWith("sv:") -> {
-                val u = uri.getQueryParameter("u") ?: throw IOException("missing saavn url")
-                ResolvedStream(u, null, if (u.contains("_320")) 320 else 160, "AAC", "JioSaavn", Long.MAX_VALUE)
+                val u = saavnAt(uri.getQueryParameter("u") ?: throw IOException("missing saavn url"), quality)
+                ResolvedStream(u, null, saavnKbps(u), "AAC", "JioSaavn", Long.MAX_VALUE)
             }
             else -> {
                 val vid = id.removePrefix("yt:")
-                val hi = if (LibraryStore.settings.hiRes) hiRes(uri) else null
-                hi ?: YtStreams.resolve(vid)
+                // The 320 kbps JioSaavn match is the High quality option; lower ones stay on YouTube.
+                val hi = if (LibraryStore.settings.hiRes && quality == AudioQuality.HIGH) hiRes(uri) else null
+                hi ?: YtStreams.resolve(vid, quality.maxKbps)
             }
         }
-        Log.i(TAG, "$id → ${s.via} ${s.codec} ${s.bitrate}kbps")
+        Log.i(TAG, "$id → ${s.via} ${s.codec} ${s.bitrate}kbps (${quality.label})")
+        cache[key] = s
         cache[id] = s
         val q = StreamQuality(s.codec, s.bitrate, s.via, s.via == "JioSaavn" && !id.startsWith("sv:") || s.bitrate >= 320)
         _quality.update { it + (id to q) }
         prefs?.edit()?.putString(id, "${q.codec}|${q.kbps}|${q.via}|${if (q.hiRes) 1 else 0}")?.apply()
         return s
     }
+
+    /** A JioSaavn file url at [q]'s bitrate (their files differ only by the _96 / _160 / _320 suffix). */
+    internal fun saavnAt(url: String, q: AudioQuality): String =
+        if (q == AudioQuality.HIGH) url else url.replace(Regex("_(96|160|320)\\."), "${q.saavn}.")
+
+    private fun saavnKbps(url: String) = when { url.contains("_320") -> 320; url.contains("_96.") -> 96; else -> 160 }
 
     private fun hiRes(uri: Uri): ResolvedStream? = runCatching {
         runBlocking {

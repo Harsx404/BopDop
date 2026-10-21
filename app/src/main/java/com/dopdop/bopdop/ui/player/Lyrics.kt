@@ -2,6 +2,10 @@ package com.dopdop.bopdop.ui.player
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.mutableStateListOf
 import com.dopdop.bopdop.data.lyrics.LyricsTranslate
@@ -74,6 +78,8 @@ import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.model.LyricLine
 import com.dopdop.bopdop.data.model.Lyrics
 import com.dopdop.bopdop.data.model.Track
+import com.dopdop.bopdop.data.lyrics.LyricOffsets
+import com.dopdop.bopdop.data.model.LyricWord
 import com.dopdop.bopdop.playback.PlayerConnection
 import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.components.shimmer
@@ -119,6 +125,7 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
     var selecting by remember(t.id) { mutableStateOf(false) }
     val selected = remember(t.id) { mutableStateListOf<Int>() }
     var card by remember(t.id) { mutableStateOf<List<String>?>(null) }
+    var timing by remember(t.id) { mutableStateOf(false) }
     Box(modifier.fillMaxWidth()) {
         when (val s = state) {
             LyricState.Loading -> Column(Modifier.padding(horizontal = 26.dp, vertical = 30.dp)) {
@@ -150,7 +157,7 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 }
                 val toggle: (Int) -> Unit = { i -> if (i in selected) selected.remove(i) else if (selected.size < 5) selected.add(i) }
                 Column(Modifier.fillMaxSize()) {
-                    LyricControls(indic, mode, selecting) { selecting = !selecting; selected.clear() }
+                    LyricControls(t.id, indic, mode, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
                     Box(Modifier.weight(1f)) {
                         if (s.l.isSynced) SyncedLyrics(s.l.synced, t, main, sub, selecting, selected, toggle)
                         else PlainLyrics(texts, main, sub, "unsynced · drifts with the song", selecting, selected, toggle)
@@ -165,24 +172,66 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
     card?.let { lines -> LyricCardDialog(t, palette, lines) { card = null; selecting = false; selected.clear() } }
 }
 
-/** Original / Romanized / Translate, plus the share-a-card switch. */
+/**
+ * One compact toolbar over the lyrics: a small segmented switch (Original / Romanized /
+ * Translate) with the timing and share buttons on the right. Opening timing swaps the switch
+ * for a stepper in the same row (− value +), so the lyrics never get pushed down.
+ */
 @Composable
-private fun LyricControls(indic: Boolean, mode: LyricMode, selecting: Boolean, onShare: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        LyricMode.entries.filter { it != LyricMode.ROMANIZED || indic }.forEach { m ->
-            val on = m == mode
-            Text(
-                m.label, style = BopType.Caption, color = if (on) Color(0xFF15161B) else Color.White,
-                modifier = Modifier.padding(end = 8.dp).clip(RoundedCornerShape(50))
-                    .background(if (on) Color.White else Color.White.copy(alpha = 0.14f))
-                    .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 12.dp, vertical = 7.dp),
-            )
+private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, selecting: Boolean, timing: Boolean, synced: Boolean, onTiming: () -> Unit, onShare: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) {
+            androidx.compose.animation.AnimatedContent(timing, label = "lyricBar") { t ->
+                if (t) LyricTiming(trackId) else Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LyricMode.entries.filter { it != LyricMode.ROMANIZED || indic }.forEach { m ->
+                        val on = m == mode
+                        Text(
+                            m.label, style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = if (on) Color(0xFF15161B) else Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
+                                .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 11.dp, vertical = 5.dp),
+                        )
+                    }
+                }
+            }
         }
-        Spacer(Modifier.weight(1f))
-        Box(
-            Modifier.size(36.dp).clip(CircleShape).background(if (selecting) Color.White else Color.White.copy(alpha = 0.14f)).bounceClick(onClick = onShare),
+        if (synced) BarIcon(if (timing) Icons.Rounded.Check else Icons.Rounded.Timer, if (timing) "Done" else "Lyrics timing", timing, onTiming)
+        Spacer(Modifier.width(6.dp))
+        BarIcon(Icons.Rounded.IosShare, "Share lyrics", selecting, onShare)
+    }
+}
+
+@Composable
+private fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, on: Boolean, onClick: () -> Unit) = Box(
+    Modifier.size(32.dp).clip(CircleShape).background(if (on) Color.White else Color.White.copy(alpha = 0.12f)).bounceClick(onClick = onClick),
+    contentAlignment = Alignment.Center,
+) { Icon(icon, desc, tint = if (on) Color(0xFF15161B) else Color.White, modifier = Modifier.size(16.dp)) }
+
+/**
+ * Nudge this song's lyrics, in the toolbar: − when the words run ahead of the singing, + when
+ * they lag. Saved for the song; tap the value to reset it.
+ */
+@Composable
+private fun LyricTiming(trackId: String) {
+    val off = LyricOffsets.of(trackId)
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        @Composable
+        fun Step(label: String, desc: String, onClick: () -> Unit) = Box(
+            Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).bounceClick(onClick = onClick)
+                .semantics { contentDescription = desc },
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Rounded.IosShare, "Share lyrics", tint = if (selecting) Color(0xFF15161B) else Color.White, modifier = Modifier.size(18.dp)) }
+        ) { Text(label, style = BopType.BodyStrong, color = Color.White) }
+        Step("−", "Lyrics later") { LyricOffsets.nudge(trackId, -LyricOffsets.STEP) }
+        Text(
+            LyricOffsets.label(off), style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = Color.White,
+            modifier = Modifier.width(78.dp).bounceClick { LyricOffsets.set(trackId, 0) }, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
+        Step("+", "Lyrics sooner") { LyricOffsets.nudge(trackId, LyricOffsets.STEP) }
     }
 }
 
@@ -269,8 +318,9 @@ private fun SyncedLyrics(
 ) {
     val rows = remember(lines) { rowsOf(lines) }
     val reduce = LocalReduceMotion.current
+    // The song's own lyric timing nudge moves everything (see LyricOffsets).
     val pos by produceState(0L, t.id) {
-        while (true) { value = PlayerConnection.position + 150; delay(50) }
+        while (true) { value = PlayerConnection.position + 150 + LyricOffsets.of(t.id); delay(50) }
     }
     val active = remember(pos, rows) { rows.indexOfLast { it.start <= pos }.coerceAtLeast(0) }
     val tops = remember(rows) { mutableStateMapOf<Int, Float>() }
@@ -326,15 +376,21 @@ private fun SyncedLyrics(
                         .background(if (row.src in selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
                         .bounceClick(0.98f) {
                             if (selecting) { if (!row.isGap) onToggle(row.src) }
-                            else { scope.launch { user.snapTo(0f) }; PlayerConnection.seekTo(row.start) }
+                            else { scope.launch { user.snapTo(0f) }; PlayerConnection.seekTo((row.start - LyricOffsets.of(t.id)).coerceAtLeast(0)) }
                         }
                         .padding(vertical = if (row.isGap) 14.dp else 10.dp),
                 ) {
                     if (row.isGap) BreathingDots(active = on, progress = if (on) ((pos - row.start).toFloat() / (row.end - row.start).coerceAtLeast(1)).coerceIn(0f, 1f) else 0f)
                     else Column(Modifier.padding(horizontal = if (selecting) 8.dp else 0.dp)) {
                         val text = main(row.src)
+                        val words = lines.getOrNull(row.src)?.words.orEmpty()
                         Text(
-                            if (on && !selecting) karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f)) else AnnotatedString(text),
+                            when {
+                                !on || selecting -> AnnotatedString(text)
+                                // Word-timed and shown as written: each word lights up when it's sung.
+                                words.isNotEmpty() && words.joinToString("") { it.text } == text -> karaokeWords(words, pos, row.end)
+                                else -> karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f))
+                            },
                             style = LyricStyle.forScript(text).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
                             color = Color.White,
                         )
@@ -343,10 +399,19 @@ private fun SyncedLyrics(
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text("Lyrics via LRCLIB", style = BopType.Caption, color = Color.White.copy(alpha = 0.35f),
+            Text(if (lines.any { it.words.isNotEmpty() }) "Word-synced lyrics" else "Synced lyrics", style = BopType.Caption, color = Color.White.copy(alpha = 0.35f),
                 modifier = Modifier.graphicsLayer { translationY = target + user.value })
             Spacer(Modifier.height(420.dp))
         }
+    }
+}
+
+/** Word-timed lines: each word fills over its own sung span, from its start to the next word's. */
+private fun karaokeWords(words: List<LyricWord>, pos: Long, lineEnd: Long): AnnotatedString = buildAnnotatedString {
+    words.forEachIndexed { i, w ->
+        val end = words.getOrNull(i + 1)?.timeMs ?: minOf(lineEnd, w.timeMs + 1200)
+        val p = ((pos - w.timeMs).toFloat() / (end - w.timeMs).coerceAtLeast(120)).coerceIn(0f, 1f)
+        withStyle(SpanStyle(color = Color.White.copy(alpha = 0.42f + 0.58f * p))) { append(w.text) }
     }
 }
 

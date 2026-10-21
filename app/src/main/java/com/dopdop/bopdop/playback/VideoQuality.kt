@@ -20,6 +20,15 @@ object VideoQualityPolicy {
         return if (cm.isActiveNetworkMetered) 480 else 1080
     }
 
+    /** Whether the phone is on mobile data (or another metered network) right now. */
+    fun metered(): Boolean = appContext?.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered ?: false
+
+    /** The audio quality setting for the network the phone is on. */
+    fun audio(): com.dopdop.bopdop.data.AudioQuality {
+        val s = com.dopdop.bopdop.data.LibraryStore.settings
+        return if (metered()) s.audioMobile else s.audioWifi
+    }
+
     private val support = ConcurrentHashMap<String, Boolean>()
 
     /**

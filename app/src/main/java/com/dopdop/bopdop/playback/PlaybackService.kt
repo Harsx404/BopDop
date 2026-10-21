@@ -12,8 +12,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
@@ -60,13 +58,22 @@ class PlaybackService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         LibraryStore.init(this)
+        com.dopdop.bopdop.data.lyrics.LyricOffsets.init(this)
         PlayStats.init(this)
 
-        val resolving = ResolvingDataSource.Factory(OkHttpDataSource.Factory(Http.client)) { spec -> resolve(spec) }
-        val dataSource = CacheDataSource.Factory()
+        val resolving = ResolvingDataSource.Factory(OkHttpDataSource.Factory(Http.client)) { spec -> StreamResolver.resolveSpec(spec) }
+        val key = androidx.media3.datasource.cache.CacheKeyFactory { spec -> spec.key ?: spec.uri.getQueryParameter("id") ?: spec.uri.toString() }
+        val streaming = CacheDataSource.Factory()
             .setCache(cache(this))
             .setUpstreamDataSourceFactory(resolving)
-            .setCacheKeyFactory { spec -> spec.key ?: spec.uri.getQueryParameter("id") ?: spec.uri.toString() }
+            .setCacheKeyFactory(key)
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        // Downloads first: a downloaded song is read whole from its own cache and never needs the network.
+        val dataSource = CacheDataSource.Factory()
+            .setCache(Downloads.cache(this))
+            .setUpstreamDataSourceFactory(streaming)
+            .setCacheWriteDataSinkFactory(null)
+            .setCacheKeyFactory(key)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         sources = VideoMediaSourceFactory(DefaultMediaSourceFactory(dataSource), DefaultMediaSourceFactory(DefaultDataSource.Factory(this)))
@@ -78,6 +85,10 @@ class PlaybackService : MediaLibraryService() {
         LockScreenLyrics(scope) { player }
         scope.launch {
             LibraryStore.state.map { it.settings.skipSilence }.distinctUntilChanged().collect { player.skipSilenceEnabled = it }
+        }
+        // Playback speed is a setting, so it survives restarts and applies to every song.
+        scope.launch {
+            LibraryStore.state.map { it.settings.playbackSpeed }.distinctUntilChanged().collect { player.setPlaybackSpeed(it) }
         }
         // The output format is fixed when a player is built: switching precision swaps in a new one.
         scope.launch {
@@ -174,6 +185,7 @@ class PlaybackService : MediaLibraryService() {
             .also {
                 it.setAudioSessionId(audioSessionId)
                 it.skipSilenceEnabled = LibraryStore.settings.skipSilence
+                it.setPlaybackSpeed(LibraryStore.settings.playbackSpeed)
                 if (main) { it.addListener(listener); it.addAnalyticsListener(AudioPipeline.listener) }
             }
     }
@@ -226,14 +238,6 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /** `bopdop://play?...` → real CDN url, carrying the User-Agent the url is bound to. */
-    private fun resolve(spec: DataSpec): DataSpec {
-        if (spec.uri.scheme != StreamResolver.SCHEME) return spec
-        val s = StreamResolver.resolve(spec.uri)
-        val headers = HashMap(spec.httpRequestHeaders)
-        s.userAgent?.let { headers["User-Agent"] = it }
-        return spec.buildUpon().setUri(s.url).setHttpRequestHeaders(headers).build()
-    }
-
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED &&
@@ -399,7 +403,7 @@ class PlaybackService : MediaLibraryService() {
             simpleCache ?: SimpleCache(
                 File(ctx.cacheDir, "audio"),
                 LeastRecentlyUsedCacheEvictor(LibraryStore.settings.cacheMb * 1024L * 1024L),
-                StandaloneDatabaseProvider(ctx),
+                Databases.provider(ctx),
             ).also { simpleCache = it }
         }
     }

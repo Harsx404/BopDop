@@ -57,6 +57,10 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
+import androidx.compose.material.icons.rounded.Downloading
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.TimerOff
@@ -160,6 +164,7 @@ fun SheetHost(app: AppState) {
                     is Sheet.RenamePlaylist -> NameInput(app, "Rename playlist", "Save", s.name) { name -> LibraryStore.renamePlaylist(s.id, name) }
                     Sheet.SleepTimer -> SleepTimerSheet(app)
                     Sheet.SeekBarLook -> SeekLookSheet()
+                    Sheet.PlaybackSpeed -> SpeedSheet(app)
                     Sheet.AudioPipeline -> AudioPipelineSheet()
                     Sheet.ImportPlaylist -> ImportPlaylistSheet(app)
                     null -> {}
@@ -219,7 +224,24 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         if (playlistId != null) Action(Icons.Rounded.RemoveCircleOutline, "Remove from this playlist") { LibraryStore.removeFromPlaylist(playlistId, t.id); close() }
         t.albumId?.let { id -> Action(Icons.Rounded.Album, "Go to album") { close(); app.collapsePlayer(); app.openAlbum(id, t.album, t.artwork) } }
         t.artistId?.let { id -> Action(Icons.Rounded.Person, "Go to artist") { close(); app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } }
+        if (t.source != com.dopdop.bopdop.data.model.Source.LOCAL) {
+            val dl by com.dopdop.bopdop.playback.Downloads.status.collectAsState()
+            val st = dl[t.id]
+            when (st?.state) {
+                androidx.media3.exoplayer.offline.Download.STATE_COMPLETED ->
+                    Action(Icons.Rounded.DownloadDone, "Remove download") { com.dopdop.bopdop.playback.Downloads.remove(ctx, t.id); app.toast("Download removed"); close() }
+                androidx.media3.exoplayer.offline.Download.STATE_QUEUED, androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING, androidx.media3.exoplayer.offline.Download.STATE_RESTARTING ->
+                    Action(Icons.Rounded.Downloading, if (st.percent > 0f) "Downloading ${st.percent.toInt()}% · tap to cancel" else "Waiting to download · tap to cancel") {
+                        com.dopdop.bopdop.playback.Downloads.remove(ctx, t.id); close()
+                    }
+                else -> Action(Icons.Rounded.Download, "Download") { com.dopdop.bopdop.playback.Downloads.download(ctx, listOf(t)); app.toast("Downloading"); close() }
+            }
+        }
         Action(Icons.Rounded.Share, "Share") { close(); app.shareTrack = t }
+        // Speed belongs to the player, so it's offered for the song that's playing.
+        if (PlayerConnection.current.value?.id == t.id) {
+            Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
+        }
     }
 }
 
@@ -247,6 +269,9 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
     Action(Icons.Rounded.PlayArrow, "Play") { withTracks { PlayerConnection.play(it, 0, c.title) }; close() }
     Action(Icons.Rounded.Shuffle, "Shuffle") { withTracks { PlayerConnection.play(it, 0, c.title, shuffle = true) }; close() }
     Action(Icons.AutoMirrored.Rounded.QueueMusic, "Add to queue") { withTracks { PlayerConnection.addToQueue(it); app.toast("Added ${it.size} songs to queue") }; close() }
+    if (c.kind == CardKind.ALBUM || c.kind == CardKind.PLAYLIST) Action(Icons.Rounded.Download, "Download all") {
+        withTracks { com.dopdop.bopdop.playback.Downloads.download(ctx, it); app.toast("Downloading ${it.size} songs") }; close()
+    }
     if (localPl != null && localPl.tracks.isNotEmpty()) Action(Icons.Rounded.QrCode2, "Share as code") {
         close(); app.shareQr(ShareRequest(SharePayload.Playlist(localPl.name, localPl.tracks.map { it.id }), localPl.name, songs(localPl.tracks.size), localPl.artwork))
     }
@@ -319,6 +344,37 @@ private fun ColumnScope.NameInput(app: AppState, title: String, cta: String, ini
             .background(if (name.isBlank()) Bop.Ink.copy(alpha = 0.25f) else Bop.Ink),
         contentAlignment = Alignment.Center,
     ) { Text(cta, style = BopType.BodyStrong, color = Color.White) }
+}
+
+/** 1x, 1.25x, 0.75x… */
+fun speedLabel(v: Float): String = (if (v % 1f == 0f) "%.0f" else if ((v * 10) % 1f == 0f) "%.1f" else "%.2f").format(v) + "×"
+
+/** Playback speed presets; pitch stays put. Saved, so it carries to the next songs and restarts. */
+@Composable
+private fun ColumnScope.SpeedSheet(app: AppState) {
+    val lib by LibraryStore.state.collectAsState()
+    val now = lib.settings.playbackSpeed
+    Row(Modifier.padding(horizontal = 22.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Rounded.Speed, null, tint = Bop.Text)
+        Spacer(Modifier.width(10.dp))
+        Text("Playback speed", style = BopType.Title, color = Bop.Text, modifier = Modifier.weight(1f))
+        Text(speedLabel(now), style = BopType.BodyStrong, color = Bop.Text2)
+    }
+    val presets = listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f)
+    presets.chunked(5).forEach { row ->
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { v ->
+                val on = v == now
+                Box(
+                    Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.6f))
+                        .bounceClick(0.94f) { LibraryStore.updateSettings { it.copy(playbackSpeed = v) } },
+                    contentAlignment = Alignment.Center,
+                ) { Text(speedLabel(v), style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text) }
+            }
+            repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 @Composable

@@ -27,6 +27,7 @@ sealed interface Sheet {
     data class RenamePlaylist(val id: String, val name: String) : Sheet
     data object SleepTimer : Sheet
     data object SeekBarLook : Sheet
+    data object PlaybackSpeed : Sheet
     data object AudioPipeline : Sheet
     data object ImportPlaylist : Sheet
 }
