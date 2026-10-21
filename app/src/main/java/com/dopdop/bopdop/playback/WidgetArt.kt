@@ -77,25 +77,21 @@ internal object WidgetArt {
 
     // --- shared pieces ---------------------------------------------------------------------
 
-    /** Rounded glass card: the cover blurred and darkened, an orange glow, and a sheen across the top. */
+    /** Rounded charcoal glass card: a soft orange glow in the corner and a sheen across the top. */
+    @Suppress("UNUSED_PARAMETER")
     private fun card(c: Canvas, s: Size, cover: Bitmap?, radiusDp: Float = 26f) {
         val w = s.w.toFloat(); val h = s.h.toFloat(); val r = radiusDp * s.scale
         val shape = Path().apply { addRoundRect(RectF(0f, 0f, w, h), r, r, Path.Direction.CW) }
         c.save(); c.clipPath(shape)
-        c.drawColor(0xFF141214.toInt())
-        if (cover != null) {
-            // Cheap, strong blur: shrink to a few pixels and stretch back with filtering.
-            val tiny = Bitmap.createScaledBitmap(cover, 12, 12, true)
-            val side = maxOf(w, h)
-            c.drawBitmap(tiny, null, RectF((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
-            c.drawColor(0x8C0E0C0E.toInt())
-        }
+        // Charcoal, a touch lighter at the top like lit glass.
+        c.drawRect(0f, 0f, w, h, Paint().apply { shader = LinearGradient(0f, 0f, w * 0.4f, h, 0xFF2A2A2F.toInt(), 0xFF111113.toInt(), Shader.TileMode.CLAMP) })
+        // The brand glow, warm in the bottom-right corner.
         c.drawRect(0f, 0f, w, h, Paint().apply {
-            shader = RadialGradient(w * 0.95f, h * 1.05f, maxOf(w, h) * 0.75f, (ORANGE and 0x00FFFFFF) or 0x55000000, ORANGE and 0x00FFFFFF, Shader.TileMode.CLAMP)
+            shader = RadialGradient(w * 0.98f, h * 1.08f, maxOf(w, h) * 0.8f, (ORANGE and 0x00FFFFFF) or 0x66000000, ORANGE and 0x00FFFFFF, Shader.TileMode.CLAMP)
         })
         c.drawPath(Path().apply {
             moveTo(-w * 0.1f, h * 0.22f); cubicTo(w * 0.3f, h * 0.02f, w * 0.65f, h * 0.42f, w * 1.1f, h * 0.18f); lineTo(w * 1.1f, -1f); lineTo(-w * 0.1f, -1f); close()
-        }, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x10FFFFFF })
+        }, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x14FFFFFF })
         c.restore()
         c.drawPath(shape, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = s.scale; color = 0x26FFFFFF })
     }
