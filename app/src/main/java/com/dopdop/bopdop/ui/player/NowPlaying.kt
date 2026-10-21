@@ -96,6 +96,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.navigationBarsIgnoringVisibility
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
@@ -289,8 +294,34 @@ fun NowPlaying(app: AppState) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.62f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f))))
             }
 
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).windowInsetsPadding(WindowInsets.navigationBars)) {
-                TopRow(app, haze)
+            // Lyrics full screen: after a few quiet seconds while the song plays, everything but the
+            // words (and the system bars) fades away. The first touch only brings it all back.
+            val playingNow by PlayerConnection.isPlaying.collectAsState()
+            var lastTouch by remember { mutableLongStateOf(0L) }
+            var immersive by remember { mutableStateOf(false) }
+            val canImmerse = app.nowPlayingPage == NowPlayingPage.LYRICS && playingNow && app.sheet == null &&
+                LibraryStore.state.collectAsState().value.settings.lyricsFullScreen
+            LaunchedEffect(canImmerse, lastTouch) {
+                immersive = false
+                if (canImmerse) { kotlinx.coroutines.delay(6_000); immersive = true }
+            }
+            SystemBarsHidden(immersive)
+            val shown = !immersive
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            Column(
+                Modifier.fillMaxSize()
+                    // Bars may be hidden; keep their room so nothing jumps.
+                    .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press) lastTouch = System.nanoTime()
+                            }
+                        }
+                    },
+            ) {
+                AnimatedVisibility(shown, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) { TopRow(app, haze) }
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     AnimatedContent(
                         targetState = app.nowPlayingPage,
@@ -299,14 +330,40 @@ fun NowPlaying(app: AppState) {
                     ) { page ->
                         when (page) {
                             NowPlayingPage.ART -> ArtGestureArea(t, swipe, w, hasNext = nextArt != null, hasPrev = prevArt != null, onStart = { swipeFrom = t.id }) { swiped = true }
-                            NowPlayingPage.LYRICS -> Column { SongHeader(t, app, haze); LyricsView(t, palette, Modifier.weight(1f)) }
+                            NowPlayingPage.LYRICS -> Column {
+                                AnimatedVisibility(shown, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) { SongHeader(t, app, haze) }
+                                LyricsView(t, palette, Modifier.weight(1f), immersive = immersive)
+                            }
                             NowPlayingPage.QUEUE -> Column { SongHeader(t, app, haze); QueueView(app, Modifier.weight(1f)) }
                         }
                     }
                 }
-                BottomPanel(app, t, palette, haze)
+                AnimatedVisibility(shown, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) { BottomPanel(app, t, palette, haze) }
             }
+            // While full screen, a touch anywhere just brings the controls back (it doesn't seek or scroll).
+            if (immersive) Box(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false).consume()
+                        lastTouch = System.nanoTime()
+                        do { val e = awaitPointerEvent(); e.changes.forEach { it.consume() } } while (e.changes.any { it.pressed })
+                    }
+                },
+            )
         }
+    }
+}
+
+/** Hides the status and navigation bars while [hidden]; a swipe from the edge shows them for a moment. */
+@Composable
+private fun SystemBarsHidden(hidden: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    val window = (view.context as? android.app.Activity)?.window ?: return
+    DisposableEffect(hidden) {
+        val c = androidx.core.view.WindowCompat.getInsetsController(window, view)
+        c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (hidden) c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars()) else c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        onDispose { if (hidden) c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars()) }
     }
 }
 

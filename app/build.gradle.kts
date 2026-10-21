@@ -69,7 +69,7 @@ android {
     }
 
     packaging {
-        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST")
+        resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST", "META-INF/CONTRIBUTORS.md", "META-INF/LICENSE.md", "META-INF/NOTICE.md")
     }
 }
 
@@ -116,6 +116,8 @@ dependencies {
     implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.5")
 
     // QR codes: encoder for the styled share codes, embedded camera scanner to read them.
+    // Japanese lyrics: word splitting and kanji readings for romaji (IPA dictionary, offline).
+    implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")

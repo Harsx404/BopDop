@@ -58,7 +58,27 @@ object UpdateInstaller {
             _state.value = InstallState.Failed("Download failed: ${it.message ?: "no connection"}"); return
         }
         _state.value = InstallState.Installing
-        runCatching { commit(context, apk) }.onFailure { _state.value = InstallState.Failed("Couldn't start the installer") }
+        runCatching { commit(context, apk) }.onFailure { openInstaller(context, apk); return }
+        // Android answers through [StatusReceiver] with its "Update BopDop?" screen. If nothing has
+        // shown up after a while (some phones' installers never answer a session), open the
+        // system installer on the file directly instead.
+        kotlinx.coroutines.delay(12_000)
+        if (_state.value == InstallState.Installing && !answered) openInstaller(context, apk)
+    }
+
+    /** Set when Android has answered the install session (shown its screen, or finished). */
+    @Volatile private var answered = false
+
+    /** The system installer, opened on the downloaded APK (the classic way, before sessions). */
+    private fun openInstaller(context: Context, apk: File) {
+        runCatching {
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", apk)
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            _state.value = InstallState.Idle
+        }.onFailure { _state.value = InstallState.Failed("Couldn't open the installer. Download the update from GitHub instead.") }
     }
 
     /** Back in the app after the permission screen: carry on if it was allowed. */
@@ -99,13 +119,17 @@ object UpdateInstaller {
             setAppPackageName(context.packageName)
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
+        answered = false
+        // Leftover sessions from an earlier try would sit in the way; drop them.
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
             apk.inputStream().use { input ->
                 session.openWrite("base.apk", 0, apk.length()).use { out -> input.copyTo(out); session.fsync(out) }
             }
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
-            val status = PendingIntent.getBroadcast(context, id, Intent(ACTION).setPackage(context.packageName), flags)
+            // Addressed to the receiver itself: it has no intent filter, so a broadcast by action alone never reaches it.
+            val status = PendingIntent.getBroadcast(context, id, Intent(context, StatusReceiver::class.java).setAction(ACTION), flags)
             session.commit(status.intentSender)
         }
     }
@@ -113,6 +137,7 @@ object UpdateInstaller {
     /** Android's answers about the install session. */
     class StatusReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
+            answered = true
             when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     @Suppress("DEPRECATION")

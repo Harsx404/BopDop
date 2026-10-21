@@ -16,3 +16,6 @@
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
+
+# Kuromoji loads its dictionary as resources next to its own classes; keep the names and packages.
+-keep class com.atilika.kuromoji.** { *; }

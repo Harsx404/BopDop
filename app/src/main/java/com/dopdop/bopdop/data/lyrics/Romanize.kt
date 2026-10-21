@@ -10,8 +10,9 @@ package com.dopdop.bopdop.data.lyrics
  *
  * Every other script (Tamil, Telugu, Kannada, Malayalam, Bengali, Gujarati, Odia, Urdu and
  * Arabic, Korean, Chinese, Japanese kana, Cyrillic, Greek, Thai, Hebrew…) goes through Android's
- * built-in ICU transliterator, with accents stripped so it reads like typed lyrics. In Japanese
- * songs kanji are left as they are: a Chinese reading of them would be wrong.
+ * built-in ICU transliterator, with accents stripped so it reads like typed lyrics. Japanese
+ * gets a proper reading from a dictionary ([japanese]); the ICU version, which leaves kanji as
+ * they are (a Chinese reading of them would be wrong), only shows while that runs.
  */
 object Romanize {
     fun hasIndic(text: String) = text.any { it in 'ऀ'..'ॿ' || it in '਀'..'੿' }
@@ -27,6 +28,17 @@ object Romanize {
         if (!ours.any(::isForeign)) return ours
         return transliterate(ours, japanese) ?: ours
     }
+
+    /**
+     * Japanese lyrics through the dictionary ([JapaneseRomaji]), line by line; null if it can't
+     * run. Slow the first time (the dictionary loads), so call off the main thread.
+     */
+    fun japanese(lines: List<String>): List<String>? = runCatching {
+        lines.map { l -> if (l.any { isKana(it) || isKanjiChar(it) }) JapaneseRomaji.line(l).ifBlank { line(l, true) } else line(l, true) }
+    }.onFailure { android.util.Log.w("Romanize", "Japanese romaji failed: ${it.message}") }.getOrNull()
+
+    private fun isKana(c: Char) = c in '぀'..'ヿ'
+    private fun isKanjiChar(c: Char) = c in '一'..'鿿' || c in '㐀'..'䶿'
 
     private fun isForeign(c: Char): Boolean {
         if (!Character.isLetter(c)) return false

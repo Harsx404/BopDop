@@ -56,6 +56,8 @@ data class Settings(
     val keepCache: Boolean = false,
     /** Lyrics page: the cover slowly swirls behind the words. */
     val lyricsMotion: Boolean = true,
+    /** Lyrics page: after a few seconds without a touch, everything but the words fades away. */
+    val lyricsFullScreen: Boolean = true,
     /** Spotify Canvas loops behind the cover (signed in to Spotify); on mobile data only when allowed. */
     val canvas: Boolean = true,
     val canvasOnData: Boolean = false,
@@ -128,7 +130,7 @@ data class Settings(
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
-        .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("canvas", canvas).put("canvasOnData", canvasOnData)
+        .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("lyricsFullScreen", lyricsFullScreen).put("canvas", canvas).put("canvasOnData", canvasOnData)
             .put("addons", JSONArray(addons)).put("lossless", lossless).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
@@ -150,6 +152,7 @@ data class Settings(
             cacheMb = o.optInt("cacheMb", 1024),
             keepCache = o.optBoolean("keepCache", false),
             lyricsMotion = o.optBoolean("lyricsMotion", true),
+            lyricsFullScreen = o.optBoolean("lyricsFullScreen", true),
             canvas = o.optBoolean("canvas", true),
             canvasOnData = o.optBoolean("canvasOnData", false),
             addons = o.optJSONArray("addons")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),

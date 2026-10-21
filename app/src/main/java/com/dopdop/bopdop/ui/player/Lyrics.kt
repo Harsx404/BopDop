@@ -146,7 +146,7 @@ object LyricPrefs {
 }
 
 @Composable
-fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
+fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier, immersive: Boolean = false) {
     val version by com.dopdop.bopdop.data.lyrics.LyricsApi.version.collectAsState()
     val app = com.dopdop.bopdop.ui.LocalApp.current
     val state by produceState<LyricState>(LyricState.Loading, t.id, version) {
@@ -179,8 +179,15 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 // Anything not already in Latin letters can be shown romanized: Hindi, Tamil, Korean, Japanese…
                 val indic = remember(texts) { texts.any(Romanize::canRomanize) }
                 val mode = LyricPrefs.mode.takeIf { it != LyricMode.ROMANIZED || indic } ?: LyricMode.ORIGINAL
-                val romanized = remember(texts, indic) {
-                    if (!indic) texts else Romanize.isJapanese(texts).let { jp -> texts.map { Romanize.line(it, jp) } }
+                // Japanese reads properly (kanji, word breaks, particles) once the dictionary has run;
+                // until then, and for every other script, the quick transliteration shows.
+                val romanized by produceState(
+                    remember(texts, indic) { if (!indic) texts else Romanize.isJapanese(texts).let { jp -> texts.map { Romanize.line(it, jp) } } },
+                    texts, indic, mode,
+                ) {
+                    if (indic && mode == LyricMode.ROMANIZED && Romanize.isJapanese(texts)) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { Romanize.japanese(texts) }?.let { value = it }
+                    }
                 }
                 val translating = LyricPrefs.translate
                 val translated by produceState<List<String?>>(emptyList(), t.id, translating) {
@@ -193,7 +200,13 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier) {
                 }
                 val toggle: (Int) -> Unit = { i -> if (i in selected) selected.remove(i) else if (selected.size < 5) selected.add(i) }
                 Column(Modifier.fillMaxSize()) {
-                    LyricControls(t.id, indic, mode, translating, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
+                    androidx.compose.animation.AnimatedVisibility(
+                        !immersive || selecting || timing,
+                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
+                    ) {
+                        LyricControls(t.id, indic, mode, translating, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
+                    }
                     Box(Modifier.weight(1f)) {
                         if (s.l.isSynced) SyncedLyrics(s.l.synced, t, main, sub, selecting, selected, toggle)
                         else PlainLyrics(texts, main, sub, "unsynced · drifts with the song", selecting, selected, toggle)
@@ -366,7 +379,7 @@ private fun SyncedLyrics(
     val reduce = LocalReduceMotion.current
     // The song's own lyric timing nudge moves everything (see LyricOffsets).
     val pos by produceState(0L, t.id) {
-        while (true) { value = PlayerConnection.position + 150 + LyricOffsets.of(t.id); delay(50) }
+        while (true) { androidx.compose.runtime.withFrameMillis { }; value = PlayerConnection.position + 150 + LyricOffsets.of(t.id) }
     }
     val active = remember(pos, rows) { rows.indexOfLast { it.start <= pos }.coerceAtLeast(0) }
     val tops = remember(rows) { mutableStateMapOf<Int, Float>() }
@@ -405,7 +418,10 @@ private fun SyncedLyrics(
                 val alpha by animateFloatAsState(
                     when { on -> 1f; dist < 0 -> 0.32f; else -> (0.55f - dist * 0.06f).coerceAtLeast(0.26f) }, tween(420), label = "la$i",
                 )
-                val scale by animateFloatAsState(if (on) 1f else 0.955f, spring(dampingRatio = 0.75f, stiffness = 260f), label = "ls$i")
+                val scale by animateFloatAsState(
+                    when { on -> 1f; dist < 0 -> 0.94f; else -> 0.955f },
+                    if (reduce) spring(stiffness = 1000f) else spring(dampingRatio = if (on) 0.5f else 0.8f, stiffness = if (on) 320f else 220f), label = "ls$i",
+                )
                 val blur = if (Build.VERSION.SDK_INT >= 31 && !dragging && user.value == 0f && !on) (abs(dist).coerceAtMost(4) * 0.7f).dp else 0.dp
                 // Instrumental dots follow the song's side: the next sung line's direction.
                 val textSrc = if (row.isGap) (rows.drop(i + 1).firstOrNull { !it.isGap } ?: rows.lastOrNull { !it.isGap })?.src else row.src
@@ -439,8 +455,8 @@ private fun SyncedLyrics(
                             when {
                                 !on || selecting -> AnnotatedString(text)
                                 // Word-timed and shown as written: each word lights up when it's sung.
-                                words.isNotEmpty() && words.joinToString("") { it.text } == text -> karaokeWords(words, pos, row.end)
-                                else -> karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f))
+                                words.isNotEmpty() && words.joinToString("") { it.text } == text -> karaokeWords(words, pos, row.end, lift = !reduce)
+                                else -> karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f), lift = !reduce)
                             },
                             style = LyricStyle.forScript(text).aligned(rtl).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
                             color = Color.White,
@@ -464,17 +480,30 @@ private fun SyncedLyrics(
     }
 }
 
+/**
+ * How a word looks at fill [p] (0 → 1): it brightens, rises a touch and glows while it's being
+ * sung, then settles a little lower once it's done, so the line ripples along with the voice.
+ */
+private fun sungWord(p: Float, lift: Boolean): SpanStyle {
+    val singing = if (p <= 0f || p >= 1f) 0f else kotlin.math.sin(p * Math.PI.toFloat())
+    return SpanStyle(
+        color = Color.White.copy(alpha = 0.42f + 0.58f * p),
+        baselineShift = if (lift) androidx.compose.ui.text.style.BaselineShift(0.035f * p + 0.03f * singing) else null,
+        shadow = if (singing > 0.05f) Shadow(Color.White.copy(alpha = 0.55f * singing), Offset.Zero, 26f * singing) else null,
+    )
+}
+
 /** Word-timed lines: each word fills over its own sung span, from its start to the next word's. */
-private fun karaokeWords(words: List<LyricWord>, pos: Long, lineEnd: Long): AnnotatedString = buildAnnotatedString {
+private fun karaokeWords(words: List<LyricWord>, pos: Long, lineEnd: Long, lift: Boolean): AnnotatedString = buildAnnotatedString {
     words.forEachIndexed { i, w ->
         val end = words.getOrNull(i + 1)?.timeMs ?: minOf(lineEnd, w.timeMs + 1200)
         val p = ((pos - w.timeMs).toFloat() / (end - w.timeMs).coerceAtLeast(120)).coerceIn(0f, 1f)
-        withStyle(SpanStyle(color = Color.White.copy(alpha = 0.42f + 0.58f * p))) { append(w.text) }
+        withStyle(sungWord(p, lift)) { append(w.text) }
     }
 }
 
 /** Words light up in sequence; the word being sung ramps from dim to full. */
-private fun karaoke(text: String, frac: Float): AnnotatedString = buildAnnotatedString {
+private fun karaoke(text: String, frac: Float, lift: Boolean): AnnotatedString = buildAnnotatedString {
     val total = text.length.coerceAtLeast(1)
     // Lines are usually sung a bit faster than their slot — finish the sweep at 85%.
     val sung = (frac / 0.85f).coerceAtMost(1f) * total
@@ -483,7 +512,7 @@ private fun karaoke(text: String, frac: Float): AnnotatedString = buildAnnotated
         val start = m.range.first; val end = m.range.last + 1
         if (start > i) append(text.substring(i, start))
         val p = ((sung - start) / (end - start).coerceAtLeast(1)).coerceIn(0f, 1f)
-        withStyle(SpanStyle(color = Color.White.copy(alpha = 0.42f + 0.58f * p))) { append(m.value) }
+        withStyle(sungWord(p, lift)) { append(m.value) }
         i = end
     }
     if (i < text.length) append(text.substring(i))

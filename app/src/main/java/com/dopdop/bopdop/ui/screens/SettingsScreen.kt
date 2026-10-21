@@ -2,6 +2,7 @@ package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.DarkMode
@@ -231,6 +232,9 @@ fun SettingsScreen() {
                 Group("Lyrics") {
                     ToggleRow(Icons.Rounded.BlurOn, "Moving background", "The cover swirls slowly behind the lyrics.", s.lyricsMotion, keywords = "motion animated lyrics background") {
                         LibraryStore.updateSettings { it.copy(lyricsMotion = !it.lyricsMotion) }
+                    }
+                    ToggleRow(Icons.Rounded.Fullscreen, "Full screen lyrics", "While a song plays, the controls fade away after a few seconds so the words fill the screen. Tap to bring them back.", s.lyricsFullScreen, keywords = "immersive fullscreen hide controls karaoke") {
+                        LibraryStore.updateSettings { it.copy(lyricsFullScreen = !it.lyricsFullScreen) }
                     }
                     ToggleRow(Icons.Rounded.Lyrics, "Lyrics on lock screen", "Shows the line being sung in the notification and on the lock screen.", s.lockScreenLyrics) {
                         LibraryStore.updateSettings { it.copy(lockScreenLyrics = !it.lockScreenLyrics) }
