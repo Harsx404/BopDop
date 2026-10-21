@@ -307,7 +307,7 @@ fun SettingsScreen() {
                             ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
                         }
                     }
-                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${if (s.mascot == com.dopdop.bopdop.data.Mascot.NONE) "" else " with the kitty walking along"}. Long-press the seek bar to change it from the player.") {
+                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${when (s.mascot) { com.dopdop.bopdop.data.Mascot.NONE -> ""; com.dopdop.bopdop.data.Mascot.BUNNY -> " with the bunny hopping along"; com.dopdop.bopdop.data.Mascot.BIKE -> " with the bike riding along"; com.dopdop.bopdop.data.Mascot.WAGON -> " with the wagon rolling along"; com.dopdop.bopdop.data.Mascot.DINO -> " with the dino stomping along"; com.dopdop.bopdop.data.Mascot.VILLAGER -> " with the villager walking along"; else -> " with the kitty walking along" }}. Long-press the seek bar to change it from the player.") {
                         app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
                     }
                     ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {

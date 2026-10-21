@@ -346,7 +346,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.cardGrid(cards: List<
             rows[i].forEach { c ->
                 Box(Modifier.weight(1f)) {
                     androidx.compose.foundation.layout.BoxWithConstraints {
-                        com.dopdop.bopdop.ui.components.CardTile(c, width = maxWidth, onLongClick = { app.sheet = Sheet.CardOptions(c) }) { app.open(c) }
+                        com.dopdop.bopdop.ui.components.CardTile(c, width = maxWidth, onLongClick = { app.holdCard(c) }) { app.open(c) }
                     }
                 }
             }

@@ -64,7 +64,7 @@ fun SeekBar(
     val settings by LibraryStore.state.collectAsState()
     val look = style ?: settings.settings.seekStyle
     val friend = mascot ?: settings.settings.mascot
-    val frames = if (friend == Mascot.NONE) null else rememberMascotFrames()
+    val frames = if (friend == Mascot.NONE) null else rememberMascotFrames(friend)
     val dur = durationMs.coerceAtLeast(1L)
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)

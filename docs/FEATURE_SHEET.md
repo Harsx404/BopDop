@@ -5,7 +5,7 @@ in batch order. Update the **Status** column as items land.
 
 - **Priority:** P1 do soon · P2 worth it · P3 nice to have
 - **Size:** S hours · M a day or two · L several days · XL needs new infrastructure
-- **Status:** `todo` · `doing` · `done` · `blocked` (with the reason in Notes)
+- **Status:** `todo` · `doing` · `done` · `blocked` / `skipped` (with the reason in Notes)
 
 ## Batch plan
 
@@ -16,7 +16,10 @@ in batch order. Update the **Status** column as items land.
 | 3 | F12 Smart playlists · F13 Stats for nerds · F14 Live search results · F15 Queue history · F16 Dislike |
 | 4 | F17 Song info panel · F18 Output device pill · F19 Lyrics translation under lines · F20 Backup & restore · F21 Grid / list Library |
 | 5 | F22 Cache controls · F23 Lyrics motion background · F24 Selectable app icon · F25 One-tap update install · F26 Per-ABI APKs |
-| later | F07 Last.fm · F27–F40 (bigger or need outside services) |
+| 6 | F42 Resume exactly · F43 Notification buttons · F44 Lyrics search · F45 Save queue · F46 Release signing |
+| 7 | F47 Smart downloads · F48 Private session · F49 Launcher shortcuts · F50 Radio from playlist · F51 Bluetooth resume |
+| 8 | F52 Video PiP · F53 Battery saver · F54 Accessibility · F55 Continue listening · F56 Report a problem |
+| later | F57–F60, F40 (languages), F41 |
 
 ## Features
 
@@ -53,16 +56,35 @@ in batch order. Update the **Status** column as items land.
 | F29 | Features | Lossless sources (FLAC/ALAC add-ons) | BC, LW | P3 | XL | later | done | Add-on protocol (/manifest.json, /search, /stream): user adds URLs, none bundled; same-recording match; FLAC 24/96 shown in the badge |
 | F30 | Features | Dolby Atmos when a surround version exists | BC, LW | P3 | L | later | done | Asks add-ons for Atmos when the phone has an E-AC-3 JOC/AC-4 decoder; Atmos files and streams labelled “Dolby Atmos” |
 | F31 | Features | Bit-perfect USB DAC output | BC, LW | P3 | XL | later | done | Android 14+ bit-perfect mixer for USB DACs at the song's rate/depth; EQ and normalization step aside; shown in Stats for nerds |
-| F32 | Features | Beat-matched Automix (tempo, beat grid, phrase align) | BC | P3 | XL | later | todo | |
-| F33 | Features | Discord Rich Presence | BC, LW | P3 | M | later | todo | |
-| F34 | Features | Multiple accounts / profiles with PIN; guest mode | BC, LW | P3 | L | later | todo | |
-| F35 | Features | Friends feed (recent plays) | LW | P3 | L | later | todo | needs scrobbling first |
-| F36 | Features | SMB / WebDAV network shares as a library | BC | P3 | L | later | todo | |
-| F37 | UI | Apple-style hold menu with frosted popup | BC | P3 | M | later | todo | |
-| F38 | UI | Tablet and landscape player layouts | BC | P3 | M | later | todo | |
-| F39 | UI | Bounce overscroll throughout | BC | P3 | S | later | todo | |
+| F32 | Features | Beat-matched Automix (tempo, beat grid, phrase align) | BC | P3 | XL | later | skipped | Needs tempo and beat analysis of the audio; crossfade Automix already covers transitions |
+| F33 | Features | Discord Rich Presence | BC, LW | P3 | M | later | skipped | Only possible by running the user's Discord token as a bot, which breaks Discord's terms and risks the account |
+| F34 | Features | Multiple accounts / profiles with PIN; guest mode | BC, LW | P3 | L | later | skipped | A phone usually has one listener; not worth a PIN and profiles yet |
+| F35 | Features | Friends feed (recent plays) | LW | P3 | L | later | skipped | Only works if friends also scrobble to ListenBrainz |
+| F36 | Features | SMB / WebDAV network shares as a library | BC | P3 | L | later | skipped | Niche; on-device files and add-ons already cover home servers |
+| F37 | UI | Apple-style hold menu with frosted popup | BC | P3 | M | later | done | Long-press a song, album, playlist or artist: the screen frosts, the item lifts out with quick actions; More… opens the full sheet; Back closes |
+| F38 | UI | Tablet and landscape player layouts | BC | P3 | M | later | skipped | The app is portrait-only and used on phones |
+| F39 | UI | Bounce overscroll throughout | BC | P3 | S | later | done | Rubber-band ends on every list and scroller, springing back; reduced motion keeps Android's stretch |
 | F40 | QoL | In-app language picker and translations | BC | P2 | L | later | todo | Hindi first |
 | F41 | Features | Desktop and TV apps | BC | P3 | XL | later | todo | |
+| F42 | QoL | Pick up exactly where you left off after the app is closed: same queue, song and position | BopDop | P1 | M | 6 | todo | Today "resume" rebuilds a queue from history and starts at 0:00 |
+| F43 | Player | Like, shuffle and repeat buttons in the notification and on the lock screen | BopDop | P1 | M | 6 | todo | Media3 custom layout; only play/skip there now |
+| F44 | Player | Wrong or missing lyrics: search and pick another lyrics result | BopDop | P1 | M | 6 | todo | "No lyrics for this one" is a dead end now |
+| F45 | QoL | Save the current queue as a playlist | BopDop | P1 | S | 6 | todo | |
+| F46 | QoL | Stable release signing key (and Last.fm key in CI) | BopDop | P1 | S | 6 | todo | One-tap updates and Last.fm sign-in depend on it |
+| F47 | Features | Auto-download Liked songs, Wi-Fi only option for downloads | BopDop | P2 | M | 7 | todo | |
+| F48 | QoL | Private session: no history, stats or scrobbles for a while | BopDop | P2 | S | 7 | todo | |
+| F49 | QoL | Launcher shortcuts on the app icon: Search, Liked songs, Shuffle all, Continue | BopDop | P2 | S | 7 | todo | |
+| F50 | Player | Start radio from a playlist or album (not just one song) | BopDop | P2 | S | 7 | todo | |
+| F51 | QoL | Resume playing when Bluetooth headphones or the car reconnect | BopDop | P2 | S | 7 | todo | Pausing on unplug already works |
+| F52 | Player | Music video picture-in-picture when leaving the app | BopDop | P2 | M | 8 | todo | |
+| F53 | UI | Battery saver: lighter glass and no moving backgrounds when the phone saves power | BopDop | P2 | S | 8 | todo | Uses what the lag work taught us |
+| F54 | UI | Accessibility pass: TalkBack labels on every button, large-text check | BopDop | P2 | M | 8 | todo | Few content descriptions today |
+| F55 | Features | Home "Continue listening": playlists and albums you were in the middle of | BopDop | P2 | M | 8 | todo | |
+| F56 | QoL | Report a problem: share the app's recent log from Settings | BopDop | P2 | S | 8 | todo | Release builds can't be debugged on the phone |
+| F57 | Player | Equalizer remembers a preset per output (headphones, speaker, car) | BopDop | P3 | S | later | todo | |
+| F58 | Features | Wake-up alarm with a song or playlist | BopDop | P3 | M | later | todo | |
+| F59 | Features | Voice search from the search bar | BopDop | P3 | S | later | todo | |
+| F60 | Features | Edit or sync your own lyrics for a song | BopDop | P3 | M | later | todo | |
 
 Sources: [BitChord](https://github.com/kushagrasinghx/BitChord) ([releases](https://github.com/kushagrasinghx/BitChord/releases)),
 [LastWave](https://github.com/Clash-Projects/LastWave-Native) ([releases](https://github.com/Clash-Projects/LastWave-Native/releases)).

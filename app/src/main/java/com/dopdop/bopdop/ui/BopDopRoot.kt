@@ -161,6 +161,9 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
 
     val navBottom = with(LocalDensity.current) { WindowInsets.navigationBars.getBottom(this).toDp() }
     val chrome = navBottom + 84.dp + (if (current != null) 70.dp else 0.dp)
+    val bounceScope = androidx.compose.runtime.rememberCoroutineScope()
+    val maxPull = with(LocalDensity.current) { 140.dp.toPx() }
+    val bounceFactory = androidx.compose.runtime.remember(bounceScope, maxPull) { com.dopdop.bopdop.ui.components.BounceOverscrollFactory(bounceScope, maxPull) }
 
     CompositionLocalProvider(
         LocalApp provides app,
@@ -170,6 +173,9 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         com.dopdop.bopdop.ui.festive.LocalFestive provides com.dopdop.bopdop.ui.festive.rememberFestive(lib.settings.festiveLevel, lib.settings.festivePick),
         com.dopdop.bopdop.ui.glass.LocalGlassLight provides com.dopdop.bopdop.ui.glass.rememberTiltLight(!lib.settings.reduceMotion),
         LocalChromePadding provides PaddingValues(bottom = chrome + 12.dp),
+        // Rubber-band ends on every list (F39); reduced motion keeps Android's own stretch.
+        androidx.compose.foundation.LocalOverscrollFactory provides if (lib.settings.reduceMotion) androidx.compose.foundation.LocalOverscrollFactory.current
+            else bounceFactory,
     ) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
@@ -180,6 +186,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
 
             BottomChrome(app, hasTrack = current != null, navBottom = navBottom)
             NowPlaying(app)
+            com.dopdop.bopdop.ui.player.HoldMenuHost(app)
             SheetHost(app)
             app.shareTrack?.let { com.dopdop.bopdop.ui.share.ShareStudio(it) { app.shareTrack = null } }
             ToastHost(app)

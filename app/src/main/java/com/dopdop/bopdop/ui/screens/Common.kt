@@ -217,7 +217,7 @@ fun CardRow(cards: List<Card>, size: Dp = 152.dp) {
     val app = LocalApp.current
     LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         items(cards, key = { it.id }) { c ->
-            CardTile(c, width = size, onLongClick = { app.sheet = Sheet.CardOptions(c) }) { app.open(c) }
+            CardTile(c, width = size, onLongClick = { app.holdCard(c) }) { app.open(c) }
         }
     }
 }
@@ -231,7 +231,7 @@ fun TrackTilesShelf(shelf: Shelf) {
         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             items(shelf.tracks.size) { i ->
                 val t = shelf.tracks[i]
-                TrackTile(t, playing = current?.id == t.id, onLongClick = { app.sheet = Sheet.TrackOptions(t) }) {
+                TrackTile(t, playing = current?.id == t.id, onLongClick = { app.holdTrack(t) }) {
                     PlayerConnection.play(shelf.tracks, i, shelf.title)
                 }
             }

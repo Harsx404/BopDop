@@ -214,7 +214,7 @@ fun HomeScreen() {
                         LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                             items(recent.size) { i ->
                                 val t = recent[i]
-                                TrackTile(t, playing = current?.id == t.id, width = 140.dp, onLongClick = { app.sheet = Sheet.TrackOptions(t) }) {
+                                TrackTile(t, playing = current?.id == t.id, width = 140.dp, onLongClick = { app.holdTrack(t) }) {
                                     PlayerConnection.startRadio(t, "Jump back in")
                                 }
                             }

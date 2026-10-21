@@ -62,6 +62,9 @@ object Routes {
     val tabs = listOf(HOME, EXPLORE, LIBRARY)
 }
 
+/** What a long-press lifted out: a song or a card, and how to reach its full menu. */
+data class HoldMenu(val track: Track?, val card: Card?, val more: () -> Unit)
+
 /** A thing to put on a share code, with what the card shows about it. */
 data class ShareRequest(val payload: SharePayload, val title: String, val subtitle: String, val artwork: String)
 
@@ -75,6 +78,10 @@ object SeeAllHolder {
 @Stable
 class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     var sheet by mutableStateOf<Sheet?>(null)
+    /** The long-press menu on screen, if any (HoldMenuHost). */
+    var hold by mutableStateOf<HoldMenu?>(null)
+    fun holdTrack(t: Track, more: () -> Unit = { sheet = Sheet.TrackOptions(t) }) { hold = HoldMenu(t, null, more) }
+    fun holdCard(c: Card) { hold = HoldMenu(null, c) { sheet = Sheet.CardOptions(c) } }
     /** Which tab (Home, Explore, Library) shows under any pushed pages. */
     var tab by mutableStateOf(Routes.HOME)
     /** The song open in the share studio, if any. */

@@ -88,7 +88,7 @@ fun ColumnScope.SeekLookSheet() {
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Mascot.entries.forEach { m ->
-            Choice(m.label, m == s.mascot, Modifier.width(72.dp), art = if (m == Mascot.NONE) null else ({ MascotIcon() }), keepArtSpace = true) {
+            Choice(m.label, m == s.mascot, Modifier.width(72.dp), art = if (m == Mascot.NONE) null else ({ MascotIcon(m) }), keepArtSpace = true) {
                 LibraryStore.updateSettings { it.copy(mascot = m) }
             }
         }
@@ -111,16 +111,18 @@ private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Compos
     }
 }
 
-/** The kitty, walking in place. */
+/** The mascot, walking (or hopping) in place. */
 @Composable
-private fun MascotIcon() {
-    val frames = rememberMascotFrames()
+private fun MascotIcon(mascot: Mascot) {
+    val frames = rememberMascotFrames(mascot)
     val t by produceState(0f) {
         val start = withInfiniteAnimationFrameMillis { it }
         while (true) withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
     }
     // On a dusk backing, like the player.
     Canvas(Modifier.size(48.dp, 36.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2E2640))) {
-        drawMascot(frames, size.width / 2, size.height - 3.dp.toPx(), t, MascotMode.WALK, 1f, heightDp = 28f)
+        // Wide mascots (the bike) shrink to fit the tile.
+        val first = frames.walk[0]
+        drawMascot(frames, size.width / 2, size.height - 3.dp.toPx(), t, MascotMode.WALK, 1f, heightDp = minOf(28f, 44f * first.height / first.width))
     }
 }

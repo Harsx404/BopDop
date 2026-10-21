@@ -182,7 +182,7 @@ fun LibraryScreen() {
                 SectionHeader("Artists you follow")
                 LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(following, key = { it.id }) { a ->
-                        Column(Modifier.width(96.dp).bounceClick(onLongClick = { app.sheet = Sheet.CardOptions(a) }) { app.open(a) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(Modifier.width(96.dp).bounceClick(onLongClick = { app.holdCard(a) }) { app.open(a) }, horizontalAlignment = Alignment.CenterHorizontally) {
                             Artwork(a.artwork, Modifier.size(96.dp), circle = true, size = 300, elevation = 10.dp)
                             Spacer(Modifier.height(8.dp))
                             Text(a.title, style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(600)), color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -517,7 +517,7 @@ private fun YtMusicLibrary() {
                     Spacer(Modifier.height(9.dp))
                     Text(c.title, style = BopType.BodyStrong, color = Bop.Text, maxLines = 1)
                     Text(c.subtitle, style = BopType.Caption, color = Bop.Text2, maxLines = 1)
-                } else CardTile(c, width = 140.dp, onLongClick = { app.sheet = Sheet.CardOptions(c) }) { app.open(c) }
+                } else CardTile(c, width = 140.dp, onLongClick = { app.holdCard(c) }) { app.open(c) }
             }
         }
     }

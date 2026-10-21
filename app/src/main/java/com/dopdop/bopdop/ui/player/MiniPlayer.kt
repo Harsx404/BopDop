@@ -155,7 +155,7 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
 private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
     val lib by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
     if (lib.settings.mascot == com.dopdop.bopdop.data.Mascot.NONE) return
-    val frames = rememberMascotFrames()
+    val frames = rememberMascotFrames(lib.settings.mascot)
     val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
     // Progress arrives in steps; glide between them so the kitty walks instead of teleporting.
     val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")

@@ -97,7 +97,7 @@ fun LazyListScope.cardGridItems(cards: List<Card>) {
         Row(Modifier.padding(horizontal = 20.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             rows[i].forEach { c ->
                 BoxWithConstraints(Modifier.weight(1f)) {
-                    CardTile(c, width = maxWidth, onLongClick = { app.sheet = Sheet.CardOptions(c) }) { app.open(c) }
+                    CardTile(c, width = maxWidth, onLongClick = { app.holdCard(c) }) { app.open(c) }
                 }
             }
             if (rows[i].size == 1) Spacer(Modifier.weight(1f))

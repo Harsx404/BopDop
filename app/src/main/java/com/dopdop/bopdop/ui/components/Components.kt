@@ -131,11 +131,29 @@ fun Artwork(
         if (!url.isNullOrBlank()) {
             // Not every YouTube video has an HD thumbnail; drop to the one that always exists.
             var small by remember(url) { mutableStateOf(false) }
+            // A cover that fails (the song changed while the phone was asleep or offline) is asked
+            // for again: after 1, 2, 4… seconds, and whenever the app comes back on screen.
+            var attempt by remember(url) { androidx.compose.runtime.mutableIntStateOf(0) }
+            var failed by remember(url) { mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(url, failed, attempt) {
+                if (!failed || attempt >= 6) return@LaunchedEffect
+                kotlinx.coroutines.delay(1000L shl attempt)
+                failed = false; attempt++
+            }
+            val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+            androidx.compose.runtime.DisposableEffect(lifecycle, url) {
+                val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                    if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && failed) { failed = false; attempt++ }
+                }
+                lifecycle.addObserver(obs)
+                onDispose { lifecycle.removeObserver(obs) }
+            }
             AsyncImage(
-                model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, if (small) 480 else size)).build(),
+                model = ImageRequest.Builder(LocalPlatformContext.current).data(YtMusic.resize(url, if (small) 480 else size))
+                    .memoryCacheKeyExtra("try", attempt.toString()).build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                onError = { if (!small && "i.ytimg.com" in url) small = true },
+                onError = { if (!small && "i.ytimg.com" in url) small = true else failed = true },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -213,7 +231,7 @@ fun TrackRow(
                         }
                     }
                 })
-                .bounceClick(0.985f, onLongClick = onMore, onClick = onClick)
+                .bounceClick(0.985f, onLongClick = onMore?.let { more -> { app.holdTrack(track, more) } }, onClick = onClick)
                 .padding(horizontal = 20.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
