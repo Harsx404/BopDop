@@ -309,15 +309,9 @@ fun SettingsScreen() {
                     },
                 )
             }
-            Group("Coming soon") {
-                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBadge(Icons.Rounded.Groups)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Listen Together", style = BopType.BodyStrong, color = Bop.Text)
-                        Text("Same song, same second, with friends anywhere.", style = BopType.Caption, color = Bop.Text2)
-                    }
-                    Text("SOON", style = BopType.Micro, color = Bop.Ink, modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Gold).padding(horizontal = 8.dp, vertical = 4.dp))
+            Group("With friends") {
+                NavRow(Icons.Rounded.Groups, "Listen Together", "Start or join a room and listen with friends.") {
+                    app.nav.navigate("together?code=")
                 }
             }
             Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {

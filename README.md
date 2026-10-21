@@ -10,6 +10,7 @@ A native Android music player built on the DopDop music engine — soft frosted 
 - **Now Playing** — full-bleed artwork melting into its own colour wash, glass pill sliders (progress + system volume), fused liquid-glass transport, double-tap to like, swipe to skip.
 - **Lyrics** — time-synced (LRCLIB) with word-by-word fill, ribbon-style spring scrolling and depth blur; YouTube Music / JioSaavn text fallback for Bollywood and regional songs.
 - **Library** — liked songs, playlists, saved albums, followed artists, history, offline audio cache.
+- **Listen Together** — start or join a room from Explore or Settings.
 - Autoplay radio, queue with drag-to-reorder, sleep timer, media notification & lock-screen controls.
 
 ## Stack
@@ -30,5 +31,4 @@ Pushing a `v*` tag (e.g. `v1.1.0`), or running the **Release** workflow by hand 
 
 ## Roadmap
 
-- Listen Together
 - Offline downloads

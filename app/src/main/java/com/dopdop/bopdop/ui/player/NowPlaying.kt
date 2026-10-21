@@ -52,6 +52,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -100,6 +101,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dopdop.bopdop.data.LibraryStore
+import com.dopdop.bopdop.data.together.Together
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.model.formatDuration
 import com.dopdop.bopdop.playback.PlayerConnection
@@ -423,6 +425,7 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
     val lib by LibraryStore.state.collectAsState()
     val quality by StreamResolver.quality.collectAsState()
     val video by PlayerConnection.video.collectAsState()
+    val room by Together.state.collectAsState()
     val liked = t.id in lib.likedIds
     val onArt = app.nowPlayingPage == NowPlayingPage.ART
 
@@ -457,6 +460,10 @@ private fun BottomPanel(app: AppState, t: Track, palette: ArtPalette, haze: Haze
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.LYRICS) NowPlayingPage.ART else NowPlayingPage.LYRICS
             }
             CastToggle(haze)
+            PageToggle(Icons.Rounded.Groups, "Listen Together", room.live, haze) {
+                app.collapsePlayer()
+                app.nav.navigate("together?code=") { launchSingleTop = true }
+            }
             PageToggle(Icons.Rounded.Bedtime, "Sleep", sleepAt != null, haze) { app.sheet = Sheet.SleepTimer }
             PageToggle(Icons.AutoMirrored.Rounded.QueueMusic, "Queue", app.nowPlayingPage == NowPlayingPage.QUEUE, haze) {
                 app.nowPlayingPage = if (app.nowPlayingPage == NowPlayingPage.QUEUE) NowPlayingPage.ART else NowPlayingPage.QUEUE
