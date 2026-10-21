@@ -138,7 +138,7 @@ fun SettingsScreen() {
                                     Text("Your own Home mixes, Liked Music and playlists. Optional — everything else works without it.", style = BopType.Caption, color = Bop.Text2)
                                 }
                                 Spacer(Modifier.width(12.dp))
-                                Text("Sign in", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(650)), color = Color.White,
+                                Text("Sign in", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(650)), color = Bop.OnInk,
                                     modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Accent).padding(horizontal = 14.dp, vertical = 8.dp))
                             }
                         } else {
