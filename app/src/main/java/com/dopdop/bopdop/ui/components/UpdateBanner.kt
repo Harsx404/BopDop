@@ -67,7 +67,7 @@ fun updateButtonLabel(s: InstallState) = when (s) {
  */
 @Composable
 fun UpdateBanner(modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
+    val app = com.dopdop.bopdop.ui.LocalApp.current
     val update by Updates.available.collectAsState()
     val lib by LibraryStore.state.collectAsState()
     val u = update
@@ -90,11 +90,11 @@ fun UpdateBanner(modifier: Modifier = Modifier) {
             val install by UpdateInstaller.state.collectAsState()
             Column(Modifier.weight(1f)) {
                 Text("${u.title} is out", style = BopType.BodyStrong, color = Bop.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text((install as? InstallState.Failed)?.message ?: "Tap Update to install it in place", style = BopType.Caption, color = Bop.Text2, maxLines = 2)
+                Text((install as? InstallState.Failed)?.message ?: "See what's new and install it in place", style = BopType.Caption, color = Bop.Text2, maxLines = 2)
             }
             Text(
                 updateButtonLabel(install), style = BopType.BodyStrong, color = Bop.OnInk,
-                modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick { openUpdate(ctx, u) }
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink).bounceClick { app.nav.navigate(com.dopdop.bopdop.ui.Routes.UPDATE) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
             Box(

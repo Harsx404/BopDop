@@ -11,7 +11,7 @@ import okhttp3.Request
 import org.json.JSONObject
 
 /** A newer build published on GitHub. */
-data class AppUpdate(val version: String, val title: String, val notes: String, val apkUrl: String?, val pageUrl: String)
+data class AppUpdate(val version: String, val title: String, val notes: String, val apkUrl: String?, val pageUrl: String, val sizeBytes: Long = 0)
 
 /**
  * Looks for a newer BopDop on the project's GitHub releases. The latest release's tag
@@ -26,9 +26,12 @@ object Updates {
     val available: StateFlow<AppUpdate?> = _available.asStateFlow()
     private var checked = false
 
-    /** Checks GitHub (once per launch unless [force]); returns the update, or null when up to date. */
+    @Volatile private var checkedAt = 0L
+
+    /** Checks GitHub (at most every 6 hours unless [force]); returns the update, or null when up to date. */
     suspend fun check(force: Boolean = false): AppUpdate? {
-        if (checked && !force) return _available.value
+        if (checked && !force && System.currentTimeMillis() - checkedAt < 6 * 3600_000L) return _available.value
+        checkedAt = System.currentTimeMillis()
         val found = withContext(Dispatchers.IO) { runCatching { fetch() }.getOrNull() }
         checked = true
         _available.value = found?.takeIf { isNewer(it.version, BuildConfig.VERSION_NAME) }
@@ -45,12 +48,15 @@ object Updates {
                 .filter { it.optString("name").endsWith(".apk") }
                 .map { it.optString("name") to it.optString("browser_download_url") }
             val apk = pickApk(apks, android.os.Build.SUPPORTED_ABIS.toList())
+            val size = (0 until (assets?.length() ?: 0)).map { assets!!.getJSONObject(it) }
+                .firstOrNull { it.optString("browser_download_url") == apk }?.optLong("size") ?: 0L
             return AppUpdate(
                 version = o.optString("tag_name").removePrefix("v"),
                 title = o.optString("name").ifBlank { o.optString("tag_name") },
                 notes = o.optString("body"),
                 apkUrl = apk?.ifBlank { null },
                 pageUrl = o.optString("html_url"),
+                sizeBytes = size,
             )
         }
     }

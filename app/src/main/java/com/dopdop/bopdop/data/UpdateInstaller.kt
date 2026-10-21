@@ -20,6 +20,8 @@ sealed interface InstallState {
     data object Idle : InstallState
     data class Downloading(val fraction: Float) : InstallState
     data object Installing : InstallState
+    /** Waiting for the user to allow "Install unknown apps" for BopDop. */
+    data object NeedsPermission : InstallState
     data class Failed(val message: String) : InstallState
 }
 
@@ -45,14 +47,25 @@ object UpdateInstaller {
         return false
     }
 
+    /** The update waiting for the "Install unknown apps" switch; [resume] picks it up on return. */
+    @Volatile private var waiting: AppUpdate? = null
+
     suspend fun install(context: Context, update: AppUpdate) {
         val url = update.apkUrl ?: run { _state.value = InstallState.Failed("This release has no APK"); return }
-        if (!ensureAllowed(context)) { _state.value = InstallState.Idle; return }
+        if (!ensureAllowed(context)) { waiting = update; _state.value = InstallState.NeedsPermission; return }
+        waiting = null
         val apk = runCatching { download(context, url) }.getOrElse {
             _state.value = InstallState.Failed("Download failed: ${it.message ?: "no connection"}"); return
         }
         _state.value = InstallState.Installing
         runCatching { commit(context, apk) }.onFailure { _state.value = InstallState.Failed("Couldn't start the installer") }
+    }
+
+    /** Back in the app after the permission screen: carry on if it was allowed. */
+    suspend fun resume(context: Context) {
+        val u = waiting ?: return
+        if (context.packageManager.canRequestPackageInstalls()) install(context, u)
+        else { waiting = null; _state.value = InstallState.Idle }
     }
 
     private suspend fun download(context: Context, url: String): File = withContext(Dispatchers.IO) {

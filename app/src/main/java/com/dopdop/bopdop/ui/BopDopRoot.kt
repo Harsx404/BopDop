@@ -196,6 +196,20 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
 
     // A quiet look for a newer release, once the app has settled.
     LaunchedEffect(Unit) { kotlinx.coroutines.delay(4_000); com.dopdop.bopdop.data.Updates.check() }
+    // Back in the app: look for updates again (at most every 6 hours), and finish an update that
+    // was waiting for the "Install unknown apps" switch.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) app.scope.launch {
+                com.dopdop.bopdop.data.UpdateInstaller.resume(ctx.applicationContext)
+                com.dopdop.bopdop.data.Updates.check()
+            }
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
 
     BackHandler(enabled = app.sheet != null || app.player.targetValue > 0.5f) {
         if (app.sheet != null) app.sheet = null else app.collapsePlayer()
@@ -343,6 +357,7 @@ private fun AppNavHost(app: AppState) {
         composable(Routes.IMPORT, listOf(str("key"))) { e -> com.dopdop.bopdop.ui.share.ImportScreen(e.arguments!!.getString("key")!!) }
         composable(Routes.SCAN) { com.dopdop.bopdop.ui.share.ScanScreen() }
         composable(Routes.SPOTIFY) { com.dopdop.bopdop.ui.screens.SpotifyLibraryScreen() }
+        composable(Routes.UPDATE) { com.dopdop.bopdop.ui.screens.UpdateScreen() }
         composable(Routes.SPOTIFY_LOGIN) { com.dopdop.bopdop.ui.screens.SpotifyLoginScreen() }
         composable(Routes.SPOTIFY_PLAYLIST, listOf(str("id"), str("name"), str("art"))) { e ->
             val a = e.arguments!!

@@ -59,6 +59,7 @@ object Routes {
     const val SCAN = "scan"
     const val EQ = "eq"
     const val SPOTIFY = "spotify"
+    const val UPDATE = "update"
     const val SPOTIFY_LOGIN = "spotify/login"
     const val SPOTIFY_PLAYLIST = "spotify/playlist?id={id}&name={name}&art={art}"
     val tabs = listOf(HOME, EXPLORE, LIBRARY)

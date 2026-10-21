@@ -494,7 +494,7 @@ fun SettingsScreen() {
                         modifier = Modifier.padding(top = 12.dp).clip(RoundedCornerShape(50))
                             .background(if (u != null) Bop.Ink else Bop.Veil.copy(alpha = 0.55f))
                             .bounceClick {
-                                if (u != null) com.dopdop.bopdop.ui.components.openUpdate(ctx, u)
+                                if (u != null) app.nav.navigate(com.dopdop.bopdop.ui.Routes.UPDATE)
                                 else scope.launch {
                                     app.toast("Checking for updates…")
                                     val found = com.dopdop.bopdop.data.Updates.check(force = true)
