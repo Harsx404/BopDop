@@ -77,14 +77,27 @@ fun topCutout(rects: List<Rect>, screenWidth: Int): Rect? =
  * centre the island on the camera.
  */
 fun cameraHole(cutout: android.view.DisplayCutout, screenWidth: Int): Rect? {
-    if (Build.VERSION.SDK_INT >= 31) cutout.cutoutPath?.let { path ->
+    val raw = (if (Build.VERSION.SDK_INT >= 31) cutout.cutoutPath?.let { path ->
         val b = android.graphics.RectF()
         path.computeBounds(b, true)
-        if (!b.isEmpty && b.top < 400f && b.width() < screenWidth * 0.6f) {
-            return Rect(b.left.toInt(), b.top.toInt(), kotlin.math.ceil(b.right).toInt(), kotlin.math.ceil(b.bottom).toInt())
-        }
-    }
-    return topCutout(cutout.boundingRects, screenWidth)
+        if (!b.isEmpty && b.top < 400f && b.width() < screenWidth * 0.6f)
+            Rect(b.left.toInt(), b.top.toInt(), kotlin.math.ceil(b.right).toInt(), kotlin.math.ceil(b.bottom).toInt()) else null
+    } else null) ?: topCutout(cutout.boundingRects, screenWidth) ?: return null
+    return punchHole(raw)
+}
+
+/**
+ * A punch-hole is round, but some phones (vivo, iQOO, OPPO) report its box from the top edge of
+ * the screen down to the bottom of the hole: 90 x 120 px for a 50 px camera. A box much taller
+ * than it is wide is read as the round hole at its foot, so the island hugs the camera instead of
+ * swallowing the status bar.
+ */
+internal fun punchHole(r: Rect): Rect = holeTop(r.left, r.top, r.right, r.bottom).let { top -> if (top == r.top) r else Rect(r.left, top, r.right, r.bottom) }
+
+/** The top edge of the hole inside a reported cutout box (see [punchHole]). */
+internal fun holeTop(left: Int, top: Int, right: Int, bottom: Int): Int {
+    val w = right - left
+    return if (w <= 0 || bottom - top <= w * 1.15f) top else bottom - w
 }
 
 /**
@@ -109,8 +122,8 @@ val TAP_ZONE = 22.dp
 
 /** Where the collapsed island sits on screen, tap tab included, in pixels. */
 fun collapsedBounds(cut: Rect, density: Float, screenWidthPx: Int): Rect {
-    val pillH = maxOf(cut.height() + 10 * density, 34 * density)
-    val w = cut.width() + pillH * 2.0f
+    val pillH = maxOf(cut.height() + 4 * density, 28 * density)
+    val w = cut.width() + pillH * 1.5f
     val minLeft = (10 * density).roundToInt()
     val left = (cut.centerX() - w / 2).roundToInt().coerceIn(minLeft, maxOf(minLeft, (screenWidthPx - w - 10 * density).roundToInt()))
     val top = (cut.centerY() - pillH / 2).roundToInt().coerceAtLeast(0)
@@ -146,9 +159,9 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
     val d = LocalDensity.current
     val cutW = with(d) { cut.width().toDp() }
     val cutH = with(d) { cut.height().toDp() }
-    val pillH = maxOf(cutH + 10.dp, 34.dp)
+    val pillH = maxOf(cutH + 4.dp, 28.dp)
     val screenW = with(d) { screenWidthPx.toDp() }
-    val w by animateDpAsState(if (expanded) screenW - 24.dp else cutW + pillH * 2.0f, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandW")
+    val w by animateDpAsState(if (expanded) screenW - 24.dp else cutW + pillH * 1.5f, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandW")
     val h by animateDpAsState(if (expanded) 178.dp else pillH, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandH")
     val corner by animateDpAsState(if (expanded) 38.dp else pillH / 2, spring(dampingRatio = 0.85f, stiffness = 420f), label = "islandR")
     val topPx = (cut.centerY() - with(d) { pillH.toPx() } / 2).roundToInt().coerceAtLeast(0)
@@ -172,9 +185,9 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
         AnimatedVisibility(!expanded, enter = fadeIn(), exit = fadeOut()) {
             val pos by produceState(model.positionMs(), model.playing, t.id) { while (true) { value = model.positionMs(); kotlinx.coroutines.delay(1000) } }
             val frac = (pos.toFloat() / model.durationMs().coerceAtLeast(1)).coerceIn(0f, 1f)
-            Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(pillH - 8.dp), contentAlignment = Alignment.Center) {
-                    Artwork(t.artwork, Modifier.size(pillH - 14.dp), circle = true, size = 120)
+            Row(Modifier.fillMaxWidth().height(pillH).padding(horizontal = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(pillH - 6.dp), contentAlignment = Alignment.Center) {
+                    Artwork(t.artwork, Modifier.size(pillH - 11.dp), circle = true, size = 120)
                     Canvas(Modifier.fillMaxSize()) {
                         val sw = 2.2.dp.toPx()
                         val inset = androidx.compose.ui.geometry.Offset(sw / 2, sw / 2)
@@ -184,7 +197,7 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                Bars(model.playing, Modifier.padding(end = 6.dp).size(width = pillH * 0.42f, height = pillH * 0.38f))
+                Bars(model.playing, Modifier.padding(end = 5.dp).size(width = pillH * 0.36f, height = pillH * 0.34f))
             }
         }
         AnimatedVisibility(expanded, enter = fadeIn(), exit = fadeOut()) {

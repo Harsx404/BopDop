@@ -10,6 +10,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
@@ -114,6 +115,9 @@ internal class IslandOverlay(private val ctx: Context, private val player: () ->
                 BopDopTheme {
                     val cut = cutout() ?: return@BopDopTheme
                     val p = player()
+                    // The window gives its root its own exact size; inside a Box the pill keeps its
+                    // own (smaller) size instead of stretching black over the whole window.
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.fillMaxSize()) {
                     IslandPill(
                         IslandModel(
                             track, playing, { p.currentPosition }, { p.duration.coerceAtLeast(0) },
@@ -123,6 +127,7 @@ internal class IslandOverlay(private val ctx: Context, private val player: () ->
                         ),
                         cut, expanded, ::expandTo, wm.currentWindowMetrics.bounds.width(), windowLeft,
                     )
+                    }
                 }
             }
         }
