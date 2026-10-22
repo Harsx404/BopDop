@@ -10,6 +10,8 @@ import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -108,7 +110,7 @@ val TAP_ZONE = 22.dp
 /** Where the collapsed island sits on screen, tap tab included, in pixels. */
 fun collapsedBounds(cut: Rect, density: Float, screenWidthPx: Int): Rect {
     val pillH = maxOf(cut.height() + 10 * density, 34 * density)
-    val w = cut.width() + pillH * 2.4f
+    val w = cut.width() + pillH * 2.0f
     val minLeft = (10 * density).roundToInt()
     val left = (cut.centerX() - w / 2).roundToInt().coerceIn(minLeft, maxOf(minLeft, (screenWidthPx - w - 10 * density).roundToInt()))
     val top = (cut.centerY() - pillH / 2).roundToInt().coerceAtLeast(0)
@@ -146,9 +148,9 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
     val cutH = with(d) { cut.height().toDp() }
     val pillH = maxOf(cutH + 10.dp, 34.dp)
     val screenW = with(d) { screenWidthPx.toDp() }
-    val w by animateDpAsState(if (expanded) screenW - 20.dp else cutW + pillH * 2.4f, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandW")
-    val h by animateDpAsState(if (expanded) 168.dp else pillH, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandH")
-    val corner by animateDpAsState(if (expanded) 34.dp else pillH / 2, spring(dampingRatio = 0.85f, stiffness = 420f), label = "islandR")
+    val w by animateDpAsState(if (expanded) screenW - 24.dp else cutW + pillH * 2.0f, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandW")
+    val h by animateDpAsState(if (expanded) 178.dp else pillH, spring(dampingRatio = 0.78f, stiffness = 420f), label = "islandH")
+    val corner by animateDpAsState(if (expanded) 38.dp else pillH / 2, spring(dampingRatio = 0.85f, stiffness = 420f), label = "islandR")
     val topPx = (cut.centerY() - with(d) { pillH.toPx() } / 2).roundToInt().coerceAtLeast(0)
     // The spring overshoots while opening, so the right-hand limit can briefly pass the left one.
     val minLeft = with(d) { 10.dp.roundToPx() }
@@ -160,7 +162,10 @@ fun IslandPill(model: IslandModel, cut: Rect, expanded: Boolean, onExpandedChang
             .pointerInput(Unit) { detectTapGestures(onTap = { onExpandedChange(true) }, onLongPress = { model.open() }) },
     )
     Box(
-        Modifier.offset { IntOffset(leftPx, topPx) }.width(w).height(h).clip(shape).background(Color.Black)
+        Modifier.offset { IntOffset(leftPx, topPx) }.width(w).height(h).clip(shape)
+            // Black where it meets the camera; opened, it becomes charcoal glass with a hairline edge.
+            .background(if (expanded) Brush.verticalGradient(listOf(Color(0xFF000000), Color(0xFF1A191D))) else Brush.verticalGradient(listOf(Color.Black, Color.Black)))
+            .then(if (expanded) Modifier.border(1.dp, Color.White.copy(alpha = 0.10f), shape) else Modifier)
             .pointerInput(expanded) { detectTapGestures(onTap = { onExpandedChange(!expanded) }, onLongPress = { model.open() }) },
     ) {
         // Collapsed: cover (ringed by the song's progress) · camera · bars.
@@ -195,20 +200,24 @@ private fun Expanded(model: IslandModel, t: Track, pillH: Dp) {
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = pillH + 2.dp, bottom = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.clickable(remember { MutableInteractionSource() }, null) { model.open() }) {
-                Artwork(t.artwork, Modifier.size(56.dp), corner = 14.dp, size = 200)
+                Artwork(t.artwork, Modifier.size(60.dp), corner = 16.dp, size = 200, elevation = 10.dp)
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(t.title, style = BopType.BodyStrong, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(t.artist, style = BopType.Caption, color = Color.White.copy(alpha = 0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.title, style = BopType.Headline, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.artist, style = BopType.Body, color = Color.White.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Bars(model.playing, Modifier.size(22.dp))
         }
         Spacer(Modifier.weight(1f))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(formatDuration((pos / 1000).toInt()).ifEmpty { "0:00" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
-            Box(Modifier.weight(1f).padding(horizontal = 8.dp).height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f))) {
-                Box(Modifier.fillMaxWidth((pos.toFloat() / dur).coerceIn(0f, 1f)).height(4.dp).clip(CircleShape).background(ISLAND_ACCENT))
+            val f = (pos.toFloat() / dur).coerceIn(0f, 1f)
+            Canvas(Modifier.weight(1f).padding(horizontal = 10.dp).height(14.dp)) {
+                val y = size.height / 2; val sw = 5.dp.toPx()
+                drawLine(Color.White.copy(alpha = 0.18f), androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width, y), sw, StrokeCap.Round)
+                drawLine(ISLAND_ACCENT, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(size.width * f, y), sw, StrokeCap.Round)
+                drawCircle(Color.White, 6.dp.toPx(), androidx.compose.ui.geometry.Offset(size.width * f, y))
             }
             Text(formatDuration((dur / 1000).toInt()).ifEmpty { "–:––" }, style = BopType.Micro, color = Color.White.copy(alpha = 0.6f))
         }

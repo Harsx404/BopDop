@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Now Playing, pill. The picture is drawn by WidgetArt; these are only its tap areas, sized to match WidgetArt.Pill. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <ImageView
+        android:id="@+id/widget_canvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/widget_preview_np"
+        android:importantForAccessibility="no" />
+
+    <FrameLayout android:id="@+id/widget_open" android:layout_width="match_parent" android:layout_height="match_parent" android:contentDescription="Open BopDop" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="36dp" android:layout_gravity="center_vertical"
+        android:layout_marginStart="78dp" android:layout_marginEnd="12dp" android:layout_marginTop="24dp" android:orientation="horizontal">
+        <FrameLayout android:id="@+id/widget_like" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Like" />
+        <FrameLayout android:id="@+id/widget_prev" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Previous" />
+        <FrameLayout android:id="@+id/widget_toggle" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Play or pause" />
+        <FrameLayout android:id="@+id/widget_next" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Next" />
+        <FrameLayout android:id="@+id/widget_shuffle" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:contentDescription="Shuffle" />
+    </LinearLayout>
+</FrameLayout>

@@ -108,21 +108,53 @@ object SongVersion {
     private fun shareArtist(a: Track, b: Track) = (artists(a.artist) intersect artists(b.artist)).isNotEmpty()
 
     /**
+     * The title as a song name: uploads like "Prateek Kuhad - Co2 (Live…)" put the artist first,
+     * which would otherwise be read as the song's name.
+     */
+    fun titleOf(t: Track): SongTitle {
+        val parsed = parse(t.title)
+        val names = artists(t.artist)
+        if (parsed.core !in names) return parsed
+        val rest = fold(t.title).split(SEPARATOR).drop(1).joinToString(" - ")
+        return if (rest.isBlank()) parsed else parse(rest)
+    }
+
+    /**
+     * One recording credited under two names ("girl in red" and her real name "Marie Ulven"):
+     * the same album and lengths within [LENGTH_MATCH] s. Two different songs that only share a
+     * title don't share an album too.
+     */
+    private fun sameRelease(a: Track, b: Track) =
+        a.durationSec > 0 && b.durationSec > 0 && abs(a.durationSec - b.durationSec) <= LENGTH_MATCH &&
+            a.album.isNotBlank() && fold(a.album).trim() == fold(b.album).trim()
+    private const val LENGTH_MATCH = 2
+
+    /** Version words that can trail a name inside a longer title ("Co2 Live Across The Tour"). */
+    private val VERSION_WORDS = setOf("live", "acoustic", "unplugged", "remix", "lofi", "slowed", "reprise", "cover", "instrumental", "karaoke", "version")
+
+    /** "co2 live across the tour" is a version of "co2". */
+    private fun versionOf(longer: String, core: String) =
+        longer.length > core.length && longer.startsWith("$core ") && longer.removePrefix("$core ").substringBefore(' ') in VERSION_WORDS
+
+    /**
      * The same recording from any catalogue: same core name, the same version tags, an artist in
      * common and lengths within [toleranceSec]. "Alfaaz" and "Alfaaz - Vocals" are not.
      */
     fun sameRecording(a: Track, b: Track, toleranceSec: Int = 25): Boolean {
         if (a.id == b.id) return true
-        val x = parse(a.title); val y = parse(b.title)
-        if (x.core.isEmpty() || x != y || !shareArtist(a, b)) return false
+        val x = titleOf(a); val y = titleOf(b)
+        if (x.core.isEmpty() || x != y) return false
+        if (!shareArtist(a, b)) return sameRelease(a, b)
         return a.durationSec <= 0 || b.durationSec <= 0 || abs(a.durationSec - b.durationSec) <= toleranceSec
     }
 
     /** The same song in any version: "Alfaaz", "Alfaaz (Lofi)" and "Alfaaz - Vocals" by the same artist. */
     fun sameSong(a: Track, b: Track): Boolean {
         if (a.id == b.id) return true
-        val x = parse(a.title).core
-        return x.isNotEmpty() && x == parse(b.title).core && shareArtist(a, b)
+        val x = titleOf(a).core; val y = titleOf(b).core
+        if (x.isEmpty() || y.isEmpty()) return false
+        val sameName = x == y || versionOf(x, y) || versionOf(y, x)
+        return sameName && (shareArtist(a, b) || (x == y && sameRelease(a, b)))
     }
 
     /** "core|tags" — equal for copies of one recording (artist checked separately). */

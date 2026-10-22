@@ -477,7 +477,7 @@ class PlaybackService : MediaLibraryService() {
             if (i == C.INDEX_UNSET) break
             tl.getWindow(i, w).mediaItem.toTrack()?.let { next += i to it }
         }
-        WidgetUpdater.update(this, player.currentMediaItem?.toTrack(), player.isPlaying, player.currentPosition, player.duration.coerceAtLeast(0), next)
+        WidgetUpdater.update(this, player.currentMediaItem?.toTrack(), player.isPlaying, player.currentPosition, player.duration.coerceAtLeast(0), next, player.shuffleModeEnabled)
     }
 
     override fun onDestroy() {
@@ -502,6 +502,13 @@ class PlaybackService : MediaLibraryService() {
         @Volatile private var running: PlaybackService? = null
 
         /** Jump to a song in the queue (from the Up Next widget). */
+        /** Shuffle on or off (from the widget). */
+        fun toggleShuffle() {
+            val s = running ?: return
+            s.player.shuffleModeEnabled = !s.player.shuffleModeEnabled
+            s.pushWidgets()
+        }
+
         fun jumpTo(index: Int) {
             val s = running ?: return
             if (index < 0 || index >= s.player.mediaItemCount) return

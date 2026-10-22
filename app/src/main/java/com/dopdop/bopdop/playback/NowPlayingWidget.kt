@@ -55,12 +55,14 @@ class WidgetActionReceiver : BroadcastReceiver() {
                 WidgetUpdater.redraw(context)
             }
             ACTION_JUMP -> PlaybackService.jumpTo(intent.getIntExtra(EXTRA_INDEX, -1))
+            ACTION_SHUFFLE -> PlaybackService.toggleShuffle()
         }
     }
 
     companion object {
         const val ACTION_LIKE = "com.dopdop.bopdop.widget.LIKE"
         const val ACTION_JUMP = "com.dopdop.bopdop.widget.JUMP"
+        const val ACTION_SHUFFLE = "com.dopdop.bopdop.widget.SHUFFLE"
         const val EXTRA_INDEX = "index"
     }
 }
@@ -70,6 +72,7 @@ internal object WidgetUpdater {
 
     private var track: Track? = null
     private var playing = false
+    private var shuffle = false
     private var positionMs = 0L
     private var durationMs = 0L
     private var positionAt = 0L
@@ -82,8 +85,14 @@ internal object WidgetUpdater {
     fun current(): Track? = track
 
     /** Always remembers the latest state, so a widget added later shows it straight away. */
-    fun update(context: Context, t: Track?, isPlaying: Boolean, posMs: Long = 0, durMs: Long = 0, next: List<Pair<Int, Track>> = upNext) {
+    fun update(context: Context, t: Track?, isPlaying: Boolean, posMs: Long = 0, durMs: Long = 0, next: List<Pair<Int, Track>> = upNext, shuffled: Boolean = shuffle) {
+        shuffle = shuffled
         track = t
+        // Kept on disk too, so a widget redrawn after Android has closed BopDop still shows the song.
+        runCatching {
+            context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putString("track", t?.toJson()?.toString()).putLong("pos", posMs).putLong("dur", durMs).putBoolean("shuffle", shuffled).apply()
+        }
         playing = isPlaying
         positionMs = posMs
         durationMs = durMs
@@ -94,8 +103,23 @@ internal object WidgetUpdater {
 
     private fun ids(m: AppWidgetManager, ctx: Context, cls: Class<*>) = m.getAppWidgetIds(ComponentName(ctx, cls))
 
+    private const val PREFS = "widget_state"
+    private var restored = false
+
+    /** After a restart: the last song, paused where it was. */
+    private fun restore(ctx: Context) {
+        if (restored) return
+        restored = true
+        if (track != null) return
+        val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        track = p.getString("track", null)?.let { runCatching { Track.fromJson(org.json.JSONObject(it)) }.getOrNull() }
+        positionMs = p.getLong("pos", 0); durationMs = p.getLong("dur", 0); shuffle = p.getBoolean("shuffle", false)
+        playing = false
+    }
+
     fun redraw(context: Context) {
         val ctx = context.applicationContext
+        restore(ctx)
         val m = AppWidgetManager.getInstance(ctx)
         val np = ids(m, ctx, NowPlayingWidget::class.java)
         val up = ids(m, ctx, UpNextWidget::class.java)
@@ -104,7 +128,7 @@ internal object WidgetUpdater {
         // Each widget is drawn at its own size (see WidgetArt), so they're updated one by one.
         val state = WidgetArt.NowPlaying(
             track, playing, livePosition().coerceIn(0, durationMs.coerceAtLeast(0)), durationMs.coerceAtLeast(0),
-            track?.let { LibraryStore.isLiked(it.id) } == true, track?.artwork?.let { image(ctx, it, 300) },
+            track?.let { LibraryStore.isLiked(it.id) } == true, track?.artwork?.let { image(ctx, it, 300) }, shuffle,
         )
         np.forEach { id -> runCatching { m.updateAppWidget(id, nowPlaying(ctx, WidgetArt.sizeOf(ctx, m.getAppWidgetOptions(id), 300f, 150f), state)) } }
         up.forEach { id -> runCatching { m.updateAppWidget(id, upNextViews(ctx, WidgetArt.sizeOf(ctx, m.getAppWidgetOptions(id), 300f, 280f), state)) } }
@@ -116,18 +140,15 @@ internal object WidgetUpdater {
 
     private fun nowPlaying(ctx: Context, size: WidgetArt.Size, state: WidgetArt.NowPlaying): RemoteViews {
         val shape = WidgetArt.npShape(size.wDp, size.hDp)
-        val v = RemoteViews(ctx.packageName, when (shape) {
-            WidgetArt.NpShape.STRIP -> R.layout.widget_np_strip
-            WidgetArt.NpShape.SQUARE -> R.layout.widget_np_square
-            WidgetArt.NpShape.FULL -> R.layout.widget_np_full
-        })
+        val v = RemoteViews(ctx.packageName, if (shape == WidgetArt.NpShape.PILL) R.layout.widget_np_pill else R.layout.widget_np_card)
         v.setImageViewBitmap(R.id.widget_canvas, WidgetArt.nowPlaying(ctx, size, state))
         v.setOnClickPendingIntent(R.id.widget_open, openApp(ctx, 0, null))
         v.setOnClickPendingIntent(R.id.widget_toggle, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE))
-        if (shape != WidgetArt.NpShape.SQUARE) v.setOnClickPendingIntent(R.id.widget_next, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_NEXT))
-        if (shape == WidgetArt.NpShape.FULL) {
-            v.setOnClickPendingIntent(R.id.widget_prev, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+        v.setOnClickPendingIntent(R.id.widget_next, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_NEXT))
+        v.setOnClickPendingIntent(R.id.widget_prev, mediaButton(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS))
+        if (shape == WidgetArt.NpShape.PILL) {
             v.setOnClickPendingIntent(R.id.widget_like, action(ctx, WidgetActionReceiver.ACTION_LIKE, 0))
+            v.setOnClickPendingIntent(R.id.widget_shuffle, action(ctx, WidgetActionReceiver.ACTION_SHUFFLE, 0))
         }
         return v
     }

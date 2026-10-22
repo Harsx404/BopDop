@@ -67,4 +67,22 @@ class QueueTracksTest {
         // Picking songs yourself keeps every version you chose.
         assertEquals(5, uniqueQueueTracks(related, listOf(playing)).size)
     }
+
+    @Test fun oneArtistUnderTwoNamesIsOneSong() {
+        val a = track("yt:a", "4am", "girl in red", 197).copy(album = "if i could make it go quiet")
+        val b = track("yt:b", "4am", "Marie Ulven", 197).copy(album = "if i could make it go quiet")
+        assertTrue(sameQueueSong(a, b))
+        // Same name and length but nothing else in common: two songs.
+        assertFalse(sameQueueSong(track("yt:x", "4am", "girl in red", 197), track("yt:y", "4am", "Marie Ulven", 197)))
+        // Same title, different song and length: kept.
+        assertFalse(sameQueueSong(a, track("yt:c", "4am", "Someone Else", 231)))
+    }
+
+    @Test fun artistFirstTitlesAndLiveTakesCountForRadio() {
+        val studio = track("yt:a", "Co2", "Prateek Kuhad", 214)
+        val live = track("yt:b", "Prateek Kuhad - Co2 Live Across TWTLR Tour 2025", "Prateek Kuhad", 260)
+        assertEquals(listOf(studio), uniqueQueueTracks(listOf(studio, live), anyVersion = true))
+        // Picked by hand, the live take is still a different recording.
+        assertFalse(sameQueueSong(studio, live))
+    }
 }

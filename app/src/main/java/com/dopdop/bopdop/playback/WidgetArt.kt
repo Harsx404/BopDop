@@ -51,13 +51,13 @@ internal object WidgetArt {
         val h get() = (hDp * scale).toInt().coerceAtLeast(1)
     }
 
-    enum class NpShape { STRIP, SQUARE, FULL }
+    /** Pill: one line, short; card: the cover fills it. */
+    enum class NpShape { PILL, CARD }
 
-    fun npShape(wDp: Float, hDp: Float) = when {
-        hDp < 110f -> NpShape.STRIP
-        wDp < 210f -> NpShape.SQUARE
-        else -> NpShape.FULL
-    }
+    fun npShape(wDp: Float, hDp: Float) = if (hDp < 110f) NpShape.PILL else NpShape.CARD
+
+    object Pill { const val PAD = 10f; const val ART = 56f; const val TEXT_GAP = 12f; const val END = 12f; const val TITLE = 24f; const val ROW = 36f }
+    object Card { const val BTN = 40f; const val MARGIN = 8f }
 
     // --- type ------------------------------------------------------------------------------
 
@@ -228,10 +228,43 @@ internal object WidgetArt {
 
     // --- Now Playing -----------------------------------------------------------------------
 
-    class NowPlaying(val track: Track?, val playing: Boolean, val posMs: Long, val durMs: Long, val liked: Boolean, val cover: Bitmap?)
+    class NowPlaying(
+        val track: Track?, val playing: Boolean, val posMs: Long, val durMs: Long, val liked: Boolean, val cover: Bitmap?,
+        val shuffle: Boolean = false,
+    )
 
     /** Covers must be software bitmaps to be drawn here; hardware ones are copied. */
     fun soft(b: Bitmap?): Bitmap? = if (b != null && Build.VERSION.SDK_INT >= 26 && b.config == Bitmap.Config.HARDWARE) b.copy(Bitmap.Config.ARGB_8888, false) else b
+
+    /** The cover's own deep colour (as album-art widgets do), or BopDop's ember when there's no cover. */
+    private fun tint(cover: Bitmap?): Int {
+        val p = cover?.let { androidx.palette.graphics.Palette.from(it).maximumColorCount(16).generate() }
+        val c = p?.let { it.getDarkVibrantColor(it.getVibrantColor(it.getDominantColor(0xFF7A1E12.toInt()))) } ?: 0xFF7A1E12.toInt()
+        // Deep enough for white type, never black.
+        val hsv = FloatArray(3).also { Color.colorToHSV(c, it) }
+        hsv[2] = hsv[2].coerceIn(0.32f, 0.55f); hsv[1] = hsv[1].coerceAtMost(0.8f)
+        return Color.HSVToColor(hsv)
+    }
+
+    private fun mix(a: Int, b: Int, f: Float) = Color.rgb(
+        (Color.red(a) + (Color.red(b) - Color.red(a)) * f).toInt(),
+        (Color.green(a) + (Color.green(b) - Color.green(a)) * f).toInt(),
+        (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * f).toInt(),
+    )
+
+    private fun shuffleGlyph(c: Canvas, cx: Float, cy: Float, size: Float, on: Boolean) {
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (on) Color.WHITE else 0x99FFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = size * 0.11f
+            strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+        }
+        val l = cx - size * 0.45f; val r = cx + size * 0.45f; val t = cy - size * 0.3f; val b = cy + size * 0.3f
+        c.drawPath(Path().apply { moveTo(l, t); cubicTo(cx, t, cx, b, r, b) }, p)
+        c.drawPath(Path().apply { moveTo(l, b); cubicTo(cx, b, cx, t, r, t) }, p)
+        val hd = size * 0.16f
+        c.drawPath(Path().apply { moveTo(r - hd, t - hd); lineTo(r, t); lineTo(r - hd, t + hd) }, p)
+        c.drawPath(Path().apply { moveTo(r - hd, b - hd); lineTo(r, b); lineTo(r - hd, b + hd) }, p)
+        if (on) c.drawCircle(cx, cy + size * 0.62f, size * 0.07f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+    }
 
     fun nowPlaying(ctx: Context, s: Size, np: NowPlaying): Bitmap {
         val out = Bitmap.createBitmap(s.w, s.h, Bitmap.Config.ARGB_8888)
@@ -239,80 +272,70 @@ internal object WidgetArt {
         val k = s.scale; val w = s.w.toFloat(); val h = s.h.toFloat()
         val t = np.track
         val frac = if (np.durMs > 0) (np.posMs.toFloat() / np.durMs).coerceIn(0f, 1f) else 0f
-        val turn = (np.posMs / 1000f) * 200f % 360f
-        val title = t?.title ?: "Nothing playing"
-        val artist = t?.artist ?: "Tap to open BopDop"
         when (npShape(s.wDp, s.hDp)) {
-            NpShape.STRIP -> {
-                card(c, s, np.cover)
-                val pad = 10 * k
-                val side = h - 2 * pad
-                val right = sleeve(c, s, pad, pad, side, np.cover, turn)
-                val ctrlLeft = w - (Np.STRIP_END + Np.STRIP_NEXT + Np.STRIP_GAP + Np.STRIP_PLAY) * k
-                val tx = right + 10 * k; val maxW = ctrlLeft - tx - 8 * k
-                c.line(title, text(ctx, s, 15f, 750, Color.WHITE), tx, h * 0.42f, maxW)
-                c.line(artist, text(ctx, s, 12f, 500, 0xB3FFFFFF.toInt()), tx, h * 0.42f + 17 * k, maxW)
-                waveform(c, s, RectF(tx, h * 0.42f + 25 * k, tx + maxW, h * 0.42f + 35 * k), t?.id ?: "idle", frac)
-                val playCx = ctrlLeft + Np.STRIP_PLAY / 2 * k
-                glassButton(c, playCx, h / 2, Np.STRIP_PLAY / 2 * k, solid = true)
-                playGlyph(c, playCx + if (np.playing) 0f else 1.5f * k, h / 2, 17 * k, np.playing, 0xFF141214.toInt())
-                skipGlyph(c, w - (Np.STRIP_END + Np.STRIP_NEXT / 2) * k, h / 2, 16 * k, forward = true)
+            NpShape.PILL -> {
+                // A capsule in the cover's colour: round cover, "Title - Artist", a row of plain controls.
+                val base = tint(np.cover)
+                val r = h / 2
+                val shape = Path().apply { addRoundRect(RectF(0f, 0f, w, h), r, r, Path.Direction.CW) }
+                c.save(); c.clipPath(shape)
+                c.drawRect(0f, 0f, w, h, Paint().apply { shader = LinearGradient(0f, 0f, w, h, mix(base, Color.WHITE, 0.08f), mix(base, Color.BLACK, 0.35f), Shader.TileMode.CLAMP) })
+                c.drawRect(0f, 0f, w, h * 0.5f, Paint().apply { shader = LinearGradient(0f, 0f, 0f, h * 0.5f, 0x1FFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP) })
+                // Progress as a soft fill along the bottom edge.
+                c.drawRect(0f, h - 3 * k, w * frac, h, Paint().apply { color = 0x66FFFFFF })
+                c.restore()
+                c.drawPath(shape, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = k; color = 0x2EFFFFFF })
+                val art = Pill.ART * k
+                val ax = Pill.PAD * k; val ay = (h - art) / 2
+                c.save(); c.clipPath(Path().apply { addCircle(ax + art / 2, ay + art / 2, art / 2, Path.Direction.CW) })
+                if (np.cover != null) c.drawBitmap(np.cover, null, RectF(ax, ay, ax + art, ay + art), Paint(Paint.FILTER_BITMAP_FLAG))
+                else { c.drawColor(0xFF1C1A1D.toInt()); mark(c, ax + art * 0.28f, ay + art * 0.22f, art * 0.56f, ORANGE) }
+                c.restore()
+                val tx = (Pill.PAD + Pill.ART + Pill.TEXT_GAP) * k
+                val right = w - Pill.END * k
+                val group = (Pill.TITLE + Pill.ROW) * k
+                val top = (h - group) / 2
+                val line = if (t == null) "Nothing playing - tap to open" else "${t.title} - ${t.artist}"
+                c.line(line, text(ctx, s, 14.5f, 700, Color.WHITE), tx, top + 17 * k, right - tx)
+                // Five equal slots: like, previous, play, next, shuffle.
+                val slot = (right - tx) / 5
+                val cy = top + Pill.TITLE * k + Pill.ROW * k / 2
+                fun cx(i: Int) = tx + slot * (i + 0.5f)
+                heart(c, cx(0), cy, 17 * k, np.liked)
+                skipGlyph(c, cx(1), cy, 15 * k, forward = false)
+                playGlyph(c, cx(2) + if (np.playing) 0f else 1.5f * k, cy, 19 * k, np.playing, Color.WHITE)
+                skipGlyph(c, cx(3), cy, 15 * k, forward = true)
+                shuffleGlyph(c, cx(4), cy, 18 * k, np.shuffle)
             }
-            NpShape.SQUARE -> {
+            NpShape.CARD -> {
+                // The cover fills the card; a scrim at the foot carries the song and the controls.
                 val r = 26 * k
-                c.save(); c.clipPath(Path().apply { addRoundRect(RectF(0f, 0f, w, h), r, r, Path.Direction.CW) })
+                val shape = Path().apply { addRoundRect(RectF(0f, 0f, w, h), r, r, Path.Direction.CW) }
+                c.save(); c.clipPath(shape)
                 if (np.cover != null) {
                     val side = maxOf(w, h)
                     c.drawBitmap(np.cover, null, RectF((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2), Paint(Paint.FILTER_BITMAP_FLAG))
-                } else card(c, s, null)
-                c.drawRect(0f, 0f, w, h, Paint().apply { shader = LinearGradient(0f, h * 0.35f, 0f, h, 0x00000000, 0xD9000000.toInt(), Shader.TileMode.CLAMP) })
-                // A sliver of record peeking from the top-right corner.
-                vinyl(c, w + 6 * k, -6 * k, h * 0.32f, np.cover, turn)
-                c.restore()
-                c.drawRoundRect(RectF(0f, 0f, w, h), r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = k; color = 0x26FFFFFF })
-                val pr = Np.SQUARE_PLAY / 2 * k
-                val pcx = w - (Np.SQUARE_MARGIN * k) - pr; val pcy = h - (Np.SQUARE_MARGIN * k) - pr
-                val maxW = pcx - pr - 22 * k
-                c.line(title, text(ctx, s, 15f, 750, Color.WHITE), 14 * k, pcy - 2 * k, maxW)
-                c.line(artist, text(ctx, s, 11.5f, 500, 0xB3FFFFFF.toInt()), 14 * k, pcy + 14 * k, maxW)
-                glassButton(c, pcx, pcy, pr, solid = true)
-                playGlyph(c, pcx + if (np.playing) 0f else 1.5f * k, pcy, 17 * k, np.playing, 0xFF141214.toInt())
-                c.drawRoundRect(RectF(14 * k, h - 6 * k, (14 * k) + (w - 28 * k) * frac, h - 4 * k), k, k, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ORANGE })
-            }
-            NpShape.FULL -> {
-                card(c, s, np.cover)
-                val pad = Np.PAD * k
-                val side = min(h - 2 * pad, w * 0.31f)
-                val right = sleeve(c, s, pad, (h - side) / 2, side, np.cover, turn)
-                val tx = right + 12 * k
-                val maxW = w - tx - pad
-                // "NOW PLAYING" with the mark, then the song.
-                mark(c, tx, pad + 1 * k, 10 * k, ORANGE)
-                c.line(if (np.playing) "NOW PLAYING" else "PAUSED", text(ctx, s, 9.5f, 700, 0x99FFFFFF.toInt()).apply { letterSpacing = 0.12f }, tx + 12 * k, pad + 10 * k,
-                    maxW - (Np.LIKE + Np.LIKE_MARGIN) * k)
-                val titleP = text(ctx, s, 18f, 800, Color.WHITE)
-                c.line(title, titleP, tx, pad + 34 * k, maxW - 4 * k)
-                c.line(artist, text(ctx, s, 13f, 500, 0xBFFFFFFF.toInt()), tx, pad + 52 * k, maxW)
-                val ctrlTop = h - (12 + Np.PLAY) * k
-                val waveTop = pad + 62 * k
-                val waveBottom = minOf(ctrlTop - 22 * k, waveTop + 26 * k)
-                if (waveBottom - waveTop > 10 * k) {
-                    waveform(c, s, RectF(tx, waveTop, w - pad, waveBottom), t?.id ?: "idle", frac)
-                    val times = text(ctx, s, 10f, 600, 0x99FFFFFF.toInt())
-                    c.drawText(formatDuration((np.posMs / 1000).toInt()).ifEmpty { "0:00" }, tx, waveBottom + 13 * k, times)
-                    val total = formatDuration((np.durMs / 1000).toInt()).ifEmpty { "–:––" }
-                    c.drawText(total, w - pad - times.measureText(total), waveBottom + 13 * k, times)
+                } else {
+                    card(c, s, null)
+                    mark(c, w / 2 - h * 0.14f, h * 0.18f, h * 0.38f, ORANGE)
                 }
-                val cy = h - (12 + Np.PLAY / 2) * k
-                val nextCx = w - (Np.PAD + Np.SIDE / 2) * k
-                val playCx = w - (Np.PAD + Np.SIDE + Np.GAP + Np.PLAY / 2) * k
-                val prevCx = w - (Np.PAD + Np.SIDE + Np.GAP + Np.PLAY + Np.GAP + Np.SIDE / 2) * k
-                glassButton(c, prevCx, cy, Np.SIDE / 2 * k, solid = false); skipGlyph(c, prevCx, cy, 15 * k, forward = false)
-                glassButton(c, playCx, cy, Np.PLAY / 2 * k, solid = true)
-                playGlyph(c, playCx + if (np.playing) 0f else 1.5f * k, cy, 19 * k, np.playing, 0xFF141214.toInt())
-                glassButton(c, nextCx, cy, Np.SIDE / 2 * k, solid = false); skipGlyph(c, nextCx, cy, 15 * k, forward = true)
-                val lcx = w - (Np.LIKE_MARGIN + Np.LIKE / 2) * k; val lcy = (Np.LIKE_MARGIN + Np.LIKE / 2) * k
-                heart(c, lcx, lcy, 18 * k, np.liked)
+                val tintC = tint(np.cover)
+                c.drawRect(0f, h * 0.35f, w, h, Paint().apply {
+                    shader = LinearGradient(0f, h * 0.35f, 0f, h, Color.argb(0, Color.red(tintC), Color.green(tintC), Color.blue(tintC)),
+                        mix(tintC, Color.BLACK, 0.45f), Shader.TileMode.CLAMP)
+                })
+                c.drawRect(0f, h - 3 * k, w * frac, h, Paint().apply { color = 0x99FFFFFF.toInt() })
+                c.restore()
+                c.drawPath(shape, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = k; color = 0x2EFFFFFF })
+                val btn = Card.BTN * k; val m = Card.MARGIN * k
+                val cy = h - m - btn / 2
+                val nextCx = w - m - btn / 2; val playCx = nextCx - btn; val prevCx = playCx - btn
+                skipGlyph(c, prevCx, cy, 16 * k, forward = false)
+                playGlyph(c, playCx + if (np.playing) 0f else 1.5f * k, cy, 20 * k, np.playing, Color.WHITE)
+                skipGlyph(c, nextCx, cy, 16 * k, forward = true)
+                val maxW = prevCx - btn / 2 - 16 * k
+                c.line(t?.title ?: "Nothing playing", text(ctx, s, 17f, 800, Color.WHITE), 16 * k, h - 30 * k, maxW)
+                c.line(t?.artist ?: "Tap to open BopDop", text(ctx, s, 13f, 500, 0xD9FFFFFF.toInt()), 16 * k, h - 13 * k, maxW)
             }
         }
         return out
