@@ -814,6 +814,7 @@ private fun ColumnScope.SongInfoSheet(t: Track) {
                 "Source" to when (t.source) {
                     com.dopdop.bopdop.data.model.Source.SAAVN -> "JioSaavn"
                     com.dopdop.bopdop.data.model.Source.LOCAL -> "This phone"
+                    com.dopdop.bopdop.data.model.Source.SPOTIFY -> "Spotify (plays from your sources)"
                     else -> "YouTube Music"
                 },
             ).filter { it.second.isNotBlank() }

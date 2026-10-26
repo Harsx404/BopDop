@@ -50,7 +50,7 @@ object SpotifyApi {
     private suspend fun hash(op: String, refresh: Boolean = false): String = hashLock.withLock {
         if (live == null || refresh) live = runCatching { discover() }.onFailure { Log.w(TAG, "hashes: ${it.message}") }.getOrNull()
             ?.also { Log.i(TAG, "hashes read live: ${it.keys.filter { k -> k in KNOWN }.sorted()}") }
-        live?.get(op) ?: KNOWN.getValue(op)
+        live?.get(op) ?: KNOWN[op] ?: throw IOException("Spotify's web player has no $op query")
     }
 
     /** Every `"op","query","hash"` in the web player's scripts, plus the search route's chunk. */
@@ -64,20 +64,24 @@ object SpotifyApi {
             if ("web-player." in s.substringAfterLast('/') && !s.contains("~")) main = js
             OP.findAll(js).forEach { found[it.groupValues[1]] = it.groupValues[2] }
         }
-        if ("searchTracks" !in found && main.isNotEmpty()) searchChunk(main)?.let { url ->
-            OP.findAll(runCatching { get(url) }.getOrDefault("")).forEach { found[it.groupValues[1]] = it.groupValues[2] }
+        // Route scripts load on demand, so their queries aren't in the page's own bundles.
+        if (main.isNotEmpty()) for (route in listOf("search", "home")) {
+            if (route == "search" && "searchTracks" in found || route == "home" && "home" in found) continue
+            routeChunk(main, route)?.let { url -> OP.findAll(runCatching { get(url) }.getOrDefault("")).forEach { found[it.groupValues[1]] = it.groupValues[2] } }
         }
         return found
     }
 
-    /** The search route's script: its chunk id from the name table, then that id's hash from the `.js` table. */
-    internal fun searchChunk(main: String): String? {
-        val id = Regex("""(\d+):"xpui-routes-search"""").find(main)?.groupValues?.get(1) ?: return null
+    internal fun searchChunk(main: String): String? = routeChunk(main, "search")
+
+    /** A route's script (`xpui-routes-<route>`): its chunk id from the name table, then that id's hash from the `.js` table. */
+    internal fun routeChunk(main: String, route: String): String? {
+        val id = Regex("""(\d+):"xpui-routes-$route"""").find(main)?.groupValues?.get(1) ?: return null
         // Webpack's `…+{id:"hash",…}[e]+".js"`: the hash table ends right before that; the CSS table comes after.
         val jsTable = main.indexOf("[e]+\".js\"").takeIf { it > 0 } ?: return null
         val window = main.substring((jsTable - 200_000).coerceAtLeast(0), jsTable)
         val hash = Regex("""\b$id:"([0-9a-f]{8})"""").findAll(window).lastOrNull()?.groupValues?.get(1) ?: return null
-        return "https://open.spotifycdn.com/cdn/build/web-player/xpui-routes-search.$hash.js"
+        return "https://open.spotifycdn.com/cdn/build/web-player/xpui-routes-$route.$hash.js"
     }
 
     private fun get(url: String): String =
@@ -156,6 +160,59 @@ object SpotifyApi {
         }
         Log.i(TAG, "playlist $playlistId: ${all.size} tracks")
         return all
+    }
+
+    /** A playlist's name, owner and cover with its tracks (up to [max]); Spotify's own mixes too. */
+    suspend fun playlist(id: String, max: Int = 300): Pair<SpotifyPlaylist, List<SpotifyTrack>> {
+        var meta = SpotifyPlaylist(id, "Playlist", "", "")
+        val all = mutableListOf<SpotifyTrack>()
+        var offset = 0
+        while (all.size < max) {
+            val p = query("fetchPlaylist", JSONObject().put("uri", "spotify:playlist:$id").put("offset", offset).put("limit", 100)
+                .put("enableWatchFeedEntrypoint", false)).optJSONObject("data")?.optJSONObject("playlistV2") ?: break
+            if (offset == 0) meta = SpotifyPlaylist(
+                id, p.optString("name").ifBlank { "Playlist" }, p.optJSONObject("ownerV2")?.optJSONObject("data")?.optString("name").orEmpty(),
+                p.optJSONObject("images")?.optJSONArray("items")?.optJSONObject(0)?.let(::largest).orEmpty(),
+            )
+            val c = p.optJSONObject("content") ?: break
+            val raw = c.optJSONArray("items")?.length() ?: 0
+            all += parsePlaylistTracks(c)
+            offset += raw
+            if (raw == 0 || offset >= c.optInt("totalCount")) break
+        }
+        return meta to all
+    }
+
+    /** Spotify's Home for this account: each section's title and its playlists, albums and artists as cards. */
+    suspend fun homeSections(): List<Pair<String, List<com.dopdop.bopdop.data.model.Card>>> {
+        val v = JSONObject().put("homeEndUserIntegration", "INTEGRATION_WEB_PLAYER").put("timeZone", java.util.TimeZone.getDefault().id)
+            .put("sp_t", "").put("facet", "").put("sectionItemsLimit", 12)
+        val sections = query("home", v).optJSONObject("data")?.optJSONObject("home")?.optJSONObject("sectionContainer")
+            ?.optJSONObject("sections")?.optJSONArray("items") ?: return emptyList()
+        return (0 until sections.length()).mapNotNull { i ->
+            val sec = sections.optJSONObject(i) ?: return@mapNotNull null
+            val title = sec.optJSONObject("data")?.optJSONObject("title")?.let { it.optString("transformedLabel").ifBlank { it.optString("text") } }.orEmpty()
+            val items = sec.optJSONObject("sectionItems")?.optJSONArray("items") ?: return@mapNotNull null
+            val cards = (0 until items.length()).mapNotNull { j -> items.optJSONObject(j)?.optJSONObject("content")?.optJSONObject("data")?.let(::homeCard) }
+            title.takeIf { it.isNotBlank() }?.let { it to cards }
+        }.also { Log.i(TAG, "home: ${it.map { s -> "${s.first} (${s.second.size})" }}") }
+    }
+
+    private fun homeCard(d: JSONObject): com.dopdop.bopdop.data.model.Card? {
+        val uri = d.optString("uri")
+        val id = uri.substringAfterLast(':').ifBlank { return null }
+        val name = d.optString("name").ifBlank { d.optJSONObject("profile")?.optString("name").orEmpty() }.ifBlank { return null }
+        return when (d.optString("__typename")) {
+            "Playlist" -> com.dopdop.bopdop.data.model.Card("sp:playlist:$id", com.dopdop.bopdop.data.model.CardKind.PLAYLIST, name,
+                d.optJSONObject("ownerV2")?.optJSONObject("data")?.optString("name").orEmpty(),
+                d.optJSONObject("images")?.optJSONArray("items")?.optJSONObject(0)?.let(::largest).orEmpty())
+            "Album" -> com.dopdop.bopdop.data.model.Card("sp:album:$id", com.dopdop.bopdop.data.model.CardKind.ALBUM, name,
+                d.optJSONObject("artists")?.optJSONArray("items")?.optJSONObject(0)?.optJSONObject("profile")?.optString("name").orEmpty(),
+                d.optJSONObject("coverArt")?.let(::largest).orEmpty())
+            "Artist" -> com.dopdop.bopdop.data.model.Card("sp:artist:$id", com.dopdop.bopdop.data.model.CardKind.ARTIST, name, "Artist",
+                d.optJSONObject("visuals")?.optJSONObject("avatarImage")?.let(::largest).orEmpty())
+            else -> null
+        }
     }
 
     private val uriCache = TtlCache<String, String>(24 * 3600_000L, 500)

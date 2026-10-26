@@ -21,6 +21,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 
 /**
@@ -31,8 +32,16 @@ object MusicRepository {
 
     /** Home is YouTube Music's own feed (yours when signed in), fresh each time; [mood] is one of its chips. */
     suspend fun home(mood: String? = null): HomeFeed = withContext(Dispatchers.IO) {
+        // Signed in to Spotify: its personal shelves join in under All (never under a mood), asked at
+        // the same time and given a few seconds, so Home never waits on Spotify.
+        val spotify = if (mood == null && com.dopdop.bopdop.data.spotify.SpotifyCatalog.available)
+            async { withTimeoutOrNull(6_000) { runCatching { com.dopdop.bopdop.data.spotify.SpotifyCatalog.homeShelves() }.getOrNull() }.orEmpty() } else null
         val (shelves, chips) = YtMusic.homeFeed(mood)
-        mergeHomeRecommendations(shelves, emptyList()).copy(chips = chips)
+        val feed = mergeHomeRecommendations(shelves, emptyList())
+        val sp = spotify?.await().orEmpty()
+        // After YouTube Music's first two rows (Quick picks and the next), then YouTube's rows go on.
+        val merged = if (sp.isEmpty()) feed.shelves else feed.shelves.take(2) + sp + feed.shelves.drop(2)
+        feed.copy(shelves = merged, chips = chips)
     }
 
     suspend fun search(q: String): SearchResults = withContext(Dispatchers.IO) {
@@ -59,6 +68,11 @@ object MusicRepository {
         }
     }
 
+    /** Spotify's catalogue for the same query (signed in to Spotify only). */
+    suspend fun searchSpotify(q: String): SearchResults = withContext(Dispatchers.IO) {
+        com.dopdop.bopdop.data.spotify.SpotifyCatalog.search(q)
+    }
+
     suspend fun suggestions(q: String): List<String> = withContext(Dispatchers.IO) {
         runCatching { YtMusic.suggestions(q) }.getOrDefault(emptyList())
     }
@@ -67,6 +81,10 @@ object MusicRepository {
         val load: suspend () -> Collection = {
             when (card.source) {
                 Source.SAAVN -> if (card.kind == CardKind.ALBUM) SaavnApi.album(card.rawId) else SaavnApi.playlist(card.rawId)
+                Source.SPOTIFY -> card.id.removePrefix("sp:").let { rest ->
+                    if (rest.startsWith("album:")) com.dopdop.bopdop.data.spotify.SpotifyCatalog.album(rest.removePrefix("album:"))
+                    else com.dopdop.bopdop.data.spotify.SpotifyCatalog.playlist(rest.removePrefix("playlist:"))
+                }
                 else -> YtMusic.collection(card.kind, card.rawId)
             }
         }
@@ -75,7 +93,11 @@ object MusicRepository {
     }
 
     suspend fun artist(id: String): ArtistPage = withContext(Dispatchers.IO) {
-        if (id.startsWith("sv:")) SaavnApi.artist(id.removePrefix("sv:")) else YtMusic.artist(id.removePrefix("yt:"))
+        when {
+            id.startsWith("sv:") -> SaavnApi.artist(id.removePrefix("sv:"))
+            id.startsWith("sp:artist:") -> com.dopdop.bopdop.data.spotify.SpotifyCatalog.artist(id.removePrefix("sp:artist:"))
+            else -> YtMusic.artist(id.removePrefix("yt:"))
+        }
     }
 
     /** Tracks for a radio-station card (JioSaavn artist / featured stations). */

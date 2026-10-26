@@ -3,6 +3,8 @@ package com.dopdop.bopdop.playback
 import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import android.util.Log
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -37,7 +39,9 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            if (!isPlaying && main?.playbackState != Player.STATE_BUFFERING) finish()
+            // Paused or stopped: drop the mix. A brief load while jumping to the next song isn't a
+            // pause (play stays wanted), and cutting the tail there was itself an audible gap.
+            if (!isPlaying && main?.playWhenReady != true) finish()
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -67,33 +71,41 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
 
         val left = dur - p.currentPosition
         val key = "${p.currentMediaItemIndex}:${item.mediaId}"
-        if (left in (fadeMs + 1)..(fadeMs + 5_000) && primedFor != key) {
+        if (left in (fadeMs + LEAD_MS + 1)..(fadeMs + 8_000) && primedFor != key) {
             val t = tail ?: newTail().also { tail = it }
             t.volume = 0f
             t.playWhenReady = false
-            t.setMediaItem(item, dur - fadeMs)
+            // Primed a little before the fade point: it starts there, muted, in step with the song.
+            t.setMediaItem(item, dur - fadeMs - LEAD_MS)
             t.prepare()
             primedFor = key
         }
         // Too little left to be worth a fade (the tail was slow to load): let the song end normally.
-        if (left <= fadeMs + 150 && left >= 1_500 && primedFor == key && tail?.playbackState == Player.STATE_READY) {
-            // Land on the exact fade point rather than the next 100 ms tick.
+        if (left <= fadeMs + LEAD_MS + 150 && left >= 1_500 + LEAD_MS && primedFor == key && tail?.playbackState == Player.STATE_READY) {
+            // Start exactly where the tail was primed: follow the song's own clock (it can stall to
+            // load), not a timer.
+            val startAt = dur - fadeMs - LEAD_MS
             fade = scope.launch {
-                delay((left - fadeMs).coerceAtLeast(0))
+                while (p.currentPosition < startAt - 10) delay(if (startAt - p.currentPosition > 250) 40 else 4)
                 cross(p, tail!!, dur)
             }
         }
     }
 
     private suspend fun cross(p: ExoPlayer, t: ExoPlayer, dur: Long) {
-        // Start the tail exactly where the song is now, so it never repeats what was just heard
-        // (it was primed for the fade point, but may have become ready after it).
+        // The tail starts muted where it was primed, a moment before the fade point, so its audio
+        // output is already running when it takes over. (Seeking it here would throw away its
+        // buffer, and muting the song before the tail actually sounds left a small hole.)
+        if (!startInStep(p, t)) {
+            // The tail never got going: no mix this time, the song just ends and the next begins.
+            android.util.Log.i("Automix", "tail not ready, skipping the mix")
+            fade = null; finish(); return
+        }
         val from = p.currentPosition
         val span = (dur - from).coerceAtLeast(1_000)
-        android.util.Log.i("Automix", "crossing into the next song over $span ms")
-        t.seekTo(from)
+        android.util.Log.i("Automix", "crossing into the next song over $span ms (tail ${t.currentPosition - from} ms off)")
+        // Both play the same audio here; swap which one is heard in the same instant.
         t.volume = 1f
-        t.play()
         p.volume = 0f
         ownSeek = true
         p.seekToNextMediaItem()
@@ -114,6 +126,115 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
         finish()
     }
 
+    /**
+     * Starts [t] muted and waits until it plays in step with [p] (same song, same moment), so one
+     * can be swapped for the other without a gap or a repeat. False if it never lines up.
+     */
+    private suspend fun startInStep(p: ExoPlayer, t: ExoPlayer): Boolean {
+        fun off() = kotlin.math.abs(t.currentPosition - p.currentPosition)
+        if (off() > 400) t.seekTo(p.currentPosition)
+        t.volume = 0f
+        t.play()
+        val startWait = SystemClock.uptimeMillis()
+        var resynced = false
+        while (SystemClock.uptimeMillis() - startWait < LEAD_MS * 4) {
+            if (t.isPlaying && off() <= IN_STEP_MS) break
+            // Running but out of step (it started late or early): one re-seek, ahead by its start-up time.
+            if (t.isPlaying && !resynced && SystemClock.uptimeMillis() - startWait > 150) {
+                t.seekTo(p.currentPosition + 120); resynced = true
+            }
+            delay(10)
+        }
+        return t.isPlaying && off() <= IN_STEP_MS * 2
+    }
+
+    /**
+     * Moves the playing song onto [better] (the same recording from a lossless add-on, found after
+     * the song started) without a gap:
+     *
+     * 1. the tail loads the add-on copy a few seconds ahead of the song, muted;
+     * 2. when the song reaches that point the tail starts in step and becomes the one heard;
+     * 3. the main player switches to the add-on copy too (reading what the tail already fetched),
+     *    lines up with the tail, and takes over again.
+     *
+     * Gives up quietly (the song carries on as it was) if the copy is slow to load or the song is
+     * nearly over; the next song then simply starts on the add-on copy.
+     */
+    suspend fun upgrade(better: MediaItem): Boolean {
+        val id = better.mediaId
+        fun note(msg: String) = StreamResolver.note(id, msg)
+        val p = main ?: return false
+        if (fade != null) { note("Found, but Automix is mixing: next time"); return false }
+        if (!p.isPlaying || p.currentMediaItem?.mediaId != id) return false
+        if (p.duration != C.TIME_UNSET && p.duration - p.currentPosition < 25_000) { note("Found, too near the end to switch"); return false }
+        val t = tail ?: newTail().also { tail = it }
+        fade = kotlin.coroutines.coroutineContext[Job] // holds Automix off meanwhile
+        fun stillOn() = p.currentMediaItem?.mediaId == id && p.playWhenReady
+        try {
+            note("Switching…")
+            // Load the copy a little ahead of the song. A lossless file can be slow to start, so if it
+            // isn't ready before the song gets there, try again further ahead: by then most of what it
+            // needs has already been fetched.
+            var ready = false
+            for (warm in WARM_STEPS_MS) {
+                if (p.duration != C.TIME_UNSET && p.duration - p.currentPosition < warm + 15_000) break
+                val startAt = p.currentPosition + warm
+                t.volume = 0f
+                t.playWhenReady = false
+                t.setMediaItem(better, startAt)
+                t.prepare()
+                val loadStart = SystemClock.uptimeMillis()
+                while (t.playbackState != Player.STATE_READY && t.playerError == null && SystemClock.uptimeMillis() - loadStart < 25_000) {
+                    if (!stillOn()) return false
+                    delay(50)
+                }
+                if (t.playerError != null) { note("The add-on's file wouldn't play: ${t.playerError?.errorCodeName}"); return false }
+                if (t.playbackState != Player.STATE_READY) continue
+                if (p.currentPosition > startAt - 150) {
+                    Log.i("Automix", "add-on copy of $id took ${SystemClock.uptimeMillis() - loadStart} ms to load; again further ahead")
+                    continue
+                }
+                while (p.currentPosition < startAt - 10) {
+                    if (!stillOn()) return false
+                    delay(if (startAt - p.currentPosition > 250) 40 else 4)
+                }
+                ready = true
+                break
+            }
+            if (!ready) { note("Found, but its file was too slow to start"); return false }
+            if (!startInStep(p, t)) { note("Found, but couldn't line it up"); return false }
+            t.volume = 1f
+            p.volume = 0f
+            Log.i("Automix", "add-on copy of ${better.mediaId} is playing; moving the song onto it")
+
+            note("Switched")
+            val idx = p.currentMediaItemIndex
+            p.replaceMediaItem(idx, better)
+            var lead = 250L
+            ownSeek = true
+            p.seekTo(idx, t.currentPosition + lead)
+            repeat(6) {
+                val w = SystemClock.uptimeMillis()
+                while (!p.isPlaying && SystemClock.uptimeMillis() - w < 8_000) delay(10)
+                if (!p.isPlaying) return true // the main player will start on its own; the finally hands back
+                delay(80) // let its clock settle after starting
+                val d = p.currentPosition - t.currentPosition
+                if (kotlin.math.abs(d) <= IN_STEP_MS) return true
+                // It landed d ms off: aim that much the other way next time.
+                lead = (lead - d).coerceIn(30, 1_500)
+                ownSeek = true
+                p.seekTo(idx, t.currentPosition + lead)
+            }
+            return true
+        } finally {
+            p.volume = 1f
+            t.stop()
+            t.clearMediaItems()
+            primedFor = null
+            fade = null
+        }
+    }
+
     /** Stop any fade in progress and put the main player back at full volume. */
     fun finish() {
         fade?.cancel(); fade = null
@@ -127,6 +248,15 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
         finish()
         main?.removeListener(listener)
         tail?.release(); tail = null
+    }
+
+    private companion object {
+        /** How long before the fade point the muted tail starts, so its output is warm. */
+        const val LEAD_MS = 400L
+        /** How far ahead of the song the tail loads an add-on copy; each miss tries further ahead. */
+        val WARM_STEPS_MS = longArrayOf(6_000L, 12_000L, 20_000L)
+        /** Close enough that swapping from the song to the tail isn't heard. */
+        const val IN_STEP_MS = 80L
     }
 
     /** Consecutive tracks of one album are often mixed to run into each other — keep them gapless. */

@@ -38,6 +38,16 @@ enum class AudioQuality(val label: String, val maxKbps: Int, val saavn: String) 
 /** Light or dark look; [SYSTEM] follows the phone. */
 enum class ThemeMode(val label: String) { SYSTEM("Auto"), LIGHT("Light"), DARK("Dark") }
 
+/** The app's typeface: BopDop's own (Plus Jakarta Sans) or one of the families every phone has. */
+enum class AppFont(val label: String) {
+    BOPDOP("BopDop"), SYSTEM("Phone default"), CONDENSED("Condensed"), SERIF("Serif"), MONO("Mono"), CASUAL("Casual"), CURSIVE("Handwritten"),
+    /** A font file the user imported; see [CustomFont]. */
+    CUSTOM("Your font"),
+}
+
+/** Text size on top of the phone's own font-size setting. */
+enum class TextSize(val label: String, val scale: Float) { SMALL("Small", 0.9f), DEFAULT("Default", 1f), LARGE("Large", 1.12f), LARGER("Larger", 1.25f) }
+
 /** Highest music-video picture to stream; [AUTO] follows the connection. */
 enum class VideoQuality(val label: String, val maxHeight: Int) {
     AUTO("Auto", 0), UHD("4K", 2160), QHD("1440p", 1440), FHD("1080p", 1080), HD("720p", 720), SD("480p", 480),
@@ -61,9 +71,17 @@ data class Settings(
     /** Spotify Canvas loops behind the cover (signed in to Spotify); on mobile data only when allowed. */
     val canvas: Boolean = true,
     val canvasOnData: Boolean = false,
-    /** Add-on servers (base URLs), asked in order for lossless copies when [lossless] is on. */
+    /** Add-on servers (base URLs). Each can be switched off ([addonsOff]); [sources] sets their order. */
     val addons: List<String> = emptyList(),
+    /** The old single switch for all add-ons; only read to carry an "off" over into [addonsOff]. */
     val lossless: Boolean = false,
+    /** Add-ons kept in the list but not asked. */
+    val addonsOff: List<String> = emptyList(),
+    /**
+     * Where songs play from, best first: add-on URLs, [SAAVN] (JioSaavn's 320 kbps copy) and
+     * [YOUTUBE]. Read it through [sources], which fills in anything missing.
+     */
+    val sourceOrder: List<String> = emptyList(),
     /** Ask add-ons for Dolby Atmos mixes when this phone can decode them. */
     val atmos: Boolean = true,
     /** USB DACs: hand the DAC the file's own sample rate and bit depth, untouched (Android 14+). */
@@ -107,6 +125,11 @@ data class Settings(
     /** Android 16 Live Update: what's playing in the phone's own island / status chip. */
     val liveUpdate: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val font: AppFont = AppFont.BOPDOP,
+    val textSize: TextSize = TextSize.DEFAULT,
+    /** The imported font's stored file name and the name it's shown by; blank until one is imported. */
+    val customFont: String = "",
+    val customFontName: String = "",
     /** Audio quality on Wi-Fi and other unmetered networks. */
     val audioWifi: AudioQuality = AudioQuality.HIGH,
     /** Audio quality on mobile data (metered networks). */
@@ -131,19 +154,46 @@ data class Settings(
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
         .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("lyricsFullScreen", lyricsFullScreen).put("canvas", canvas).put("canvasOnData", canvasOnData)
-            .put("addons", JSONArray(addons)).put("lossless", lossless).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
+            .put("addons", JSONArray(addons)).put("lossless", lossless).put("addonsOff", JSONArray(addonsOff)).put("sourceOrder", JSONArray(sourceOrder)).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("mascot", mascot.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
-        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name)
+        .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).put("font", font.name).put("textSize", textSize.name).put("customFont", customFont).put("customFontName", customFontName)
         .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
         .put("shuffle", shuffle).put("repeat", repeat).put("libraryList", libraryList).put("listenBrainzToken", listenBrainzToken).put("listenBrainzUser", listenBrainzUser)
             .put("lastFmSession", lastFmSession).put("lastFmUser", lastFmUser).put("lastFmKey", lastFmKey).put("lastFmSecret", lastFmSecret).put("lastFmLibre", lastFmLibre).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
 
+    /**
+     * Every source in priority order. Sources missing from [sourceOrder] (a new add-on, or no order
+     * saved yet) go in where they used to rank: add-ons ahead of JioSaavn and YouTube.
+     */
+    fun sources(): List<String> {
+        val all = addons + SAAVN + YOUTUBE
+        val out = sourceOrder.filter { it in all }.distinct().toMutableList()
+        all.filter { it !in out }.forEach { m ->
+            val firstBuiltIn = out.indexOfFirst { it == SAAVN || it == YOUTUBE }
+            if (m != SAAVN && m != YOUTUBE && firstBuiltIn >= 0) out.add(firstBuiltIn, m) else out.add(m)
+        }
+        return out
+    }
+
+    /** YouTube always plays (it has every song); JioSaavn is the Hi-Res match switch. */
+    fun sourceOn(key: String): Boolean = when (key) {
+        YOUTUBE -> true
+        SAAVN -> hiRes
+        else -> key in addons && key !in addonsOff
+    }
+
+    /** Switched-on add-ons ranked above [key], best first. */
+    fun addonsAbove(key: String): List<String> = sources().takeWhile { it != key }.filter { it != SAAVN && it != YOUTUBE && sourceOn(it) }
+
     companion object {
+        const val SAAVN = "saavn"
+        const val YOUTUBE = "youtube"
+
         fun fromJson(o: JSONObject?) = if (o == null) Settings() else Settings(
             hiRes = o.optBoolean("hiRes", true),
             autoplay = o.optBoolean("autoplay", true),
@@ -157,6 +207,11 @@ data class Settings(
             canvasOnData = o.optBoolean("canvasOnData", false),
             addons = o.optJSONArray("addons")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
             lossless = o.optBoolean("lossless", false),
+            // Before each add-on had its own switch, one "Lossless from add-ons" switch covered them all.
+            addonsOff = o.optJSONArray("addonsOff")?.let { a -> (0 until a.length()).map { a.optString(it) } }
+                ?: if (o.optBoolean("lossless", false)) emptyList()
+                else o.optJSONArray("addons")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
+            sourceOrder = o.optJSONArray("sourceOrder")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
             atmos = o.optBoolean("atmos", true),
             bitPerfect = o.optBoolean("bitPerfect", false),
             spotifyAutoImport = o.optBoolean("spotifyAutoImport", true),
@@ -185,6 +240,10 @@ data class Settings(
             islandOverlay = o.optBoolean("islandOverlay", false),
             liveUpdate = o.optBoolean("liveUpdate", true),
             themeMode = runCatching { ThemeMode.valueOf(o.optString("themeMode")) }.getOrDefault(ThemeMode.SYSTEM),
+            font = runCatching { AppFont.valueOf(o.optString("font")) }.getOrDefault(AppFont.BOPDOP),
+            textSize = runCatching { TextSize.valueOf(o.optString("textSize")) }.getOrDefault(TextSize.DEFAULT),
+            customFont = o.optString("customFont"),
+            customFontName = o.optString("customFontName"),
             audioWifi = runCatching { AudioQuality.valueOf(o.optString("audioWifi")) }.getOrDefault(AudioQuality.HIGH),
             audioMobile = runCatching { AudioQuality.valueOf(o.optString("audioMobile")) }.getOrDefault(AudioQuality.HIGH),
             playbackSpeed = o.optDouble("playbackSpeed", 1.0).toFloat().coerceIn(0.5f, 2f),

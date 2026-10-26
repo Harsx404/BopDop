@@ -184,7 +184,8 @@ fun HomeScreen() {
                 }
             }
             item(key = "headline") {
-                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp)) {
+                // Room below the greeting so its descenders ("g", "y") clear the grid under it.
+                Column(Modifier.padding(start = 24.dp, end = 24.dp, top = 22.dp, bottom = 16.dp)) {
                     festive.festival?.takeIf { festive.decor }?.let { f ->
                         Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             com.dopdop.bopdop.ui.festive.FestiveMark(f, Modifier.size(16.dp))

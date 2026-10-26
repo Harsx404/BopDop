@@ -95,6 +95,7 @@ import com.dopdop.bopdop.ui.screens.SeeAllScreen
 import com.dopdop.bopdop.ui.screens.SettingsScreen
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
+import com.dopdop.bopdop.ui.theme.family
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
@@ -165,7 +166,19 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     val maxPull = with(LocalDensity.current) { 140.dp.toPx() }
     val bounceFactory = androidx.compose.runtime.remember(bounceScope, maxPull) { com.dopdop.bopdop.ui.components.BounceOverscrollFactory(bounceScope, maxPull) }
 
+    // The font and text size picked in Settings › Appearance. The size scales every sp in the app
+    // on top of the phone's own font-size setting, hard-coded sizes included.
+    val fontCtx = androidx.compose.ui.platform.LocalContext.current
+    remember(lib.settings.font, lib.settings.customFont) {
+        com.dopdop.bopdop.ui.theme.BopType.family = lib.settings.font.family(com.dopdop.bopdop.data.CustomFont.file(fontCtx, lib.settings.customFont))
+    }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val scaled = remember(density, lib.settings.textSize) {
+        androidx.compose.ui.unit.Density(density.density, density.fontScale * lib.settings.textSize.scale)
+    }
     CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides scaled,
+        androidx.compose.material3.LocalTextStyle provides androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = com.dopdop.bopdop.ui.theme.BopType.family),
         LocalApp provides app,
         LocalHaze provides haze,
         LocalGlassLevel provides lib.settings.glass.also { Bop.clear = it == com.dopdop.bopdop.data.GlassLevel.CLEAR },

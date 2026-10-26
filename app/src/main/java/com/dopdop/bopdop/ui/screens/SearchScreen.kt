@@ -88,6 +88,15 @@ import kotlin.math.abs
 
 private enum class Filter(val label: String) { ALL("Top"), SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums"), PLAYLISTS("Playlists") }
 
+/**
+ * Which catalogue the results come from. Spotify shows only for people signed in to it; its songs
+ * play from your sources like any other. The pick stays for the rest of the session.
+ */
+private enum class Catalog(val brand: com.dopdop.bopdop.ui.components.Brand) {
+    YOUTUBE(com.dopdop.bopdop.ui.components.Brand.YOUTUBE_MUSIC), SPOTIFY(com.dopdop.bopdop.ui.components.Brand.SPOTIFY)
+}
+private var lastCatalog = Catalog.YOUTUBE
+
 @Composable
 fun SearchScreen() {
     val app = LocalApp.current
@@ -277,12 +286,36 @@ private fun Browse(recent: List<String>, onPick: (String) -> Unit) {
 private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
     val app = LocalApp.current
     val current by PlayerConnection.current.collectAsState()
-    val res = rememberLoad("search:$q", 10 * 60_000L) { MusicRepository.search(q) }
+    val spotifyOn = com.dopdop.bopdop.data.spotify.SpotifyAccount.profile.collectAsState().value != null || com.dopdop.bopdop.data.spotify.SpotifyAccount.signedIn
+    var catalog by remember { mutableStateOf(lastCatalog) }
+    val cat = if (spotifyOn) catalog else Catalog.YOUTUBE
+    val res = rememberLoad("search:${cat.name}:$q", 10 * 60_000L) {
+        if (cat == Catalog.SPOTIFY) MusicRepository.searchSpotify(q) else MusicRepository.search(q)
+    }
+    val from = if (cat == Catalog.SPOTIFY) "Spotify · $q" else "Search · $q"
     val listState = rememberLazyListState()
-    LaunchedEffect(filter) { listState.scrollToItem(0) }
+    LaunchedEffect(filter, cat) { listState.scrollToItem(0) }
 
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars),
         contentPadding = PaddingValues(top = TOP_PAD, bottom = LocalChromePadding.current.calculateBottomPadding())) {
+        if (spotifyOn) item {
+            // One catalogue at a time: the same song from both would only list twice.
+            Row(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 10.dp).fillMaxWidth().glassLite(RoundedCornerShape(50), alpha = 0.4f).padding(4.dp)) {
+                Catalog.entries.forEach { c ->
+                    val on = c == cat
+                    val bg by animateColorAsState(if (on) Bop.Ink else androidx.compose.ui.graphics.Color.Transparent, label = "cat")
+                    Row(
+                        Modifier.weight(1f).clip(RoundedCornerShape(50)).background(bg)
+                            .bounceClick { catalog = c; lastCatalog = c }.padding(vertical = 9.dp),
+                        horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        com.dopdop.bopdop.ui.components.BrandLogo(c.brand, 18.dp, Icons.Rounded.Search)
+                        Spacer(Modifier.width(8.dp))
+                        Text(c.brand.label, style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text)
+                    }
+                }
+            }
+        }
         item {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(Filter.entries.toList()) { f ->
@@ -318,7 +351,7 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
                             val first = r.tracks.take(5)
                             items(first.size) { i ->
                                 val t = first[i]
-                                TrackRow(t, playing = current?.id == t.id, onMore = { app.sheet = Sheet.TrackOptions(t) }) { PlayerConnection.startRadio(t, "Search · $q") }
+                                TrackRow(t, playing = current?.id == t.id, onMore = { app.sheet = Sheet.TrackOptions(t) }) { PlayerConnection.startRadio(t, from) }
                             }
                         }
                         if (r.artists.isNotEmpty()) item { SectionHeader("Artists"); CardRow(r.artists, 116.dp) }
@@ -327,7 +360,7 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
                     }
                     Filter.SONGS -> items(r.tracks.size) { i ->
                         val t = r.tracks[i]
-                        TrackRow(t, playing = current?.id == t.id, onMore = { app.sheet = Sheet.TrackOptions(t) }) { PlayerConnection.startRadio(t, "Search · $q") }
+                        TrackRow(t, playing = current?.id == t.id, onMore = { app.sheet = Sheet.TrackOptions(t) }) { PlayerConnection.startRadio(t, from) }
                     }
                     Filter.ARTISTS -> cardGrid(r.artists)
                     Filter.ALBUMS -> cardGrid(r.albums)

@@ -76,6 +76,11 @@ class PlaybackService : MediaLibraryService() {
     private var lastTrackId: String? = null
     private var audioSessionId = C.AUDIO_SESSION_ID_UNSET
     private lateinit var sources: VideoMediaSourceFactory
+    /** Writes into the play cache; [precacheNext] fills it with the start of the next song. */
+    private lateinit var precacheSource: CacheDataSource.Factory
+    private var precacheJob: kotlinx.coroutines.Job? = null
+    private var addonJob: kotlinx.coroutines.Job? = null
+    private var addonJobFor: String? = null
     private lateinit var crossfader: Crossfader
     private lateinit var island: IslandOverlay
     private lateinit var liveUpdate: LiveUpdate
@@ -103,6 +108,7 @@ class PlaybackService : MediaLibraryService() {
             .setCacheKeyFactory(key)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+        precacheSource = streaming
         val playCache = cache(this)
         scope.launch(kotlinx.coroutines.Dispatchers.IO) { StreamResolver.forgetLooseHiResMatches(this@PlaybackService, playCache) }
 
@@ -218,6 +224,76 @@ class PlaybackService : MediaLibraryService() {
      * The main player owns audio focus, the notification and the queue. Tail players (Automix's
      * outgoing song) share its audio session so the equalizer shapes both, and never take focus.
      */
+    /**
+     * Downloads the next song into the play cache while this one plays, so moving on (a skip, the
+     * next track, Automix's jump mid-song) starts from disk instead of the network. Waits a little
+     * first so the current song gets the bandwidth; on mobile data only when Automix is on, since
+     * that's where a slow start is heard. The whole song: a partial download left the cache with a
+     * wrong length and the song failed when it played past it. (ExoPlayer's own playlist preloading
+     * would do this, but on Android 15+ it crashes the switch with a LoudnessCodecController error.)
+     */
+    private fun precacheNext() {
+        precacheJob?.cancel()
+        val p = player
+        if (!p.hasNextMediaItem()) return
+        val next = p.getMediaItemAt(p.nextMediaItemIndex)
+        val uri = next.localConfiguration?.uri ?: return
+        if (next.videoId != null || uri.scheme == "content" || uri.scheme == "file") return
+        val metered = getSystemService(android.net.ConnectivityManager::class.java)?.isActiveNetworkMetered ?: true
+        if (metered && LibraryStore.settings.crossfadeSec <= 0) return
+        precacheJob = scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            kotlinx.coroutines.delay(10_000)
+            val spec = androidx.media3.datasource.DataSpec.Builder().setUri(uri).setPosition(0).build()
+            val writer = androidx.media3.datasource.cache.CacheWriter(precacheSource.createDataSourceForDownloading(), spec, null, null)
+            val job = coroutineContext[kotlinx.coroutines.Job]
+            job?.invokeOnCompletion { if (it != null) writer.cancel() }
+            runCatching { writer.cache() }
+                .onSuccess { Log.i("PlaybackService", "precached ${next.mediaId}") }
+                .onFailure { if (it !is java.io.InterruptedIOException && it !is kotlinx.coroutines.CancellationException) Log.w("PlaybackService", "precache ${next.mediaId}: $it") }
+        }
+    }
+
+    /**
+     * "Lossless from add-ons" without the wait: every song starts on its fastest source while this
+     * asks the add-ons in the background, and moves onto a copy seamlessly once it's playing. The next
+     * song is asked about early too, so its switch comes within seconds of it starting.
+     */
+    private fun lookUpAddons() {
+        // Moving the song onto its add-on copy replaces its item, which lands here again: that same
+        // song's job is the one doing the move, and must carry on.
+        val curId = player.currentMediaItem?.mediaId
+        if (addonJob?.isActive == true && addonJobFor == curId) return
+        addonJob?.cancel()
+        addonJobFor = curId
+        if (!StreamResolver.addonsWanted()) return
+        addonJob = scope.launch {
+            val cur = player.currentMediaItem
+            val track = cur?.toTrack()
+            if (cur != null && track != null && cur.videoId == null && !cur.isAddonCopy && !Downloads.isDownloaded(track.id)) {
+                // Only add-ons ranked above what it's playing from now.
+                if (StreamResolver.lookUpAddon(track, StreamResolver.playingFrom(track.id)) != null) {
+                    // Found while paused, or a try that didn't work out (Automix mixing, a slow start):
+                    // switch once it's playing, and try again a little later.
+                    for (attempt in 0 until 3) {
+                        while (!player.isPlaying) {
+                            if (player.currentMediaItem?.mediaId != track.id) break
+                            kotlinx.coroutines.delay(400)
+                        }
+                        if (player.currentMediaItem?.mediaId != track.id || player.currentMediaItem?.isAddonCopy != false) break
+                        if (crossfader.upgrade(track.toMediaItem(addon = true))) break
+                        kotlinx.coroutines.delay(15_000)
+                    }
+                }
+            }
+            // Ask about the next song now too: it still starts on its fastest source, but with the copy
+            // already known it moves onto it within seconds.
+            if (!player.hasNextMediaItem()) return@launch
+            val next = player.getMediaItemAt(player.nextMediaItemIndex)
+            val nt = next.toTrack() ?: return@launch
+            if (next.videoId == null && !Downloads.isDownloaded(nt.id)) StreamResolver.lookUpAddon(nt, StreamResolver.bestBuiltIn())
+        }
+    }
+
     private fun buildPlayer(main: Boolean): ExoPlayer {
         val float = LibraryStore.settings.floatOutput
         val leveler = Leveler()
@@ -298,6 +374,8 @@ class PlaybackService : MediaLibraryService() {
     /** `bopdop://play?...` → real CDN url, carrying the User-Agent the url is bound to. */
     private val listener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            precacheNext()
+            lookUpAddons()
             val was = videoAt
             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && was != null && was.songMs > 0 && was.positionMs < was.songMs - 8_000) {
                 // The picture ran out (or its source ended early), not the song: carry on with the song's audio.
@@ -364,6 +442,18 @@ class PlaybackService : MediaLibraryService() {
             val item = player.currentMediaItem ?: return
             val id = item.mediaId
             Log.w("PlaybackService", "error on $id: ${error.errorCodeName}", error)
+            if (item.isAddonCopy) {
+                // The add-on copy wouldn't play: back to the song's usual stream, where it was.
+                StreamResolver.dropAddon(id)
+                val index = player.currentMediaItemIndex
+                val position = player.currentPosition.coerceAtLeast(0)
+                item.toTrack()?.let {
+                    player.replaceMediaItem(index, it.toMediaItem())
+                    player.seekTo(index, position)
+                    player.prepare()
+                    return
+                }
+            }
             if (item.videoId != null) {
                 VideoResolver.invalidate(item.videoId!!)
                 // The merged item also carried the song's own stream; a stale one would fail the fallback too.

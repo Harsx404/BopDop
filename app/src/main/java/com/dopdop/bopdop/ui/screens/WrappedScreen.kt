@@ -194,7 +194,7 @@ private fun CountUp(target: Int, style: androidx.compose.ui.text.TextStyle) {
     Text(NumberFormat.getIntegerInstance().format(a.value.toInt()), style = style, color = Color.White)
 }
 
-private val Big = BopType.Display.copy(fontSize = 54.sp, lineHeight = 58.sp, fontWeight = FontWeight(800))
+private val Big get() = BopType.Display.copy(fontSize = 54.sp, lineHeight = 58.sp, fontWeight = FontWeight(800))
 
 @Composable
 private fun Intro(range: String, s: ReplaySummary) = Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {

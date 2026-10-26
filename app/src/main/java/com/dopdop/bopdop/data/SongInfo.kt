@@ -103,6 +103,8 @@ data class SongInfo(
             cache.getOrLoad(t.id) {
                 when (t.source) {
                     Source.SAAVN -> runCatching { SaavnApi.songObject(t.rawId)?.let(::fromSaavn) }.getOrNull() ?: SongInfo()
+                    Source.SPOTIFY -> runCatching { SaavnApi.hiResMatch(t.title, t.artist, t.durationSec)?.let { SaavnApi.songObject(it.rawId) }?.let(::fromSaavn) }
+                        .getOrNull()?.let { it.copy(album = t.album.ifEmpty { it.album }) } ?: SongInfo(album = t.album)
                     Source.YTM -> {
                         val own = runCatching { fromYtDescription(YtMusic.description(t.rawId)) }.getOrDefault(SongInfo())
                         val match = if (own.credits.isNotEmpty() && own.released.isNotEmpty()) null

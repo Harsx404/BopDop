@@ -15,6 +15,8 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class AddonManifest(
     val id: String, val name: String, val version: String,
@@ -125,12 +127,11 @@ object Addons {
     }
 
     /**
-     * The first add-on copy of [t] that is the same recording, as a playable stream. [download]
+     * The first copy of [t] on [urls] (in that order) that is the same recording, as a playable stream. [download]
      * skips add-ons that only allow playback; add-ons that want a lossless output are skipped on
      * the phone speaker and Bluetooth.
      */
-    suspend fun resolve(context: Context, t: Track, download: Boolean): Pair<AddonStream, String>? {
-        val urls = LibraryStore.settings.addons
+    suspend fun resolve(context: Context, t: Track, download: Boolean, urls: List<String>): Pair<AddonStream, String>? {
         if (urls.isEmpty()) return null
         for (base in urls) {
             val m = runCatching { manifest(base) }.getOrNull() ?: continue
@@ -145,13 +146,40 @@ object Addons {
         return null
     }
 
-    private fun getJson(url: String): Any {
-        val r = Http.client.newCall(Request.Builder().url(url).header("Accept", "application/json").build()).execute()
-        r.use {
+    /** Off the main thread whoever calls: adding an add-on in Settings asks from the UI. */
+    /** What a Settings › Sources test found: [ok], a line for the user, and how long it took. */
+    data class TestResult(val ok: Boolean, val message: String, val ms: Long)
+
+    /**
+     * Checks [base] end to end the way playback uses it: the manifest, a search for [probe] (the
+     * playing song, or a well-known one), and a stream for the best hit. Nothing is played.
+     */
+    suspend fun test(base: String, probe: Track?, context: Context?): TestResult {
+        val start = System.currentTimeMillis()
+        fun done(ok: Boolean, msg: String) = TestResult(ok, msg, System.currentTimeMillis() - start)
+        manifests.remove(base)
+        val m = runCatching { manifest(base) }.getOrElse { return done(false, it.message ?: "No manifest") }
+        val t = probe ?: Track("probe", "Blinding Lights", "The Weeknd", durationSec = 200)
+        val q = "${t.title} ${t.artist.split(",").first()}"
+        val hits = runCatching { search(base, q, context) }.getOrElse { return done(false, "Search failed: ${it.message}") }
+        if (hits.isEmpty()) return done(false, "Answers, but found nothing for \"${t.title}\"")
+        // Playback only ever switches to the same recording; say so plainly when this one isn't there,
+        // rather than testing a look-alike ("Tum Se" for "Tum Se Tum Tak").
+        val hit = hits.firstOrNull { SongVersion.sameRecording(t, Track("ad:${it.id}", it.title, it.artist, durationSec = it.durationSec), toleranceSec = 8) }
+            ?: return done(true, "Working, but it doesn't have \"${t.title}\" (closest: \"${hits.first().title}\" by ${hits.first().artist.ifBlank { "?" }})")
+        val st = runCatching { stream(base, hit, context) }.getOrElse { return done(false, "Found it, but the stream failed: ${it.message}") }
+            ?: return done(false, "Found it, but gave no playable stream")
+        val q2 = listOfNotNull(st.codec.ifBlank { null }, if (st.bitDepth > 0 && st.sampleRate > 0) "${st.bitDepth}/${st.sampleRate / 1000}" else null, if (st.atmos) "Atmos" else null).joinToString(" ")
+        val note = if (m.needsLosslessOutput && context != null && !DeviceAudio.losslessOutput(context)) " · plays only on wired/USB audio" else ""
+        return done(true, "Working · \"${hit.title}\" as ${q2.ifBlank { "audio" }}$note")
+    }
+
+    private suspend fun getJson(url: String): Any = withContext(Dispatchers.IO) {
+        Http.client.newCall(Request.Builder().url(url).header("Accept", "application/json").build()).execute().use {
             if (it.code == 429) throw IOException("The add-on asked to slow down")
-            if (!it.isSuccessful) throw IOException("HTTP ${it.code}")
+            if (!it.isSuccessful) throw IOException("The add-on answered HTTP ${it.code}")
             val text = it.body?.string().orEmpty().trim()
-            return if (text.startsWith("[")) JSONArray(text) else JSONObject(text)
+            if (text.startsWith("[")) JSONArray(text) else JSONObject(text)
         }
     }
 }

@@ -49,7 +49,8 @@ fun rememberCanvasUrl(t: Track): String? {
         if (!signedIn || !s.canvas || t.source == Source.LOCAL) return@produceState
         val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
         if (!s.canvasOnData && cm?.isActiveNetworkMetered != false) return@produceState
-        val uri = SpotifyMatch.spotifyUri(t.id) ?: SpotifyApi.findTrack(t.title, t.artist) ?: return@produceState
+        val uri = (if (t.source == Source.SPOTIFY) "spotify:track:${t.rawId}" else null)
+            ?: SpotifyMatch.spotifyUri(t.id) ?: SpotifyApi.findTrack(t.title, t.artist) ?: return@produceState
         value = SpotifyApi.canvas(uri)
     }
     return url

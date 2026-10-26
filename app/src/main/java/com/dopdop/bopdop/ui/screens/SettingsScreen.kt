@@ -75,6 +75,10 @@ import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.WaterDrop
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.HighQuality
 import com.dopdop.bopdop.ui.glass.glassEdges
@@ -105,6 +109,7 @@ import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.glass.glassLite
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
+import com.dopdop.bopdop.ui.theme.family
 
 private val LANGS = listOf("hindi", "english", "punjabi", "tamil", "telugu", "marathi", "gujarati", "bengali", "kannada", "malayalam", "bhojpuri", "haryanvi", "rajasthani", "odia", "urdu")
 
@@ -178,9 +183,6 @@ fun SettingsScreen() {
                     RowHead(Icons.Rounded.Speed, "Playback speed", "Faster or slower without changing the pitch. Also in the player's ⋯ menu.") {
                         ChipRow(listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f), s.playbackSpeed, { com.dopdop.bopdop.ui.player.speedLabel(it) }) { v -> LibraryStore.updateSettings { it.copy(playbackSpeed = v) } }
                     }
-                    ToggleRow(Icons.Rounded.HighQuality, "Hi-Res match", "Play YouTube Music songs from JioSaavn’s 320 kbps copy when the same recording exists.", s.hiRes) {
-                        LibraryStore.updateSettings { it.copy(hiRes = !it.hiRes) }
-                    }
                     ToggleRow(Icons.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
                         LibraryStore.updateSettings { it.copy(normalize = !it.normalize) }
                     }
@@ -222,9 +224,9 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Lossless & add-ons") {
+        item(key = "group:Sources & lossless") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
-                Group("Lossless & add-ons") { AddonRows() }
+                Group("Sources & lossless") { AddonRows() }
             }
         }
         item(key = "group:Lyrics") {
@@ -295,6 +297,12 @@ fun SettingsScreen() {
                     }
                     RowHead(Icons.Rounded.DarkMode, "Theme", "Auto follows your phone's light or dark setting.", keywords = "dark light mode night") {
                         ChipRow(com.dopdop.bopdop.data.ThemeMode.entries, s.themeMode, { it.label }) { m -> LibraryStore.updateSettings { it.copy(themeMode = m) } }
+                    }
+                    RowHead(Icons.Rounded.TextFields, "Font", "Used for all text in BopDop. Each choice is shown in its own font; Import adds a .ttf or .otf file of your own.", keywords = "typeface font family text style") {
+                        FontChips(s) { f -> LibraryStore.updateSettings { it.copy(font = f) } }
+                    }
+                    RowHead(Icons.Rounded.FormatSize, "Text size", "On top of your phone's own font size.", keywords = "font size bigger smaller larger text scale accessibility") {
+                        ChipRow(com.dopdop.bopdop.data.TextSize.entries, s.textSize, { it.label }) { z -> LibraryStore.updateSettings { it.copy(textSize = z) } }
                     }
                     RowHead(Icons.Rounded.WaterDrop, "Glass", "How much the background shows through.", keywords = "blur transparency") {
                         Row(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 14.dp).fillMaxWidth().glassLite(RoundedCornerShape(14.dp), alpha = 0.45f).padding(4.dp)) {
@@ -640,6 +648,47 @@ private fun <T> ChipRow(options: List<T>, selected: T, label: (T) -> String, onP
     }
 }
 
+/**
+ * The font choices as chips, each label set in the font it picks. "Your font" shows once a file is
+ * imported (by its own name, in itself); the last chip imports one.
+ */
+@Composable
+private fun FontChips(s: com.dopdop.bopdop.data.Settings, onPick: (com.dopdop.bopdop.data.AppFont) -> Unit) {
+    val app = LocalApp.current
+    val ctx = LocalContext.current
+    val custom = com.dopdop.bopdop.data.CustomFont.file(ctx, s.customFont)
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) app.scope.launch {
+            val got = com.dopdop.bopdop.data.CustomFont.import(ctx, uri)
+            if (got == null) app.toast("That file isn't a font BopDop can use")
+            else {
+                LibraryStore.updateSettings { it.copy(font = com.dopdop.bopdop.data.AppFont.CUSTOM, customFont = got.first, customFontName = got.second) }
+                app.toast("Using ${got.second}")
+            }
+        }
+    }
+    FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        com.dopdop.bopdop.data.AppFont.entries.filter { it != com.dopdop.bopdop.data.AppFont.CUSTOM || custom != null }.forEach { f ->
+            val on = f == s.font
+            Text(
+                if (f == com.dopdop.bopdop.data.AppFont.CUSTOM) s.customFontName.ifBlank { f.label } else f.label,
+                style = BopType.Body.copy(fontFamily = f.family(custom)), maxLines = 1,
+                color = if (on) Bop.OnInk else Bop.Text,
+                modifier = Modifier.bounceClick { onPick(f) }.clip(RoundedCornerShape(50))
+                    .background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.55f)).padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+        Text(
+            if (custom == null) "+ Import font" else "+ Another font", style = BopType.Body, color = Bop.Text,
+            modifier = Modifier.bounceClick {
+                // Font files come with many types (font/ttf, application/x-font-ttf, octet-stream...):
+                // offer everything and let the import check it.
+                pick.launch(arrayOf("*/*"))
+            }.clip(RoundedCornerShape(50)).border(1.dp, Bop.Text.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 8.dp),
+        )
+    }
+}
+
 /** Mutually exclusive options in one glass track, like the Glass picker. */
 @Composable
 private fun Segmented(options: List<String>, selected: Int, onPick: (Int) -> Unit) {
@@ -720,9 +769,7 @@ private fun AddonRows() {
     LaunchedEffect(s.addons) {
         s.addons.forEach { base -> runCatching { com.dopdop.bopdop.data.addon.Addons.manifest(base) }.getOrNull()?.let { names[base] = it.name + if (it.version.isNotBlank()) " · v" + it.version else "" } }
     }
-    ToggleRow(Icons.Rounded.HighQuality, "Lossless from add-ons", "Play FLAC/ALAC from your add-ons when they have the same recording. Everything else plays as usual.", s.lossless, keywords = "flac alac hi-res lossless addon source") {
-        LibraryStore.updateSettings { it.copy(lossless = !it.lossless) }
-    }
+    SourcesList(s, names)
     ToggleRow(Icons.Rounded.SurroundSound, "Dolby Atmos", if (com.dopdop.bopdop.data.addon.DeviceAudio.playsAtmos()) "Ask add-ons for Atmos mixes. This phone can play them." else "This phone has no Atmos decoder, so add-ons are asked for stereo.", s.atmos, keywords = "atmos dolby spatial surround") {
         LibraryStore.updateSettings { it.copy(atmos = !it.atmos) }
     }
@@ -731,19 +778,8 @@ private fun AddonRows() {
     }
     Searchable("Add-ons", "add-on server url manifest", "addon source") {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 14.dp)) {
-            Text("Add-ons", style = BopType.BodyStrong, color = Bop.Text, modifier = Modifier.padding(start = 40.dp, top = 6.dp))
+            Text("Add an add-on", style = BopType.BodyStrong, color = Bop.Text, modifier = Modifier.padding(start = 40.dp, top = 6.dp))
             Text("Paste an add-on's URL. BopDop includes none; use only sources you have the right to play.", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(start = 40.dp, bottom = 8.dp))
-            s.addons.forEach { base ->
-                Row(Modifier.padding(start = 40.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(names[base] ?: "Checking…", style = BopType.Body, color = Bop.Text)
-                        Text(base, style = BopType.Caption, color = Bop.Text3, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                    }
-                    Icon(Icons.Rounded.Close, "Remove", tint = Bop.Text2, modifier = Modifier.size(32.dp).clip(CircleShape).bounceClick {
-                        LibraryStore.updateSettings { it.copy(addons = it.addons - base) }
-                    }.padding(6.dp))
-                }
-            }
             Row(Modifier.padding(start = 40.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(Bop.Veil.copy(alpha = 0.55f)).padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
                     if (url.isEmpty()) Text("https://…", style = BopType.Body, color = Bop.Text3)
@@ -764,6 +800,106 @@ private fun AddonRows() {
                 }.padding(horizontal = 16.dp, vertical = 10.dp))
             }
             error?.let { Text(it, style = BopType.Caption, color = Color(0xFFFF6B8B), modifier = Modifier.padding(start = 40.dp, top = 6.dp)) }
+        }
+    }
+}
+
+/**
+ * Where songs play from, best first: each add-on, JioSaavn's 320 kbps copy and YouTube Music.
+ * A song starts on the best built-in source and moves to a higher add-on if one has it. Every
+ * source but YouTube (which has every song) can be switched off, and any can be moved.
+ */
+@Composable
+private fun SourcesList(s: com.dopdop.bopdop.data.Settings, names: Map<String, String>) = Searchable("Sources", "Priority order of add-ons, JioSaavn and YouTube Music; switch sources off; test add-ons", "source priority order addon saavn youtube test lossless flac") {
+    val app = LocalApp.current
+    val ctx = LocalContext.current
+    val order = s.sources()
+    val tests = remember { androidx.compose.runtime.mutableStateMapOf<String, com.dopdop.bopdop.data.addon.Addons.TestResult?>() }
+    val testing = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    fun move(key: String, by: Int) {
+        val list = order.toMutableList()
+        val i = list.indexOf(key)
+        val j = (i + by).coerceIn(0, list.lastIndex)
+        if (i < 0 || i == j) return
+        list.removeAt(i); list.add(j, key)
+        LibraryStore.updateSettings { it.copy(sourceOrder = list) }
+    }
+    Column(Modifier.padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)) {
+        Text("Sources", style = BopType.BodyStrong, color = Bop.Text, modifier = Modifier.padding(start = 40.dp))
+        Text("Best first. Songs start right away on JioSaavn or YouTube, then move to a higher add-on without a gap when it has them.",
+            style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(start = 40.dp, bottom = 6.dp))
+        // What the playing song is coming from, and what the add-ons did for it: answers "why isn't this lossless?".
+        val playing by com.dopdop.bopdop.playback.PlayerConnection.current.collectAsState()
+        val qualities by com.dopdop.bopdop.playback.StreamResolver.quality.collectAsState()
+        val notes by com.dopdop.bopdop.playback.StreamResolver.addonNotes.collectAsState()
+        playing?.let { t ->
+            val q = qualities[t.id]
+            Column(Modifier.padding(start = 40.dp, bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(Bop.Veil.copy(alpha = 0.35f)).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                Text("Now: ${t.title}", style = BopType.Caption.copy(fontWeight = androidx.compose.ui.text.font.FontWeight(600)), color = Bop.Text, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text("From ${q?.via ?: "…"}${q?.let { " · " + it.label } ?: ""}", style = BopType.Caption, color = Bop.Text2)
+                notes[t.id]?.let { Text("Add-ons: $it", style = BopType.Caption, color = Bop.Text2) }
+            }
+        }
+        order.forEachIndexed { i, key ->
+            val addon = key != com.dopdop.bopdop.data.Settings.SAAVN && key != com.dopdop.bopdop.data.Settings.YOUTUBE
+            val on = s.sourceOn(key)
+            val title = when (key) {
+                com.dopdop.bopdop.data.Settings.SAAVN -> "JioSaavn"
+                com.dopdop.bopdop.data.Settings.YOUTUBE -> "YouTube Music"
+                else -> names[key] ?: "Checking…"
+            }
+            val sub = when (key) {
+                com.dopdop.bopdop.data.Settings.SAAVN -> "320 kbps AAC copy of the same recording, when it has one"
+                com.dopdop.bopdop.data.Settings.YOUTUBE -> "Every song. Always on: it plays whatever the others don't"
+                else -> key.removePrefix("https://")
+            }
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp))
+                .background(Bop.Veil.copy(alpha = if (on) 0.5f else 0.25f)).padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${i + 1}", style = BopType.Headline, color = if (on) Bop.Text else Bop.Text3, modifier = Modifier.width(26.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(title, style = BopType.BodyStrong, color = if (on) Bop.Text else Bop.Text3, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(sub, style = BopType.Caption, color = Bop.Text3, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    if (key == com.dopdop.bopdop.data.Settings.YOUTUBE) Text("Always on", style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(end = 8.dp))
+                    else Box(Modifier.bounceClick {
+                        LibraryStore.updateSettings {
+                            if (key == com.dopdop.bopdop.data.Settings.SAAVN) it.copy(hiRes = !it.hiRes)
+                            else it.copy(addonsOff = if (key in it.addonsOff) it.addonsOff - key else it.addonsOff + key)
+                        }
+                    }) { GlassSwitch(on) }
+                }
+                Row(Modifier.padding(start = 22.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.KeyboardArrowUp, "Move up", tint = if (i > 0) Bop.Text else Bop.Text3.copy(alpha = 0.4f),
+                        modifier = Modifier.size(34.dp).clip(CircleShape).bounceClick { move(key, -1) }.padding(5.dp))
+                    Icon(Icons.Rounded.KeyboardArrowDown, "Move down", tint = if (i < order.lastIndex) Bop.Text else Bop.Text3.copy(alpha = 0.4f),
+                        modifier = Modifier.size(34.dp).clip(CircleShape).bounceClick { move(key, 1) }.padding(5.dp))
+                    Spacer(Modifier.weight(1f))
+                    if (addon) {
+                        val busy = key in testing
+                        Text(if (busy) "Testing…" else "Test", style = BopType.Caption, color = Bop.Text,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).border(1.dp, Bop.Text.copy(alpha = 0.25f), RoundedCornerShape(50))
+                                .bounceClick {
+                                    if (busy) return@bounceClick
+                                    testing += key; tests[key] = null
+                                    app.scope.launch {
+                                        tests[key] = com.dopdop.bopdop.data.addon.Addons.test(key, com.dopdop.bopdop.playback.PlayerConnection.current.value, ctx)
+                                        testing -= key
+                                    }
+                                }.padding(horizontal = 12.dp, vertical = 6.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Rounded.Close, "Remove", tint = Bop.Text2, modifier = Modifier.size(34.dp).clip(CircleShape).bounceClick {
+                            LibraryStore.updateSettings { it.copy(addons = it.addons - key, addonsOff = it.addonsOff - key, sourceOrder = it.sourceOrder - key) }
+                        }.padding(7.dp))
+                    }
+                }
+                tests[key]?.let { r ->
+                    Text((if (r.ok) "✓ " else "✕ ") + r.message + " · " + "%.1f s".format(r.ms / 1000f), style = BopType.Caption,
+                        color = if (r.ok) Color(0xFF34C759) else Color(0xFFFF6B8B), modifier = Modifier.padding(start = 26.dp, top = 2.dp, bottom = 2.dp))
+                }
+            }
         }
     }
 }

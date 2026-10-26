@@ -4,10 +4,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Where a track/collection comes from. Ids are prefixed so they never collide across sources. */
-enum class Source { YTM, SAAVN, LOCAL }
+/** Where a song or card comes from. SPOTIFY is browse-only: its songs play from their YouTube Music copy. */
+enum class Source { YTM, SAAVN, LOCAL, SPOTIFY }
 
 data class Track(
-    /** "yt:<videoId>", "sv:<saavnId>" or "lc:<MediaStore id>" for a file on this phone. */
+    /** "yt:<videoId>", "sv:<saavnId>", "sp:<Spotify id>" (plays from YouTube) or "lc:<MediaStore id>" for a file on this phone. */
     val id: String,
     val title: String,
     val artist: String,
@@ -24,6 +25,7 @@ data class Track(
     val source: Source get() = when {
         id.startsWith("sv:") -> Source.SAAVN
         id.startsWith("lc:") -> Source.LOCAL
+        id.startsWith("sp:") -> Source.SPOTIFY
         else -> Source.YTM
     }
     val rawId: String get() = id.substringAfter(':')
@@ -68,6 +70,7 @@ data class Card(
     val source: Source get() = when {
         id.startsWith("sv:") -> Source.SAAVN
         id.startsWith("local:") -> Source.LOCAL
+        id.startsWith("sp:") -> Source.SPOTIFY
         else -> Source.YTM
     }
     val rawId: String get() = id.substringAfter(':')

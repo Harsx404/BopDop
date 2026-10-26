@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -74,16 +75,61 @@ val Jakarta = FontFamily(jakarta(400), jakarta(500), jakarta(600), jakarta(700),
 
 object BopType {
     // A compact scale: phones already enlarge text with the system font size.
-    val Hero = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 31.sp, letterSpacing = (-0.035).em, lineHeight = 35.sp)
-    val Display = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 25.sp, letterSpacing = (-0.03).em, lineHeight = 29.sp)
-    val Title = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 18.5.sp, letterSpacing = (-0.02).em, lineHeight = 23.sp)
-    val Headline = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(600), fontSize = 15.5.sp, letterSpacing = (-0.01).em, lineHeight = 20.sp)
-    val Body = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 14.sp, letterSpacing = (-0.005).em, lineHeight = 19.sp)
-    val BodyStrong = Body.copy(fontWeight = FontWeight(600))
-    val Caption = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(500), fontSize = 12.sp, lineHeight = 16.sp)
-    val Micro = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 10.sp, letterSpacing = 0.08.em)
-    val Lyric = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight(700), fontSize = 26.sp, letterSpacing = (-0.03).em, lineHeight = 32.sp)
+    private class Styles(f: FontFamily) {
+        val hero = TextStyle(fontFamily = f, fontWeight = FontWeight(600), fontSize = 31.sp, letterSpacing = (-0.035).em, lineHeight = 35.sp)
+        val display = TextStyle(fontFamily = f, fontWeight = FontWeight(600), fontSize = 25.sp, letterSpacing = (-0.03).em, lineHeight = 29.sp)
+        val title = TextStyle(fontFamily = f, fontWeight = FontWeight(600), fontSize = 18.5.sp, letterSpacing = (-0.02).em, lineHeight = 23.sp)
+        val headline = TextStyle(fontFamily = f, fontWeight = FontWeight(600), fontSize = 15.5.sp, letterSpacing = (-0.01).em, lineHeight = 20.sp)
+        val body = TextStyle(fontFamily = f, fontWeight = FontWeight(500), fontSize = 14.sp, letterSpacing = (-0.005).em, lineHeight = 19.sp)
+        val bodyStrong = body.copy(fontWeight = FontWeight(600))
+        val caption = TextStyle(fontFamily = f, fontWeight = FontWeight(500), fontSize = 12.sp, lineHeight = 16.sp)
+        val micro = TextStyle(fontFamily = f, fontWeight = FontWeight(700), fontSize = 10.sp, letterSpacing = 0.08.em)
+        val lyric = TextStyle(fontFamily = f, fontWeight = FontWeight(700), fontSize = 26.sp, letterSpacing = (-0.03).em, lineHeight = 32.sp)
+    }
+    private var styles by mutableStateOf(Styles(Jakarta))
+
+    /** The family every style uses: the font picked in Settings › Appearance. Text redraws when it changes. */
+    var family: FontFamily = Jakarta
+        set(value) { if (value != field) { field = value; styles = Styles(value) } }
+
+    val Hero get() = styles.hero
+    val Display get() = styles.display
+    val Title get() = styles.title
+    val Headline get() = styles.headline
+    val Body get() = styles.body
+    val BodyStrong get() = styles.bodyStrong
+    val Caption get() = styles.caption
+    val Micro get() = styles.micro
+    val Lyric get() = styles.lyric
 }
+
+/**
+ * The fonts on offer: BopDop's own, families every Android phone already has (nothing to download),
+ * and the user's imported [custom] file, which falls back to BopDop's font if it has gone missing.
+ */
+fun com.dopdop.bopdop.data.AppFont.family(custom: java.io.File? = null): FontFamily = when (this) {
+    com.dopdop.bopdop.data.AppFont.BOPDOP -> Jakarta
+    com.dopdop.bopdop.data.AppFont.SYSTEM -> FontFamily.Default
+    com.dopdop.bopdop.data.AppFont.CONDENSED -> condensed
+    com.dopdop.bopdop.data.AppFont.SERIF -> FontFamily.Serif
+    com.dopdop.bopdop.data.AppFont.MONO -> FontFamily.Monospace
+    com.dopdop.bopdop.data.AppFont.CASUAL -> casual
+    com.dopdop.bopdop.data.AppFont.CURSIVE -> FontFamily.Cursive
+    com.dopdop.bopdop.data.AppFont.CUSTOM -> custom?.let { customFamilies.getOrPut(it.path) { FontFamily(Font(it)) } } ?: Jakarta
+}
+
+/** One FontFamily per imported file, so recompositions don't keep reloading it. */
+private val customFamilies = HashMap<String, FontFamily>()
+
+@OptIn(ExperimentalTextApi::class)
+private val condensed = FontFamily(
+    Font(androidx.compose.ui.text.font.DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Normal),
+    Font(androidx.compose.ui.text.font.DeviceFontFamilyName("sans-serif-condensed-medium"), FontWeight.Medium),
+    Font(androidx.compose.ui.text.font.DeviceFontFamilyName("sans-serif-condensed"), FontWeight.Bold),
+)
+
+@OptIn(ExperimentalTextApi::class)
+private val casual = FontFamily(Font(androidx.compose.ui.text.font.DeviceFontFamilyName("casual")))
 
 @Composable
 fun BopDopTheme(content: @Composable () -> Unit) {

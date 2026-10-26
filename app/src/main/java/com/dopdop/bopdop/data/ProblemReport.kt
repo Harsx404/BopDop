@@ -40,7 +40,7 @@ object ProblemReport {
             if (note.isNotBlank()) { appendLine("What happened:"); appendLine(note.trim()); appendLine() }
             appendLine("App ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             appendLine("Phone ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · ${Build.SUPPORTED_ABIS.firstOrNull()}")
-            appendLine("Settings: quality ${s.audioWifi}/${s.audioMobile} · hi-res ${s.hiRes} · lossless ${s.lossless} · add-ons ${s.addons.size} · mascot ${s.mascot} · reduce motion ${s.reduceMotion} · spotify ${com.dopdop.bopdop.data.spotify.SpotifyAccount.signedIn}")
+            appendLine("Settings: quality ${s.audioWifi}/${s.audioMobile} · sources ${s.sources().filter(s::sourceOn).joinToString(">") { if (it.startsWith("http")) "addon" else it }} · add-ons ${s.addons.size} · mascot ${s.mascot} · reduce motion ${s.reduceMotion} · spotify ${com.dopdop.bopdop.data.spotify.SpotifyAccount.signedIn}")
             crashFile(ctx).takeIf { it.exists() }?.let { appendLine(); appendLine("Last crash:"); appendLine(it.readText()) }
             appendLine(); appendLine("Log:"); append(log)
         }

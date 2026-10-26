@@ -118,6 +118,7 @@ object ListenBrainz {
         when (t.source) {
             Source.YTM -> info.put("music_service", "music.youtube.com").put("origin_url", "https://music.youtube.com/watch?v=${t.id.removePrefix("yt:")}")
             Source.SAAVN -> info.put("music_service", "jiosaavn.com")
+            Source.SPOTIFY -> info.put("music_service", "spotify.com").put("origin_url", "https://open.spotify.com/track/${t.rawId}")
             Source.LOCAL -> {}
         }
         return JSONObject().put("artist_name", t.artist).put("track_name", t.title).put("additional_info", info).apply {
