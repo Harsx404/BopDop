@@ -3,9 +3,7 @@ package com.dopdop.bopdop.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -48,8 +46,6 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.layout
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.EnterTransition
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -66,6 +62,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -182,8 +180,12 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 LiquidMetalBackground(palette, Modifier.fillMaxSize())
-                TabsHost(app)
-                AppNavHost(app)
+                // How far the (empty) tabs page in the navigation stack has slid, in px; TabsHost turns
+                // it into the tabs' fade, so they follow every page change, a back swipe included.
+                // NaN while a page covers them.
+                val tabsX = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                TabsHost(app, tabsX)
+                AppNavHost(app, tabsX)
             }
 
             BottomChrome(app, hasTrack = current != null, navBottom = navBottom)
@@ -253,7 +255,7 @@ val LocalTabActive = androidx.compose.runtime.compositionLocalOf { true }
  * one fading out) is laid out, drawn and touchable.
  */
 @Composable
-private fun TabsHost(app: AppState) {
+private fun TabsHost(app: AppState, tabsX: androidx.compose.runtime.MutableFloatState) {
     val entry by app.nav.currentBackStackEntryAsState()
     val visible by app.nav.visibleEntries.collectAsState()
     val onTabs = (entry?.destination?.route ?: Routes.TABS) == Routes.TABS
@@ -270,11 +272,6 @@ private fun TabsHost(app: AppState) {
         }
         wasOnTabs = onTabs
     }
-    val reveal by androidx.compose.animation.core.animateFloatAsState(
-        // Coming back, the tabs wait for the closing page to be mostly gone: both are see-through
-        // glass over the same backdrop, and drawn together they read as one garbled page.
-        if (shown) 1f else 0f, if (shown) tween(220, delayMillis = 90, easing = LinearOutSlowInEasing) else tween(110, easing = FastOutLinearInEasing), label = "tabsReveal",
-    )
     val opened = remember { androidx.compose.runtime.mutableStateListOf(Routes.HOME) }
     if (app.tab !in opened) opened += app.tab
 
@@ -284,22 +281,23 @@ private fun TabsHost(app: AppState) {
 
     Box(
         Modifier.fillMaxSize().graphicsLayer {
-            alpha = reveal
-            // Coming back, the tab settles up from slightly smaller, under the closing page.
-            val s = 0.96f + 0.04f * reveal
+            // The tabs page slides a quarter-width as it leaves or comes back: fully in is 1, gone is 0.
+            val p = tabsX.floatValue.takeUnless { it.isNaN() }?.let { 1f - (kotlin.math.abs(it) / (size.width / 4f)).coerceIn(0f, 1f) } ?: 0f
+            // The same fade and slight scale as switching tabs.
+            alpha = p
+            val s = 0.985f + 0.015f * p
             scaleX = s; scaleY = s
         },
     ) {
         opened.forEach { route ->
             val selected = route == app.tab
             val a by androidx.compose.animation.core.animateFloatAsState(if (selected) 1f else 0f, tween(if (selected) 220 else 160), label = "tab")
-            val live = a > 0f && reveal > 0f
             androidx.compose.runtime.key(route) {
                 CompositionLocalProvider(LocalTabActive provides (selected && shown)) {
                     Box(
                         Modifier.fillMaxSize()
                             // Kept composed but not placed while hidden: no drawing, no touches.
-                            .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (live) p.place(0, 0) } }
+                            .layout { m, c -> val p = m.measure(c); layout(p.width, p.height) { if (a > 0f && !tabsX.floatValue.isNaN()) p.place(0, 0) } }
                             .graphicsLayer { alpha = a; val s = 0.985f + 0.015f * a; scaleX = s; scaleY = s },
                     ) {
                         when (route) {
@@ -315,30 +313,36 @@ private fun TabsHost(app: AppState) {
 }
 
 @Composable
-private fun AppNavHost(app: AppState) {
-    // Short and decisive: the page underneath fades out fast, so both pages (each with
-    // its own glass and artwork) only render together for a few frames.
-    // No delayed starts: with predictive back the pop runs as you swipe, and a delay reads as a stall.
-    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(200, delayMillis = 80))
-    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(110, easing = FastOutLinearInEasing))
-    // Pages are glass with no backdrop of their own, so a closing page and the one under it must
-    // not both be visible at once: the closing page is gone in ~110 ms, the one under fades in after.
-    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(200, delayMillis = 90))
-    // Closing a page: it slides off to the right, shrinking a touch, as the tabs come back underneath.
-    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(110, easing = FastOutLinearInEasing)) + scaleOut(tween(260), 0.96f)
-    fun fromTabs(e: androidx.navigation.NavBackStackEntry) = e.destination.route == Routes.TABS
+private fun AppNavHost(app: AppState, tabsX: androidx.compose.runtime.MutableFloatState) {
+    // Pages change the way the tabs do: the new one fades in from a touch smaller, the old one fades
+    // out. Short, and on the same curve, so it reads as one move.
+    val enter = fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.985f)
+    val exit = fadeOut(tween(160)) + scaleOut(tween(160), targetScale = 0.985f)
+    // The tabs page is empty (TabsHost draws the tabs underneath): it slides by a quarter-width on
+    // the same timing, and TabsHost reads that distance as how far the tabs have faded.
+    fun isTabs(e: androidx.navigation.NavBackStackEntry) = e.destination.route == Routes.TABS
+    val tabsIn = slideInHorizontally(tween(220)) { -it / 4 }
+    val tabsOut = slideOutHorizontally(tween(160)) { -it / 4 }
     val str = { name: String -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }
 
     NavHost(
         navController = app.nav,
         startDestination = Routes.TABS,
-        // The tabs root is an empty page: the tabs themselves are drawn by TabsHost underneath.
-        enterTransition = { if (fromTabs(targetState)) EnterTransition.None else enter },
-        exitTransition = { if (fromTabs(initialState)) ExitTransition.None else exit },
-        popEnterTransition = { if (fromTabs(targetState)) EnterTransition.None else popEnter },
-        popExitTransition = { popExit },
+        enterTransition = { if (isTabs(targetState)) tabsIn else enter },
+        exitTransition = { if (isTabs(initialState)) tabsOut else exit },
+        popEnterTransition = { if (isTabs(targetState)) tabsIn else enter },
+        popExitTransition = { if (isTabs(initialState)) tabsOut else exit },
+        // A back swipe runs these instead of the two above (Navigation's own default is a shrink that
+        // leaves the page opaque while the tabs show underneath): the same fade, following the finger.
+        predictivePopEnterTransition = { if (isTabs(targetState)) tabsIn else enter },
+        predictivePopExitTransition = { if (isTabs(initialState)) tabsOut else exit },
     ) {
-        composable(Routes.TABS) { Box(Modifier.fillMaxSize()) }
+        // The tabs root is an empty page: the tabs themselves are drawn by TabsHost underneath,
+        // following this page's position so they fade exactly like any other page.
+        composable(Routes.TABS) {
+            androidx.compose.runtime.DisposableEffect(Unit) { onDispose { tabsX.floatValue = Float.NaN } }
+            Box(Modifier.fillMaxSize().onGloballyPositioned { tabsX.floatValue = it.positionInRoot().x })
+        }
         composable(Routes.SEARCH) { SearchScreen() }
         composable(Routes.TOGETHER, listOf(str("code"))) { e -> com.dopdop.bopdop.ui.screens.TogetherScreen(e.arguments!!.getString("code")!!) }
         composable(Routes.WRAPPED) { com.dopdop.bopdop.ui.screens.WrappedScreen() }
