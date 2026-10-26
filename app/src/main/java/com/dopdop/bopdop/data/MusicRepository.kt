@@ -29,23 +29,17 @@ import java.io.IOException
  */
 object MusicRepository {
 
-    suspend fun home(): HomeFeed = withContext(Dispatchers.IO) {
-        coroutineScope {
-            val yt = async { runCatching { YtMusic.home() } }
-            val sv = async {
-                if (LibraryStore.settings.showSaavnHome) runCatching { SaavnApi.home(LibraryStore.settings.languages) }
-                else Result.success(emptyList())
-            }
-            val y = yt.await(); val s = sv.await()
-            if (y.isFailure && s.isFailure) throw y.exceptionOrNull() ?: IOException("Offline")
-            mergeHomeRecommendations(y.getOrDefault(emptyList()), s.getOrDefault(emptyList()))
-        }
+    /** Home is YouTube Music's own feed (yours when signed in), fresh each time; [mood] is one of its chips. */
+    suspend fun home(mood: String? = null): HomeFeed = withContext(Dispatchers.IO) {
+        val (shelves, chips) = YtMusic.homeFeed(mood)
+        mergeHomeRecommendations(shelves, emptyList()).copy(chips = chips)
     }
 
     suspend fun search(q: String): SearchResults = withContext(Dispatchers.IO) {
         coroutineScope {
+            // The catalogue is YouTube Music's; JioSaavn only supplies Hi-Res audio and lyrics behind the scenes.
             val yt = async { runCatching { YtMusic.search(q) }.getOrDefault(SearchResults()) }
-            val sv = async { runCatching { SaavnApi.search(q) }.getOrDefault(SearchResults()) }
+            val sv = async { SearchResults() }
             val a = yt.await(); val b = sv.await()
             // Interleave songs by rank and drop the same recording appearing twice.
             val seen = HashSet<String>()
@@ -97,14 +91,14 @@ object MusicRepository {
 
     /** "Up next" continuation for a track — feeds autoplay and Start Radio. */
     suspend fun related(t: Track): List<Track> = withContext(Dispatchers.IO) {
-        val list = when (t.source) {
-            Source.SAAVN -> runCatching { SaavnApi.reco(t.rawId) }.getOrDefault(emptyList())
-                .ifEmpty { runCatching { SaavnApi.station(ids = listOf(t.rawId)) }.getOrDefault(emptyList()) }
-            else -> runCatching { YtMusic.next(t.rawId) }.getOrDefault(emptyList())
-        }
-        list.ifEmpty {
-            runCatching { YtMusic.searchSongs("${t.artist.split(",").first()} songs") }.getOrDefault(emptyList())
-        }.filter { it.id != t.id && !LibraryStore.isDisliked(it) }
+        // YouTube Music's radio for the song; JioSaavn and on-phone songs use their YouTube Music copy.
+        val seedId = if (t.source == Source.YTM) t.rawId else runCatching {
+            YtMusic.searchSongs("${t.title} ${t.artist.split(",").first()}").firstOrNull { com.dopdop.bopdop.data.model.SongVersion.sameRecording(t, it) }?.rawId
+        }.getOrNull()
+        val pool = seedId?.let { runCatching { YtMusic.next(it) }.getOrDefault(emptyList()) }.orEmpty()
+            .ifEmpty { runCatching { YtMusic.searchSongs("${t.artist.split(",").first()} songs") }.getOrDefault(emptyList()) }
+        val lib = LibraryStore.state.value
+        Recommender.rank(t, pool, lib.liked, lib.history, LibraryStore::isDisliked)
     }
 
     /** Tracks for shared ids ("yt:…" / "sv:…"), in the order given; unknown ids are dropped. */

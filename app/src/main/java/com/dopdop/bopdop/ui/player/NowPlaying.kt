@@ -187,7 +187,6 @@ fun NowPlaying(app: AppState) {
         swiped = false
     }
 
-    val genie = remember { if (android.os.Build.VERSION.SDK_INT >= 33) Genie() else null }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val h = constraints.maxHeight.toFloat()
         val w = constraints.maxWidth.toFloat()
@@ -195,26 +194,22 @@ fun NowPlaying(app: AppState) {
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    // Closes INTO the mini player's cover like a genie into its lamp; opening pours back out.
+                    // Closes INTO the mini player's cover, shrinking with rounding corners; opening grows back
+                    // out. A plain transform: the page isn't redrawn per frame, so it stays smooth.
                     val e = (1f - p).coerceIn(0f, 1f)
                     val target = app.miniArt ?: androidx.compose.ui.geometry.Rect(
                         25.dp.toPx(), h - 150.dp.toPx(), 71.dp.toPx(), h - 104.dp.toPx(),
                     )
                     // The real cover takes over for the last stretch.
                     alpha = 1f - ((e - 0.84f) / 0.16f).coerceIn(0f, 1f)
-                    if (genie != null) {
-                        renderEffect = if (e > 0.002f) genie.effect(size, target, e) else null
-                    } else {
-                        // No runtime shaders: scale straight into the cover instead.
-                        val eased = e * e * (3f - 2f * e)
-                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
-                        scaleX = 1f + (target.width / w - 1f) * eased
-                        scaleY = 1f + (target.height / h - 1f) * eased
-                        translationX = target.left * eased
-                        translationY = target.top * eased
-                        shape = RoundedCornerShape((eased * 14.dp.toPx() / scaleX.coerceAtLeast(0.05f)).coerceAtMost(w / 2f))
-                        clip = true
-                    }
+                    val eased = e * e * (3f - 2f * e)
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    scaleX = 1f + (target.width / w - 1f) * eased
+                    scaleY = 1f + (target.height / h - 1f) * eased
+                    translationX = target.left * eased
+                    translationY = target.top * eased
+                    shape = RoundedCornerShape((eased * 14.dp.toPx() / scaleX.coerceAtLeast(0.05f)).coerceAtMost(w / 2f))
+                    clip = e > 0f
                 }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(

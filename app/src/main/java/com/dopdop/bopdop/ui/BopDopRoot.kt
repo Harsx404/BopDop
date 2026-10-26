@@ -3,7 +3,9 @@ package com.dopdop.bopdop.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -269,7 +271,9 @@ private fun TabsHost(app: AppState) {
         wasOnTabs = onTabs
     }
     val reveal by androidx.compose.animation.core.animateFloatAsState(
-        if (shown) 1f else 0f, if (shown) spring(dampingRatio = 0.9f, stiffness = 380f) else tween(160), label = "tabsReveal",
+        // Coming back, the tabs wait for the closing page to be mostly gone: both are see-through
+        // glass over the same backdrop, and drawn together they read as one garbled page.
+        if (shown) 1f else 0f, if (shown) tween(220, delayMillis = 90, easing = LinearOutSlowInEasing) else tween(110, easing = FastOutLinearInEasing), label = "tabsReveal",
     )
     val opened = remember { androidx.compose.runtime.mutableStateListOf(Routes.HOME) }
     if (app.tab !in opened) opened += app.tab
@@ -315,11 +319,13 @@ private fun AppNavHost(app: AppState) {
     // Short and decisive: the page underneath fades out fast, so both pages (each with
     // its own glass and artwork) only render together for a few frames.
     // No delayed starts: with predictive back the pop runs as you swipe, and a delay reads as a stall.
-    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(220))
-    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(160))
-    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(220))
+    val enter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(200, delayMillis = 80))
+    val exit = slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeOut(tween(110, easing = FastOutLinearInEasing))
+    // Pages are glass with no backdrop of their own, so a closing page and the one under it must
+    // not both be visible at once: the closing page is gone in ~110 ms, the one under fades in after.
+    val popEnter = slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 10 } + fadeIn(tween(200, delayMillis = 90))
     // Closing a page: it slides off to the right, shrinking a touch, as the tabs come back underneath.
-    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(200)) + scaleOut(tween(260), 0.96f)
+    val popExit = slideOutHorizontally(tween(260, easing = FastOutSlowInEasing)) { it / 4 } + fadeOut(tween(110, easing = FastOutLinearInEasing)) + scaleOut(tween(260), 0.96f)
     fun fromTabs(e: androidx.navigation.NavBackStackEntry) = e.destination.route == Routes.TABS
     val str = { name: String -> navArgument(name) { type = NavType.StringType; defaultValue = "" } }
 

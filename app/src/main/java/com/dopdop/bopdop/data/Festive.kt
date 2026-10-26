@@ -10,13 +10,18 @@ import java.util.Locale
 enum class Festival(val label: String, val greeting: String) {
     NAVARATRI("Navaratri", "Happy Navratri"),
     HALLOWEEN("Halloween", "Happy Halloween"),
+    DIWALI("Diwali", "Happy Diwali"),
+    CHHATH("Chhath Puja", "Happy Chhath Puja"),
 }
 
 /** Whether festival themes show on Home. */
 enum class FestiveLevel(val label: String) { FULL("On"), OFF("Off") }
 
 /** Which festival to celebrate: the one for your region, a particular one, or all of them. */
-enum class FestivePick(val label: String) { AUTO("My region"), NAVARATRI("Navaratri"), HALLOWEEN("Halloween"), ALL("All") }
+enum class FestivePick(val label: String, val festival: Festival? = null) {
+    AUTO("My region"), NAVARATRI("Navaratri", Festival.NAVARATRI), DIWALI("Diwali", Festival.DIWALI),
+    CHHATH("Chhath Puja", Festival.CHHATH), HALLOWEEN("Halloween", Festival.HALLOWEEN), ALL("All"),
+}
 
 object Festivals {
     const val LEAD_DAYS = 5L
@@ -33,14 +38,28 @@ object Festivals {
         2028 to (LocalDate.of(2028, 9, 18) to LocalDate.of(2028, 9, 27)),
     )
 
-    /** The days a festival's theme shows in [year]: from five days before it until it ends. */
-    fun window(f: Festival, year: Int): ClosedRange<LocalDate>? {
-        val (start, end) = when (f) {
-            Festival.NAVARATRI -> navaratri[year] ?: return null
-            Festival.HALLOWEEN -> LocalDate.of(year, Month.OCTOBER, 31) to LocalDate.of(year, Month.OCTOBER, 31)
-        }
-        return start.minusDays(LEAD_DAYS)..end
+    /**
+     * Diwali (Lakshmi Puja) by year, from Drik Panchang. Dhanteras is two days before and Bhai Dooj
+     * two days after. Chhath Puja's Sandhya Arghya is six days after Diwali (Kartik Shukla Shashthi),
+     * from Nahay Khay (+4) to Usha Arghya (+7).
+     */
+    private val diwali = mapOf(
+        2025 to LocalDate.of(2025, 10, 20),
+        2026 to LocalDate.of(2026, 11, 8),
+        2027 to LocalDate.of(2027, 10, 29),
+        2028 to LocalDate.of(2028, 10, 17),
+    )
+
+    /** The festival's own days in [year] (no lead-up). */
+    fun days(f: Festival, year: Int): ClosedRange<LocalDate>? = when (f) {
+        Festival.NAVARATRI -> navaratri[year]?.let { it.first..it.second }
+        Festival.HALLOWEEN -> LocalDate.of(year, Month.OCTOBER, 31).let { it..it }
+        Festival.DIWALI -> diwali[year]?.let { it.minusDays(2)..it.plusDays(2) }
+        Festival.CHHATH -> diwali[year]?.let { it.plusDays(4)..it.plusDays(7) }
     }
+
+    /** The days a festival's theme shows in [year]: from five days before it until it ends. */
+    fun window(f: Festival, year: Int): ClosedRange<LocalDate>? = days(f, year)?.let { it.start.minusDays(LEAD_DAYS)..it.endInclusive }
 
     /** Dussehra (Vijayadashami): the last day of the Navaratri window. */
     fun isDussehra(today: LocalDate): Boolean = navaratri[today.year]?.second == today
@@ -50,9 +69,23 @@ object Festivals {
      * day of Navratri while it runs ("Day 4"), and the festival's own greeting on its day.
      */
     fun greeting(f: Festival, today: LocalDate): String {
+        // Diwali's five days and Chhath's four each have their own name.
+        diwali[today.year]?.let { d ->
+            val k = java.time.temporal.ChronoUnit.DAYS.between(d, today).toInt()
+            if (f == Festival.DIWALI) when (k) {
+                -2 -> return "Happy Dhanteras"; -1 -> return "Choti Diwali"; 0 -> return "Happy Diwali"
+                1 -> return "Govardhan Puja"; 2 -> return "Happy Bhai Dooj"
+            }
+            if (f == Festival.CHHATH) when (k) {
+                4 -> return "Chhath Puja · Nahay Khay"; 5 -> return "Chhath Puja · Kharna"
+                6 -> return "Chhath Puja · Sandhya Arghya"; 7 -> return "Chhath Puja · Usha Arghya"
+            }
+        }
         val start = when (f) {
             Festival.NAVARATRI -> navaratri[today.year]?.first
             Festival.HALLOWEEN -> LocalDate.of(today.year, Month.OCTOBER, 31)
+            Festival.DIWALI -> diwali[today.year]
+            Festival.CHHATH -> diwali[today.year]?.plusDays(6)
         } ?: return f.greeting
         val until = java.time.temporal.ChronoUnit.DAYS.between(today, start)
         return when {
@@ -68,19 +101,27 @@ object Festivals {
     fun passed(f: Festival, today: LocalDate): Boolean = window(f, today.year)?.let { today > it.endInclusive } ?: true
 
     /** The choices offered: My region and All, plus each festival that hasn't ended this year. */
-    fun picks(today: LocalDate): List<FestivePick> = FestivePick.entries.filter { p ->
-        when (p) {
-            FestivePick.NAVARATRI -> !passed(Festival.NAVARATRI, today)
-            FestivePick.HALLOWEEN -> !passed(Festival.HALLOWEEN, today)
-            else -> true
-        }
-    }
+    fun picks(today: LocalDate): List<FestivePick> = FestivePick.entries.filter { p -> p.festival?.let { !passed(it, today) } ?: true }
 
     /** Festivals whose theme window includes [today]. */
     fun open(today: LocalDate): List<Festival> = Festival.entries.filter { f -> window(f, today.year)?.contains(today) == true }
 
-    /** The festival people around [country] celebrate: Navaratri in India and Nepal, Halloween elsewhere. */
-    fun forRegion(country: String): Festival = if (country.uppercase(Locale.ROOT) in setOf("IN", "NP")) Festival.NAVARATRI else Festival.HALLOWEEN
+    /**
+     * The festivals people around [country] celebrate, most important first: in India and Nepal
+     * Navaratri, Diwali and Chhath Puja, with Halloween when none of them is on; elsewhere Halloween
+     * and Diwali.
+     */
+    fun forRegion(country: String): List<Festival> =
+        if (country.uppercase(Locale.ROOT) in setOf("IN", "NP")) listOf(Festival.NAVARATRI, Festival.DIWALI, Festival.CHHATH, Festival.HALLOWEEN)
+        else listOf(Festival.HALLOWEEN, Festival.DIWALI)
+
+    /**
+     * Of several festivals in their windows, the one to show: one whose own days have begun wins
+     * over one still in its lead-up; then the earlier in [order] (region priority).
+     */
+    private fun choose(open: List<Festival>, order: List<Festival>, today: LocalDate): Festival? =
+        open.sortedWith(compareBy({ f -> if (days(f, today.year)?.contains(today) == true) 0 else 1 }, { f -> order.indexOf(f).let { if (it < 0) 99 else it } }))
+            .firstOrNull()
 
     /**
      * The festival to show now, if any. Auto shows your region's festival in its window; picking
@@ -93,11 +134,10 @@ object Festivals {
         val open = open(today)
         if (open.isEmpty()) return null
         return when (pick) {
-            FestivePick.AUTO -> forRegion(country).takeIf { it in open }
+            FestivePick.AUTO -> forRegion(country).let { region -> choose(open.filter { it in region }, region, today) }
+            FestivePick.ALL -> choose(open, Festival.entries, today)
             // A picked festival whose dates have gone by this year is over: it never stands in for another.
-            FestivePick.NAVARATRI -> Festival.NAVARATRI.takeUnless { passed(it, today) }
-            FestivePick.HALLOWEEN -> Festival.HALLOWEEN.takeUnless { passed(it, today) }
-            FestivePick.ALL -> open.first()
+            else -> pick.festival?.takeUnless { passed(it, today) }
         }
     }
 

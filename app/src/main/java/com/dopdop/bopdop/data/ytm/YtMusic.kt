@@ -350,17 +350,66 @@ object YtMusic {
             .filter { it.isNotBlank() }.distinct().take(8)
     }
 
-    /** Up-next / radio for a video. */
+    private fun musicVideoType(r: JSONObject?) = r?.optJSONObject("navigationEndpoint")?.optJSONObject("watchEndpoint")
+        ?.optJSONObject("watchEndpointMusicSupportedConfigs")?.optJSONObject("watchEndpointMusicConfig")?.optString("musicVideoType").orEmpty()
+
+    /**
+     * Each entry of an up-next panel as one song. YouTube lists a song together with its music
+     * video (a wrapper with a "counterpart"); the song version (ATV) is the one that's kept, so radio
+     * never plays a video's soundtrack with its intro and skits.
+     */
+    private fun panelSongs(d: JSONObject): List<JSONObject> {
+        val out = ArrayList<JSONObject>()
+        val inWrapper = HashSet<String>()
+        for (n in walk(d)) {
+            val w = n.optJSONObject("playlistPanelVideoWrapperRenderer") ?: continue
+            val primary = w.optJSONObject("primaryRenderer")?.optJSONObject("playlistPanelVideoRenderer")
+            val counter = w.optJSONArray("counterpart")?.optJSONObject(0)?.optJSONObject("counterpartRenderer")?.optJSONObject("playlistPanelVideoRenderer")
+            listOfNotNull(primary, counter).forEach { inWrapper += it.optString("videoId") }
+            (listOfNotNull(primary, counter).firstOrNull { musicVideoType(it) == "MUSIC_VIDEO_TYPE_ATV" } ?: primary)?.let(out::add)
+        }
+        for (n in walk(d)) {
+            val r = n.optJSONObject("playlistPanelVideoRenderer") ?: continue
+            if (r.optString("videoId") !in inWrapper) out += r
+        }
+        return out.distinctBy { it.optString("videoId") }
+    }
+
+    /** Up-next / radio for a video: songs only (see [panelSongs]). */
     suspend fun next(videoId: String): List<Track> {
         val d = post("next", JSONObject().put("videoId", videoId).put("playlistId", "RDAMVM$videoId").put("isAudioOnly", true))
-        return collect(d, mapOf("playlistPanelVideoRenderer" to { r: JSONObject ->
+        return panelSongs(d).mapNotNull { r ->
             val vid = r.optString("videoId")
             if (vid.isEmpty() || vid == videoId) null else {
                 var b = byline(runs(r.optJSONObject("longBylineText")))
                 if (b.duration == 0) b = b.copy(duration = secs(text(r.optJSONObject("lengthText"))))
                 track(vid, text(r.optJSONObject("title")), b, bigThumb(r.optJSONObject("thumbnail")?.optJSONArray("thumbnails")))
             }
-        }))
+        }
+    }
+
+    private val songVersions = com.dopdop.bopdop.data.net.TtlCache<String, String>(24 * 3600_000L, 400)
+
+    /**
+     * The song (audio track) to play for [videoId]: itself when it is a song, its song counterpart
+     * when it is a music video that has one. Null when YouTube can't say; the caller then plays as is.
+     */
+    suspend fun songVersionOf(videoId: String): String? {
+        songVersions.get(videoId)?.let { return it }
+        val d = post("next", JSONObject().put("videoId", videoId).put("isAudioOnly", true).put("enablePersistentPlaylistPanel", true))
+        var found: String? = null
+        for (n in walk(d)) {
+            val w = n.optJSONObject("playlistPanelVideoWrapperRenderer") ?: continue
+            val primary = w.optJSONObject("primaryRenderer")?.optJSONObject("playlistPanelVideoRenderer") ?: continue
+            val counter = w.optJSONArray("counterpart")?.optJSONObject(0)?.optJSONObject("counterpartRenderer")?.optJSONObject("playlistPanelVideoRenderer")
+            val pair = listOfNotNull(primary, counter)
+            if (pair.none { it.optString("videoId") == videoId }) continue
+            found = pair.firstOrNull { musicVideoType(it) == "MUSIC_VIDEO_TYPE_ATV" }?.optString("videoId")?.ifBlank { null } ?: videoId
+            break
+        }
+        val result = found ?: videoId
+        songVersions.put(videoId, result)
+        return result
     }
 
     /** Plain lyrics from YouTube Music's "Lyrics" tab (LyricFind / Musixmatch text). */
@@ -461,6 +510,27 @@ object YtMusic {
             )
         }
     }))
+
+    /**
+     * YouTube Music's Home, never from the cache: Quick picks and the rest follow your listening,
+     * so a fresh copy is asked for every time. [params] is a mood chip ("Energize"…) or null for all.
+     */
+    suspend fun homeFeed(params: String? = null): Pair<List<Shelf>, List<Pair<String, String>>> {
+        val body = JSONObject().put("browseId", "FEmusic_home").apply { params?.let { put("params", it) } }
+        var d = post("browse", body, cacheable = false)
+        val chips = collect(d, mapOf("chipCloudChipRenderer" to { c: JSONObject ->
+            val label = text(c.optJSONObject("text"))
+            val p = c.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("params").orEmpty()
+            if (label.isBlank() || p.isBlank() || label.equals("Podcasts", true)) null else label to p
+        }))
+        val out = shelves(d).toMutableList()
+        for (i in 1 until 3) {
+            val t = contToken(d) ?: break
+            d = post("browse", JSONObject().put("continuation", t), cacheable = false)
+            out += shelves(d)
+        }
+        return out to chips
+    }
 
     private suspend fun feed(browseId: String, pages: Int): List<Shelf> {
         var d = browse(browseId)

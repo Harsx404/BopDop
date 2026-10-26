@@ -179,7 +179,7 @@ class PlaybackService : MediaLibraryService() {
                 player.currentMediaItem?.let { item ->
                     videoAt = if (item.videoId != null) VideoSpot(player.currentMediaItemIndex, item.mediaId, player.currentPosition, (item.toTrack()?.durationSec ?: 0) * 1000L) else null
                 }
-                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it); com.dopdop.bopdop.data.scrobble.ListenBrainz.tick(it); com.dopdop.bopdop.data.scrobble.LastFm.tick(it) }
+                if (player.isPlaying) player.currentMediaItem?.toTrack()?.let { PlayStats.tick(it); com.dopdop.bopdop.data.scrobble.ListenBrainz.tick(it); com.dopdop.bopdop.data.scrobble.LastFm.tick(it); com.dopdop.bopdop.data.ytm.YtHistory.tick(it) }
             }
         }
 

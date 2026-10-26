@@ -97,38 +97,45 @@ import dev.chrisbanes.haze.rememberHazeState
 import java.util.Calendar
 import kotlin.math.absoluteValue
 
-private enum class HomeFilter(val label: String) {
-    ALL("All"), HOT("Hot Tracks"), NEW("New Releases"), CHARTS("Charts"), ARTISTS("Artists"), RADIO("Mixes & Radio");
-
-    fun accepts(s: Shelf): Boolean {
-        val t = s.title.lowercase()
-        return when (this) {
-            ALL -> true
-            HOT -> s.tracks.isNotEmpty() && s.cards.isEmpty()
-            NEW -> s.style == ShelfStyle.LARGE_CARDS || "release" in t || "new " in t || t.startsWith("new")
-            CHARTS -> "chart" in t || "top " in t || t.startsWith("top") || "trending" in t
-            ARTISTS -> s.style == ShelfStyle.ARTISTS || (s.cards.isNotEmpty() && s.cards.all { it.kind == CardKind.ARTIST })
-            RADIO -> "mix" in t || "radio" in t || "station" in t || s.cards.any { it.kind == CardKind.STATION || it.kind == CardKind.MOOD }
-        }
-    }
-}
-
 /** One page of the hero carousel: a track (plays its radio) or a collection (opens / plays). */
 private data class Featured(val key: String, val title: String, val subtitle: String, val art: String, val track: Track?, val card: Card?, val all: List<Track>)
 
 /** The hero's pages and the shelf they were taken from, so that shelf doesn't repeat them below. */
 private class HeroPick(val pages: List<Featured>, val from: Shelf?)
 
-/** Most shelves shown under All; the filters reach the rest. */
-private const val ALL_SHELVES = 6
+/** Shelves shown below Quick picks: all of YouTube Music's, up to this many. */
+private const val MAX_SHELVES = 10
+
+/** Refresh Home when coming back after this long, or after this many songs reached YouTube Music history. */
+private const val STALE_MS = 3 * 60_000L
+private const val PLAYS_PER_REFRESH = 3
 
 @Composable
 fun HomeScreen() {
     val app = LocalApp.current
     val lib by LibraryStore.state.collectAsState()
     val current by PlayerConnection.current.collectAsState()
-    val home = rememberLoad("home") { MusicRepository.home() }
-    var filter by rememberSaveable { mutableStateOf(HomeFilter.ALL) }
+    // YouTube Music's mood chips ("Energize", "Relax"…); null is everything.
+    var mood by rememberSaveable { mutableStateOf<String?>(null) }
+    val home = rememberLoad("home:${mood.orEmpty()}") { MusicRepository.home(mood).also { com.dopdop.bopdop.data.ytm.YtHistory.refreshed() } }
+    var chips by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    (home.state as? Load.Ready<HomeFeed>)?.value?.chips?.takeIf { it.isNotEmpty() && mood == null }?.let { if (it != chips) chips = it }
+    // Fresh Home: when you come back to the app after a few minutes, and as your plays reach YouTube
+    // Music (its Quick picks follow them).
+    var loadedAt by remember { mutableStateOf(System.currentTimeMillis()) }
+    var refreshing by remember { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(home.state) { if (home.state is Load.Ready) { loadedAt = System.currentTimeMillis(); refreshing = false } }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME && System.currentTimeMillis() - loadedAt > STALE_MS) home.retry()
+        }
+        lifecycle.addObserver(obs)
+        onDispose { lifecycle.removeObserver(obs) }
+    }
+    androidx.compose.runtime.LaunchedEffect(current?.id) {
+        if (com.dopdop.bopdop.data.ytm.YtHistory.sinceRefresh >= PLAYS_PER_REFRESH) home.retry()
+    }
     val haze = rememberHazeState()
     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
     val list = rememberLazyListState()
@@ -142,18 +149,20 @@ fun HomeScreen() {
         }
     }
     val feed = (home.state as? Load.Ready<HomeFeed>)?.value
-    val matching = feed?.shelves.orEmpty().filter(filter::accepts)
+    val matching = feed?.shelves.orEmpty()
     val hero = remember(matching) { featuredFrom(matching) }
     val featured = hero.pages
     // Below the hero: its shelf minus what the hero already shows, no near-empty rows, and under
     // All only the first few shelves so the page stays calm.
-    val shelves = remember(matching, hero, filter) {
+    val shelves = remember(matching, hero) {
         matching.map { sh -> if (sh === hero.from) sh.copy(tracks = sh.tracks.drop(featured.size)) else sh }
             .filter { it.tracks.size + it.cards.size >= 3 }
-            .let { if (filter == HomeFilter.ALL) it.take(ALL_SHELVES) else it }
+            .take(MAX_SHELVES)
     }
 
-    Box(Modifier.fillMaxSize()) {
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = refreshing, onRefresh = { refreshing = true; home.retry() }, modifier = Modifier.fillMaxSize(),
+    ) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
             item(key = "top") {
                 Box {
@@ -190,12 +199,14 @@ fun HomeScreen() {
                 }
             }
             item(key = "update") { com.dopdop.bopdop.ui.components.UpdateBanner() }
+            item(key = "grid") { if (mood == null) RecentsGrid(lib, current?.id) }
             item(key = "chips") {
                 LazyRow(
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(HomeFilter.entries.toList()) { f -> Chip(f.label, f == filter) { filter = f } }
+                    item(key = "all") { Chip("All", mood == null) { mood = null } }
+                    items(chips, key = { it.second }) { (label, params) -> Chip(label, mood == params) { mood = if (mood == params) null else params } }
                 }
             }
             item(key = "hero") {
@@ -204,24 +215,10 @@ fun HomeScreen() {
                     featured.isNotEmpty() -> HeroCarousel(featured)
                 }
             }
-            // Under All, Quick picks carries straight on from the hero; your own rows follow, then the catalogue.
-            val lead = if (filter == HomeFilter.ALL) shelves.firstOrNull { it.style == ShelfStyle.QUICK_PICKS } else null
+            // Under All: your own grid first (Spotify-style), Quick picks after the hero, then Made for you and YouTube's rows.
+            val lead = if (mood == null) shelves.firstOrNull { it.style == ShelfStyle.QUICK_PICKS } else null
             lead?.let { shelf(it, "lead${it.title}") }
-            if (filter == HomeFilter.ALL) {
-                if (lib.history.isNotEmpty()) item(key = "recent") {
-                    val recent = lib.history.take(16)
-                    Column {
-                        SectionHeader("Jump back in", action = "See all") { app.openLocal("history") }
-                        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                            items(recent.size) { i ->
-                                val t = recent[i]
-                                TrackTile(t, playing = current?.id == t.id, width = 140.dp, onLongClick = { app.holdTrack(t) }) {
-                                    PlayerConnection.startRadio(t, "Jump back in")
-                                }
-                            }
-                        }
-                    }
-                }
+            if (mood == null) {
                 item(key = "mixes") { MadeForYou(lib.liked, lib.history) }
             }
             when (val s = home.state) {
@@ -229,7 +226,7 @@ fun HomeScreen() {
                 is Load.Failed -> item { ErrorState(s.message, onRetry = home.retry) }
                 is Load.Ready -> {
                     if (shelves.isEmpty()) item {
-                        Text("Nothing in ${filter.label} right now.", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(28.dp))
+                        Text("Nothing here right now. Pull down to refresh.", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(28.dp))
                     }
                     shelves.forEachIndexed { i, sh -> if (sh !== lead) shelf(sh, "shelf$i${sh.title}") }
                 }
@@ -301,6 +298,53 @@ private fun HeroCarousel(items: List<Featured>) {
                     }.softShadow(CircleShape, 14.dp, color = Color.Black, alpha = 0.22f, dy = 3.dp).clip(CircleShape).background(Color.White),
                     contentAlignment = Alignment.Center,
                 ) { Icon(Icons.Rounded.PlayArrow, "Play", tint = Bop.Graphite, modifier = Modifier.size(28.dp)) }
+            }
+        }
+    }
+}
+
+/**
+ * Spotify's "recents" at the top of Home: six compact tiles for what you reach for most: Liked
+ * songs, your playlists (pinned first), then songs you played lately.
+ */
+@Composable
+private fun RecentsGrid(lib: com.dopdop.bopdop.data.LibraryState, playingId: String?) {
+    val app = LocalApp.current
+    data class Tile(val key: String, val title: String, val arts: List<String>, val playing: Boolean, val open: () -> Unit)
+    val tiles = remember(lib.liked, lib.playlists, lib.history, playingId) {
+        buildList {
+            if (lib.liked.isNotEmpty()) add(Tile("liked", "Liked songs", emptyList(), false) { app.openLocal("liked") })
+            lib.playlists.sortedByDescending { it.pinned }.take(3).forEach { p ->
+                add(Tile("p" + p.id, p.name, p.tracks.map { it.artwork }.distinct().take(4), p.tracks.any { it.id == playingId }) { app.openLocal(p.id) })
+            }
+            lib.history.distinctBy { it.id }.take(6).forEach { t ->
+                add(Tile("t" + t.id, t.title, listOf(t.artwork), t.id == playingId) { PlayerConnection.startRadio(t, "Recently played") })
+            }
+        }.distinctBy { it.key }.take(6)
+    }
+    if (tiles.size < 2) return
+    Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        tiles.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { t ->
+                    Row(
+                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(12.dp)).background(Bop.Veil.copy(alpha = 0.5f))
+                            .bounceClick(0.97f, onClick = t.open),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(56.dp)) {
+                            if (t.key == "liked") Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF4B2BFF), Color(0xFFB8E7FF)))), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Rounded.Favorite, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                            } else if (t.arts.size >= 4) Collage(t.arts, Modifier.fillMaxSize(), 0.dp)
+                            else Artwork(t.arts.firstOrNull(), Modifier.fillMaxSize(), corner = 0.dp, size = 226)
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(t.title, style = BopType.BodyStrong.copy(fontSize = androidx.compose.ui.unit.TextUnit(13.5f, androidx.compose.ui.unit.TextUnitType.Sp)), color = Bop.Text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (t.playing) com.dopdop.bopdop.ui.components.EqualizerBars(Modifier.padding(end = 10.dp).size(14.dp), color = Bop.Accent)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }

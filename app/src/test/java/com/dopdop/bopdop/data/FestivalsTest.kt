@@ -17,8 +17,10 @@ class FestivalsTest {
 
     @Test fun halloweenFollowsTheRegionAndVanishesAfterTheDay() {
         assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "us", day(10, 26)))
-        assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(10, 28)))
-        assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "US", day(11, 1)))
+        // In India Halloween fills in while no Indian festival is on (Navaratri ended Oct 20, Diwali's lead-up starts Nov 1).
+        assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(10, 28)))
+        // Outside India Diwali follows (its lead-up starts Nov 1 in 2026).
+        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "US", day(11, 1)))
         assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "US", day(10, 15)))
     }
 
@@ -44,8 +46,20 @@ class FestivalsTest {
         val day = java.time.LocalDate.of(2026, 10, 21) // Navaratri 2026 ended on the 20th
         org.junit.Assert.assertTrue(Festivals.passed(Festival.NAVARATRI, day))
         org.junit.Assert.assertFalse(Festivals.passed(Festival.HALLOWEEN, day))
-        org.junit.Assert.assertEquals(listOf(FestivePick.AUTO, FestivePick.HALLOWEEN, FestivePick.ALL), Festivals.picks(day))
+        org.junit.Assert.assertEquals(listOf(FestivePick.AUTO, FestivePick.DIWALI, FestivePick.CHHATH, FestivePick.HALLOWEEN, FestivePick.ALL), Festivals.picks(day))
         // Picking Navaratri after it ended shows nothing, even during Halloween week.
         org.junit.Assert.assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.NAVARATRI, "IN", java.time.LocalDate.of(2026, 10, 28)))
+    }
+
+    @Test fun diwaliAndChhathTakeTheirTurnsInIndia() {
+        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 1)))
+        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 8)))
+        // Chhath's lead-up overlaps Diwali's days: Diwali, being on, wins until Bhai Dooj.
+        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 10)))
+        assertEquals(Festival.CHHATH, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 11)))
+        assertEquals(Festival.CHHATH, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 15)))
+        assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", day(11, 16)))
+        assertEquals("Happy Diwali", Festivals.greeting(Festival.DIWALI, day(11, 8)))
+        assertEquals("Chhath Puja · Sandhya Arghya", Festivals.greeting(Festival.CHHATH, day(11, 14)))
     }
 }

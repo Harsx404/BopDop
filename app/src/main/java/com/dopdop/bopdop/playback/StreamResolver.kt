@@ -121,7 +121,11 @@ object StreamResolver {
                 ResolvedStream(u, null, saavnKbps(u), "AAC", "JioSaavn", Long.MAX_VALUE)
             }
             else -> {
-                val vid = id.removePrefix("yt:")
+                // A music video found its way here (a shelf, a shared link): play its song version.
+                val vid = id.removePrefix("yt:").let { v ->
+                    runCatching { runBlocking { withTimeoutOrNull(2500) { YtMusic.songVersionOf(v) } } }.getOrNull()
+                        ?.also { if (it != v) Log.i(TAG, "$v is a music video: playing its song $it") } ?: v
+                }
                 // The 320 kbps JioSaavn match is the High quality option; lower ones stay on YouTube.
                 val hi = if (LibraryStore.settings.hiRes && quality == AudioQuality.HIGH) hiRes(uri) else null
                 hi ?: YtStreams.resolve(vid, quality.maxKbps)

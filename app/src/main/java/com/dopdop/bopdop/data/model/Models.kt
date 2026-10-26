@@ -96,7 +96,8 @@ data class Shelf(
     val style: ShelfStyle = ShelfStyle.CARDS,
 )
 
-data class HomeFeed(val shelves: List<Shelf>)
+/** Home: its shelves, and YouTube Music's mood chips for it (label to browse params). */
+data class HomeFeed(val shelves: List<Shelf>, val chips: List<Pair<String, String>> = emptyList())
 
 data class Collection(
     val id: String,

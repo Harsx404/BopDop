@@ -48,13 +48,21 @@ fun rememberFestive(level: FestiveLevel, pick: FestivePick): FestiveNow {
     return remember(level, pick, country, today) { FestiveNow(Festivals.current(level, pick, country, today), level) }
 }
 
-/** Saffron, marigold and leaf green for Navaratri; pumpkin for Halloween. */
+/** Saffron, marigold and leaf for Navaratri; pumpkin and witch purple for Halloween; diya gold for Diwali; dawn for Chhath. */
 object FestiveColors {
     val Saffron = Color(0xFFFF8F1F)
     val Marigold = Color(0xFFFFC53D)
     val Leaf = Color(0xFF3E8E41)
     val Pumpkin = Color(0xFFFF7A1A)
-    fun accent(f: Festival) = if (f == Festival.NAVARATRI) Saffron else Pumpkin
+    val Witch = Color(0xFFA77BFF)
+    val Gold = Color(0xFFFFD166)
+    val Dawn = Color(0xFFFF9E5E)
+    fun accent(f: Festival) = when (f) {
+        Festival.NAVARATRI -> Saffron
+        Festival.HALLOWEEN -> Pumpkin
+        Festival.DIWALI -> Gold
+        Festival.CHHATH -> Dawn
+    }
 }
 
 /**
@@ -83,7 +91,12 @@ fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
                 // Fireworks over the toran now and then; Dussehra night gets more of them.
                 fireworks(t, inset, if (dussehra) 3.5f else 8f)
             }
-            Festival.HALLOWEEN -> cobweb(t, inset)
+            Festival.HALLOWEEN -> halloween(t, inset)
+            Festival.DIWALI -> {
+                fairyLights(t, inset)
+                fireworks(t, inset, 5f, listOf(FestiveColors.Gold, Color(0xFFFF6B9A), Color(0xFF7CD8FF), Color(0xFFFFF1B8)))
+            }
+            Festival.CHHATH -> sunrise(t, inset)
         }
     }
 }
@@ -92,7 +105,10 @@ fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
  * Small bursts of saffron, gold and pink sparks below the toran, one at a time, every [every]
  * seconds, each in a different spot. Quiet enough to sit behind the header.
  */
-private fun DrawScope.fireworks(t: Float, inset: Float, every: Float) {
+private fun DrawScope.fireworks(
+    t: Float, inset: Float, every: Float,
+    colors: List<Color> = listOf(FestiveColors.Saffron, FestiveColors.Marigold, Color(0xFFFF5FA2), Color(0xFFFFF1B8)),
+) {
     val u = 1.dp.toPx()
     val n = (t / every).toInt()
     val p = (t % every) / 1.6f
@@ -100,7 +116,6 @@ private fun DrawScope.fireworks(t: Float, inset: Float, every: Float) {
     // A fixed, varied spot per burst.
     val seed = (n * 7919) % 1000 / 1000f
     val c = Offset(size.width * (0.3f + 0.45f * seed), inset + (40f + 22f * ((n * 31) % 7) / 7f) * u)
-    val colors = listOf(FestiveColors.Saffron, FestiveColors.Marigold, Color(0xFFFF5FA2), Color(0xFFFFF1B8))
     val reach = 20f * u * kotlin.math.sqrt(p)
     val fade = (1f - p).coerceIn(0f, 1f)
     for (i in 0 until 12) {
@@ -121,6 +136,17 @@ fun FestiveMark(festival: Festival, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val u = size.minDimension / 16f
         when {
+            festival == Festival.DIWALI -> {
+                // A diya: clay bowl and a flame.
+                val bowl = Path().apply { moveTo(2f * u, 10f * u); quadraticTo(8f * u, 16f * u, 14f * u, 10f * u); lineTo(11.5f * u, 10f * u); quadraticTo(8f * u, 12f * u, 4.5f * u, 10f * u); close() }
+                drawPath(bowl, Color(0xFFC0602A))
+                drawPath(Path().apply { moveTo(8f * u, 2f * u); quadraticTo(11f * u, 7f * u, 8f * u, 9.5f * u); quadraticTo(5f * u, 7f * u, 8f * u, 2f * u); close() }, FestiveColors.Gold)
+            }
+            festival == Festival.CHHATH -> {
+                // The sun on the water, as it is offered arghya.
+                drawCircle(FestiveColors.Dawn, 4.5f * u, Offset(8f * u, 8f * u))
+                for (k in 0..2) drawLine(Color(0xFF6FB7FF), Offset((3f + k) * u, (11.5f + k * 1.6f) * u), Offset((13f - k) * u, (11.5f + k * 1.6f) * u), 0.9f * u, StrokeCap.Round)
+            }
             festival == Festival.HALLOWEEN -> {
                 val c = Offset(size.width / 2, size.height * 0.56f)
                 drawOval(FestiveColors.Pumpkin, Offset(c.x - 7f * u, c.y - 5.5f * u), androidx.compose.ui.geometry.Size(14f * u, 11f * u))
@@ -190,50 +216,139 @@ private fun DrawScope.marigold(c: Offset, r: Float, color: Color) {
     drawCircle(color.copy(red = color.red * 0.85f, green = color.green * 0.7f), r * 0.42f, c)
 }
 
-/** A cobweb tucked into the top-right corner, a spider on a thread, and a bat that flits across now and then. */
-private fun DrawScope.cobweb(t: Float, inset: Float) {
+/**
+ * Halloween across the top: a garland of glowing jack-o'-lanterns and little bats swaying under the
+ * status bar, a spider lowering itself on a silk thread in the gap between the buttons, and a bat
+ * flitting past now and then. Bright on dark so it reads in both themes.
+ */
+private fun DrawScope.halloween(t: Float, inset: Float) {
     val u = 1.dp.toPx()
-    val web = Color.White.copy(alpha = 0.42f)
-    val corner = Offset(size.width, inset)
-    val reach = 92f * u
-    val spokes = 6
-    for (i in 0..spokes) {
-        val a = Math.PI.toFloat() / 2f + i / spokes.toFloat() * Math.PI.toFloat() / 2f
-        drawLine(web, corner, Offset(corner.x + cos(a) * reach, corner.y + sin(a) * reach), 0.8f * u)
-    }
-    for (ring in 1..4) {
-        val r = reach * ring / 4.4f
-        val p = Path()
-        for (i in 0..spokes) {
-            val a = Math.PI.toFloat() / 2f + i / spokes.toFloat() * Math.PI.toFloat() / 2f
-            // Rings sag a little between spokes, like real silk.
-            val pt = Offset(corner.x + cos(a) * r, corner.y + sin(a) * r)
-            if (i == 0) p.moveTo(pt.x, pt.y) else {
-                val mid = a - Math.PI.toFloat() / 4f / spokes
-                p.quadraticTo(corner.x + cos(mid) * r * 0.9f, corner.y + sin(mid) * r * 0.9f, pt.x, pt.y)
-            }
+    val top = inset + 1f * u
+    val silk = Color(0xFFE9E2FF).copy(alpha = 0.7f)
+    val hooks = listOf(0f, size.width / 2f, size.width)
+    for (k in 0 until hooks.size - 1) {
+        val a = hooks[k]; val b = hooks[k + 1]
+        val sag = (14f + 2f * sin(t * 0.8f + k)) * u
+        val line = Path()
+        for (i in 0..24) {
+            val f = i / 24f
+            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f)
+            if (i == 0) line.moveTo(x, y) else line.lineTo(x, y)
         }
-        drawPath(p, web, style = Stroke(0.8f * u))
+        drawPath(line, silk.copy(alpha = 0.45f), style = Stroke(0.9f * u))
+        for (i in 1..5) {
+            val f = i / 6f
+            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f)
+            if ((i + k) % 2 == 0) jackOLantern(Offset(x, y + 6f * u), 5.5f * u, t + i)
+            else bat(Offset(x, y + 4f * u), 5f * u, sin(t * 6f + i) * 0.5f, FestiveColors.Witch)
+        }
     }
-    // Spider, bobbing on its thread.
-    val sx = size.width - 104f * u
-    val sy = inset + (40f + 8f * sin(t * 0.8f)) * u
-    drawLine(web, Offset(sx, inset), Offset(sx, sy), 0.8f * u)
-    val ink = Color(0xFF1E1A22)
+    // Spider on its thread, in the open space left of the search button.
+    val sx = size.width * 0.58f
+    val sy = inset + (30f + 10f * sin(t * 0.7f)) * u
+    drawLine(silk, Offset(sx, top), Offset(sx, sy), 0.8f * u)
     for (side in listOf(-1f, 1f)) for (l in 0..2) {
         val ly = sy - 1.5f * u + l * 1.6f * u
-        drawLine(ink, Offset(sx, ly), Offset(sx + side * 5.5f * u, ly + (l - 1) * 2.4f * u), 0.9f * u, StrokeCap.Round)
+        drawLine(FestiveColors.Witch, Offset(sx, ly), Offset(sx + side * 5.5f * u, ly + (l - 1) * 2.4f * u), 1f * u, StrokeCap.Round)
     }
-    drawCircle(ink, 3f * u, Offset(sx, sy))
-    drawCircle(ink, 2f * u, Offset(sx, sy - 3.4f * u))
-    // A bat crossing every ~14 s, high up and small.
-    val cycle = (t % 14f) / 14f
-    if (cycle < 0.55f) {
-        val p = cycle / 0.55f
-        val bx = -20f * u + (size.width * 0.75f) * p
-        val by = inset + (14f + 8f * sin(p * 9f)) * u
-        val flap = sin(t * 14f)
-        bat(Offset(bx, by), 7f * u, flap, ink.copy(alpha = 0.8f))
+    drawCircle(FestiveColors.Witch, 3.2f * u, Offset(sx, sy))
+    drawCircle(FestiveColors.Witch, 2.1f * u, Offset(sx, sy - 3.5f * u))
+    drawCircle(FestiveColors.Pumpkin, 0.7f * u, Offset(sx - 0.8f * u, sy - 3.8f * u))
+    drawCircle(FestiveColors.Pumpkin, 0.7f * u, Offset(sx + 0.8f * u, sy - 3.8f * u))
+    // A bigger bat crossing every ~12 s.
+    val cycle = (t % 12f) / 12f
+    if (cycle < 0.5f) {
+        val q = cycle / 0.5f
+        bat(Offset(-24f * u + (size.width + 48f * u) * q, inset + (44f + 10f * sin(q * 10f)) * u), 9f * u, sin(t * 14f), FestiveColors.Witch.copy(alpha = 0.9f))
+    }
+}
+
+/** A small jack-o'-lantern whose face flickers like a candle inside. */
+private fun DrawScope.jackOLantern(c: Offset, r: Float, t: Float) {
+    val glow = 0.75f + 0.25f * sin(t * 7f) * sin(t * 3.1f)
+    drawCircle(FestiveColors.Pumpkin.copy(alpha = 0.25f * glow), r * 1.9f, c)
+    drawOval(FestiveColors.Pumpkin, Offset(c.x - r, c.y - r * 0.82f), androidx.compose.ui.geometry.Size(r * 2f, r * 1.64f))
+    drawLine(FestiveColors.Leaf, Offset(c.x, c.y - r * 0.8f), Offset(c.x + r * 0.25f, c.y - r * 1.25f), r * 0.28f, StrokeCap.Round)
+    val face = Color(0xFFFFE27A).copy(alpha = glow)
+    drawPath(Path().apply { moveTo(c.x - r * 0.55f, c.y - r * 0.1f); lineTo(c.x - r * 0.25f, c.y - r * 0.45f); lineTo(c.x - r * 0.05f, c.y - r * 0.1f); close() }, face)
+    drawPath(Path().apply { moveTo(c.x + r * 0.05f, c.y - r * 0.1f); lineTo(c.x + r * 0.25f, c.y - r * 0.45f); lineTo(c.x + r * 0.55f, c.y - r * 0.1f); close() }, face)
+    drawPath(Path().apply { moveTo(c.x - r * 0.5f, c.y + r * 0.15f); quadraticTo(c.x, c.y + r * 0.6f, c.x + r * 0.5f, c.y + r * 0.15f); quadraticTo(c.x, c.y + r * 0.35f, c.x - r * 0.5f, c.y + r * 0.15f); close() }, face)
+}
+
+/**
+ * Diwali: strings of fairy lights sagging under the status bar, bulbs twinkling in gold, pink and
+ * blue, with an akash kandil (paper lantern) hanging at each hook.
+ */
+private fun DrawScope.fairyLights(t: Float, inset: Float) {
+    val u = 1.dp.toPx()
+    val top = inset + 1f * u
+    val bulbs = listOf(FestiveColors.Gold, Color(0xFFFF6B9A), Color(0xFF7CD8FF), Color(0xFFB7F07A), FestiveColors.Saffron)
+    val hooks = listOf(0f, size.width / 3f, size.width * 2f / 3f, size.width)
+    for (k in 0 until hooks.size - 1) {
+        val a = hooks[k]; val b = hooks[k + 1]
+        val sag = 12f * u
+        val wire = Path()
+        for (i in 0..20) {
+            val f = i / 20f
+            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f)
+            if (i == 0) wire.moveTo(x, y) else wire.lineTo(x, y)
+        }
+        drawPath(wire, Color(0xFF5A4A3A).copy(alpha = 0.6f), style = Stroke(0.8f * u))
+        for (i in 1..8) {
+            val f = i / 9f
+            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f) + 2.5f * u
+            val on = 0.45f + 0.55f * ((sin(t * 2.3f + i * 1.7f + k * 2.9f) + 1f) / 2f)
+            val col = bulbs[(i + k * 3) % bulbs.size]
+            drawCircle(col.copy(alpha = 0.28f * on), 5f * u, Offset(x, y))
+            drawCircle(col.copy(alpha = 0.6f + 0.4f * on), 1.8f * u, Offset(x, y))
+        }
+    }
+    // Akash kandils swinging at the inner hooks.
+    hooks.drop(1).dropLast(1).forEachIndexed { i, hx ->
+        val sway = 6f * sin(t * 1.1f + i)
+        rotate(sway, Offset(hx, top)) {
+            drawLine(Color(0xFF5A4A3A).copy(alpha = 0.6f), Offset(hx, top), Offset(hx, top + 10f * u), 0.8f * u)
+            val body = Path().apply {
+                moveTo(hx, top + 10f * u); lineTo(hx + 8f * u, top + 18f * u); lineTo(hx, top + 28f * u); lineTo(hx - 8f * u, top + 18f * u); close()
+            }
+            val glow = 0.8f + 0.2f * sin(t * 5f + i)
+            drawCircle(FestiveColors.Gold.copy(alpha = 0.22f * glow), 13f * u, Offset(hx, top + 18f * u))
+            drawPath(body, (if (i == 0) Color(0xFFFF6B9A) else FestiveColors.Saffron).copy(alpha = 0.95f))
+            drawPath(body, FestiveColors.Gold, style = Stroke(1f * u))
+            for (tail in -1..1) drawLine(FestiveColors.Gold.copy(alpha = 0.8f), Offset(hx + tail * 2.5f * u, top + 28f * u), Offset(hx + tail * 3f * u, top + 36f * u), 0.8f * u)
+        }
+    }
+}
+
+/**
+ * Chhath Puja: dawn behind the header, the sun rising slowly over still water, with soft ripples
+ * and its reflection, the moment of Usha Arghya.
+ */
+private fun DrawScope.sunrise(t: Float, inset: Float) {
+    val u = 1.dp.toPx()
+    val horizon = inset + 46f * u
+    val cx = size.width * 0.5f
+    drawRect(
+        androidx.compose.ui.graphics.Brush.verticalGradient(
+            0f to Color.Transparent, 0.45f to FestiveColors.Dawn.copy(alpha = 0.10f), 1f to FestiveColors.Dawn.copy(alpha = 0.22f),
+            startY = inset, endY = horizon,
+        ),
+        topLeft = Offset(0f, inset), size = androidx.compose.ui.geometry.Size(size.width, horizon - inset),
+    )
+    val rise = 6f * u * sin(t * 0.25f)
+    val sun = Offset(cx, horizon - 8f * u + rise)
+    drawCircle(FestiveColors.Dawn.copy(alpha = 0.18f), 34f * u, sun)
+    drawCircle(Color(0xFFFFB25E).copy(alpha = 0.35f), 22f * u, sun)
+    drawCircle(Color(0xFFFF8A3D), 13f * u, sun)
+    // Water: the horizon line, the sun's broken reflection and slow ripples.
+    drawLine(Color(0xFF6FB7FF).copy(alpha = 0.45f), Offset(0f, horizon), Offset(size.width, horizon), 1f * u)
+    for (k in 0..3) {
+        val y = horizon + (5f + k * 5f) * u
+        val w = (22f - k * 4f) * u * (1f + 0.08f * sin(t * 1.4f + k))
+        drawLine(Color(0xFFFF9E5E).copy(alpha = 0.5f - k * 0.1f), Offset(cx - w, y), Offset(cx + w, y), 1.4f * u, StrokeCap.Round)
+        val drift = ((t * 8f + k * 40f) % (size.width * 0.4f))
+        drawLine(Color(0xFF9FD0FF).copy(alpha = 0.3f), Offset(size.width * 0.05f + drift, y + 2f * u), Offset(size.width * 0.05f + drift + 14f * u, y + 2f * u), 0.9f * u, StrokeCap.Round)
+        drawLine(Color(0xFF9FD0FF).copy(alpha = 0.3f), Offset(size.width * 0.95f - drift, y + 1f * u), Offset(size.width * 0.95f - drift - 14f * u, y + 1f * u), 0.9f * u, StrokeCap.Round)
     }
 }
 
