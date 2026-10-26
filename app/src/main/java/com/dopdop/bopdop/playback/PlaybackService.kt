@@ -221,10 +221,6 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * The main player owns audio focus, the notification and the queue. Tail players (Automix's
-     * outgoing song) share its audio session so the equalizer shapes both, and never take focus.
-     */
-    /**
      * Downloads the next song into the play cache while this one plays, so moving on (a skip, the
      * next track, Automix's jump mid-song) starts from disk instead of the network. Waits a little
      * first so the current song gets the bandwidth; on mobile data only when Automix is on, since
@@ -294,6 +290,10 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
+    /**
+     * The main player owns audio focus, the notification and the queue. Tail players (Automix's
+     * outgoing song) share its audio session so the equalizer shapes both, and never take focus.
+     */
     private fun buildPlayer(main: Boolean): ExoPlayer {
         val float = LibraryStore.settings.floatOutput
         val leveler = Leveler()

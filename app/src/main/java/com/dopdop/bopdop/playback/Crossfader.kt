@@ -209,6 +209,7 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
 
             note("Switched")
             val idx = p.currentMediaItemIndex
+            val original = p.currentMediaItem
             p.replaceMediaItem(idx, better)
             var lead = 250L
             ownSeek = true
@@ -216,7 +217,13 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
             repeat(6) {
                 val w = SystemClock.uptimeMillis()
                 while (!p.isPlaying && SystemClock.uptimeMillis() - w < 8_000) delay(10)
-                if (!p.isPlaying) return true // the main player will start on its own; the finally hands back
+                if (!p.isPlaying) {
+                    // It didn't start: put the song back on its usual stream where the tail has got to,
+                    // rather than hand back to a player that isn't making a sound.
+                    note("Switched back: the add-on copy was slow to start")
+                    original?.let { o -> ownSeek = true; p.replaceMediaItem(idx, o); p.seekTo(idx, t.currentPosition) }
+                    return false
+                }
                 delay(80) // let its clock settle after starting
                 val d = p.currentPosition - t.currentPosition
                 if (kotlin.math.abs(d) <= IN_STEP_MS) return true

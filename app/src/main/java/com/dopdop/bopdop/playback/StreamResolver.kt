@@ -210,11 +210,7 @@ object StreamResolver {
                     }
                 }?.id?.also { Log.i(TAG, "$id (Spotify) plays from $it") } ?: throw IOException("no YouTube Music copy of $id")
             } else id
-            // A music video found its way here (a shelf, a shared link): play its song version.
-            val vid = ytId.removePrefix("yt:").let { v ->
-                runCatching { runBlocking { withTimeoutOrNull(2500) { YtMusic.songVersionOf(v) } } }.getOrNull()
-                    ?.also { if (it != v) Log.i(TAG, "$v is a music video: playing its song $it") } ?: v
-            }
+            val vid = ytId.removePrefix("yt:")
             val t = trackOf(uri, id)
             fun addon(base: String, wait: Long) = runBlocking { withTimeoutOrNull(wait) { addonStream(t, download, listOf(base)) } }?.stream
             // The sources in the user's order. Playback skips add-ons here (a background lookup moves the
@@ -225,7 +221,7 @@ object StreamResolver {
             for (k in order) {
                 found = when (k) {
                     Settings.SAAVN -> if (quality == AudioQuality.HIGH) hiRes(uri) else null
-                    Settings.YOUTUBE -> runCatching { YtStreams.resolve(vid, quality.maxKbps) }.onFailure { ytError = it }.getOrNull()
+                    Settings.YOUTUBE -> runCatching { youtube(vid, quality.maxKbps) }.onFailure { ytError = it }.getOrNull()
                     else -> if (download && quality == AudioQuality.HIGH) addon(k, 20_000)?.also { fromAddon = true } else null
                 }
                 if (found != null || k == Settings.YOUTUBE && ytError == null) break
@@ -253,6 +249,24 @@ object StreamResolver {
         if (q == AudioQuality.HIGH) url else url.replace(Regex("_(96|160|320)\\."), "${q.saavn}.")
 
     private fun saavnKbps(url: String) = when { url.contains("_320") -> 320; url.contains("_96.") -> 96; else -> 160 }
+
+    /**
+     * The YouTube stream for [vid]. A music video that found its way into a queue (a shelf, a shared
+     * link) plays as its song version; asking which it is runs alongside the stream lookup, so
+     * ordinary songs (nearly all of them) start no later than before.
+     */
+    private fun youtube(vid: String, maxKbps: Int): ResolvedStream = runBlocking {
+        kotlinx.coroutines.coroutineScope {
+            val song = async(kotlinx.coroutines.Dispatchers.IO) { runCatching { withTimeoutOrNull(2500) { YtMusic.songVersionOf(vid) } }.getOrNull() }
+            val direct = async(kotlinx.coroutines.Dispatchers.IO) { runCatching { YtStreams.resolve(vid, maxKbps) } }
+            val other = song.await()?.takeIf { it != vid }
+            if (other != null) {
+                Log.i(TAG, "$vid is a music video: playing its song $other")
+                direct.cancel()
+                YtStreams.resolve(other, maxKbps)
+            } else direct.await().getOrThrow()
+        }
+    }
 
     /** The quality badge for what [id] is playing as, kept for cached replays. */
     private fun remember(id: String, s: ResolvedStream, lossless: Boolean) {

@@ -146,7 +146,6 @@ object Addons {
         return null
     }
 
-    /** Off the main thread whoever calls: adding an add-on in Settings asks from the UI. */
     /** What a Settings › Sources test found: [ok], a line for the user, and how long it took. */
     data class TestResult(val ok: Boolean, val message: String, val ms: Long)
 
@@ -174,6 +173,7 @@ object Addons {
         return done(true, "Working · \"${hit.title}\" as ${q2.ifBlank { "audio" }}$note")
     }
 
+    /** Off the main thread whoever calls: adding an add-on in Settings asks from the UI. */
     private suspend fun getJson(url: String): Any = withContext(Dispatchers.IO) {
         Http.client.newCall(Request.Builder().url(url).header("Accept", "application/json").build()).execute().use {
             if (it.code == 429) throw IOException("The add-on asked to slow down")

@@ -16,7 +16,7 @@ import java.security.SecureRandom
 /**
  * Two-way sync, listening side: songs played in BopDop go into your YouTube Music history, the way
  * the YouTube Music app reports them, so its Quick picks, Listen again and mixes learn from what you
- * play here. Only when signed in, once per song played for 30 s (or half a shorter song). JioSaavn
+ * play here. Only when signed in and on in Settings, once per song played for 30 s (or half a shorter song). JioSaavn
  * and on-phone songs are reported as their YouTube Music copy when they have one.
  */
 object YtHistory {
@@ -34,7 +34,7 @@ object YtHistory {
     /** One more second of [t] heard (called only while it plays). */
     fun tick(t: Track) {
         if (t.id != trackId) { trackId = t.id; heard = 0; sent = false }
-        if (sent || !AccountStore.signedIn) return
+        if (sent || !AccountStore.signedIn || !com.dopdop.bopdop.data.LibraryStore.settings.ytHistory) return
         heard++
         val need = if (t.durationSec in 1..59) (t.durationSec / 2).coerceAtLeast(5) else 30
         if (heard < need) return

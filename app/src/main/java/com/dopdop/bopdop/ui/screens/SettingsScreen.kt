@@ -1,5 +1,6 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -25,8 +26,8 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -165,6 +166,12 @@ fun SettingsScreen() {
                             }
                         }
                     }
+                    // Its own row (not inside the account block above), so Settings search finds it.
+                    if (account != null) ToggleRow(
+                        Icons.Rounded.History, "Add plays to YouTube Music history",
+                        "Songs you play here show up in your YouTube Music history, so its Quick picks and mixes learn from them.",
+                        s.ytHistory, keywords = "sync history listening youtube music",
+                    ) { LibraryStore.updateSettings { it.copy(ytHistory = !it.ytHistory) } }
                 }
             }
         }
@@ -183,10 +190,10 @@ fun SettingsScreen() {
                     RowHead(Icons.Rounded.Speed, "Playback speed", "Faster or slower without changing the pitch. Also in the player's ⋯ menu.") {
                         ChipRow(listOf(0.5f, 0.75f, 0.9f, 1f, 1.1f, 1.25f, 1.5f, 1.75f, 2f), s.playbackSpeed, { com.dopdop.bopdop.ui.player.speedLabel(it) }) { v -> LibraryStore.updateSettings { it.copy(playbackSpeed = v) } }
                     }
-                    ToggleRow(Icons.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
+                    ToggleRow(Icons.AutoMirrored.Rounded.VolumeUp, "Loudness normalization", "Levels every track to the same loudness.", s.normalize) {
                         LibraryStore.updateSettings { it.copy(normalize = !it.normalize) }
                     }
-                    ToggleRow(Icons.Rounded.VolumeOff, "Skip silence", "Trims gaps of silence inside and between tracks.", s.skipSilence) {
+                    ToggleRow(Icons.AutoMirrored.Rounded.VolumeOff, "Skip silence", "Trims gaps of silence inside and between tracks.", s.skipSilence) {
                         LibraryStore.updateSettings { it.copy(skipSilence = !it.skipSilence) }
                     }
                     RowHead(Icons.Rounded.AutoAwesome, "Automix", "Blends each song into the next. Albums that flow track-to-track stay gapless.", keywords = "crossfade gapless fade") {
