@@ -29,6 +29,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
 import com.dopdop.bopdop.MainActivity
 import com.dopdop.bopdop.data.LibraryStore
+import com.dopdop.bopdop.data.speedAndPitch
 import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.PlayStats
 import com.dopdop.bopdop.data.net.Http
@@ -124,11 +125,23 @@ class PlaybackService : MediaLibraryService() {
         }
         // Playback speed is a setting, so it survives restarts and applies to every song.
         scope.launch {
-            LibraryStore.state.map { it.settings.playbackSpeed }.distinctUntilChanged().collect { player.setPlaybackSpeed(it) }
+            // The lo-fi mix brings its own speed and pitch.
+            LibraryStore.state.map { it.settings.speedAndPitch }.distinctUntilChanged().collect { (speed, pitch) ->
+                player.playbackParameters = androidx.media3.common.PlaybackParameters(speed, pitch)
+            }
         }
         // The output format is fixed when a player is built: switching precision swaps in a new one.
         scope.launch {
             LibraryStore.state.map { it.settings.floatOutput }.distinctUntilChanged().drop(1).collect { rebuildPlayer() }
+        }
+        scope.launch {
+            // Vocal isolation picks up its mode when playback is flushed: seek to apply a new mode, or
+            // the model once its download finishes. ExoPlayer ignores a seek to exactly where it is,
+            // so step back a few milliseconds to make it a real one.
+            kotlinx.coroutines.flow.combine(LibraryStore.state.map { it.settings.vocalMode }, VocalModel.state.map { it is VocalModel.State.Ready }) { m, ready -> m to ready }
+                .distinctUntilChanged().drop(1).collect {
+                    if (player.playbackState != Player.STATE_IDLE) player.seekTo((player.currentPosition - 40).coerceAtLeast(0))
+                }
         }
         scope.launch {
             LibraryStore.state.map { it.settings.autoplay }.distinctUntilChanged().collect { enabled ->
@@ -297,12 +310,17 @@ class PlaybackService : MediaLibraryService() {
     private fun buildPlayer(main: Boolean): ExoPlayer {
         val float = LibraryStore.settings.floatOutput
         val leveler = Leveler()
+        val splitter = VocalSplitter()
+        val reverb = LofiReverb()
         if (main) AudioPipeline.leveler = leveler
         val renderers = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(context: android.content.Context, enableFloatOutput: Boolean, enableAudioTrackPlaybackParams: Boolean): AudioSink =
                 DefaultAudioSink.Builder(context)
-                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessorChain(OutputChain(leveler, float))
+                    // Speed and pitch go to the AudioTrack, so a change is heard at once. Done in the
+                    // processor chain instead, it waits for the chain to drain, which with vocal
+                    // isolation's read-ahead can take half a minute.
+                    .setEnableAudioTrackPlaybackParams(true)
+                    .setAudioProcessorChain(OutputChain(splitter, leveler, reverb, float))
                     .build()
         }
         return ExoPlayer.Builder(this, renderers)
@@ -314,7 +332,7 @@ class PlaybackService : MediaLibraryService() {
             .also {
                 it.setAudioSessionId(audioSessionId)
                 it.skipSilenceEnabled = LibraryStore.settings.skipSilence
-                it.setPlaybackSpeed(LibraryStore.settings.playbackSpeed)
+                LibraryStore.settings.speedAndPitch.let { (speed, pitch) -> it.playbackParameters = androidx.media3.common.PlaybackParameters(speed, pitch) }
                 if (main) {
                     // Shuffle and repeat pick up where they were left.
                     it.shuffleModeEnabled = LibraryStore.settings.shuffle
@@ -325,12 +343,13 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Leveler first; silence skipping and speed follow as in the default chain. For 32-bit output
+     * Vocal isolation first (it needs the untouched mix), then the leveler and the lo-fi reverb;
+     * silence skipping, speed and pitch follow as in the default chain. For 32-bit output
      * the result is converted to float last, so every stage keeps working and the AudioTrack runs in
      * float whatever the decoder emits (Android's own AAC/Opus decoders ignore float requests).
      */
-    private class OutputChain(leveler: Leveler, float: Boolean) : DefaultAudioSink.AudioProcessorChain {
-        private val inner = DefaultAudioSink.DefaultAudioProcessorChain(leveler)
+    private class OutputChain(splitter: VocalSplitter, leveler: Leveler, reverb: LofiReverb, float: Boolean) : DefaultAudioSink.AudioProcessorChain {
+        private val inner = DefaultAudioSink.DefaultAudioProcessorChain(splitter, leveler, reverb)
         private val processors = inner.audioProcessors + listOfNotNull(if (float) ToFloatPcmAudioProcessor() else null)
         override fun getAudioProcessors(): Array<androidx.media3.common.audio.AudioProcessor> = processors
         override fun applyPlaybackParameters(playbackParameters: androidx.media3.common.PlaybackParameters) = inner.applyPlaybackParameters(playbackParameters)

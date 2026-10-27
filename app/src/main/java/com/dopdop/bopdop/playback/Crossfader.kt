@@ -61,7 +61,8 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
     private fun tick() {
         val p = main ?: return
         val fadeMs = LibraryStore.settings.crossfadeSec * 1000L
-        if (fadeMs <= 0 || fade != null || !p.isPlaying) return
+        // Vocal isolation starts each player a few seconds late, so a fade would fade into silence.
+        if (fadeMs <= 0 || fade != null || !p.isPlaying || VocalModel.active) return
         val item = p.currentMediaItem ?: return
         val dur = p.duration
         if (dur == C.TIME_UNSET || dur < fadeMs * 3 || item.videoId != null ||
@@ -165,6 +166,8 @@ internal class Crossfader(private val scope: CoroutineScope, private val newTail
         fun note(msg: String) = StreamResolver.note(id, msg)
         val p = main ?: return false
         if (fade != null) { note("Found, but Automix is mixing: next time"); return false }
+        // The hand-over is lined up to the millisecond; vocal isolation's few seconds of lead-in can't be.
+        if (VocalModel.active) { note("Found, but vocal isolation is on: next time"); return false }
         if (!p.isPlaying || p.currentMediaItem?.mediaId != id) return false
         if (p.duration != C.TIME_UNSET && p.duration - p.currentPosition < 25_000) { note("Found, too near the end to switch"); return false }
         val t = tail ?: newTail().also { tail = it }

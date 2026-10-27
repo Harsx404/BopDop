@@ -2,6 +2,14 @@ package com.dopdop.bopdop.ui.screens
 
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ThumbDown
+import androidx.compose.material.icons.rounded.RecordVoiceOver
+import androidx.compose.material.icons.rounded.Science
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.Wifi
@@ -122,6 +130,7 @@ private val SECTIONS = listOf(
     SettingsSection("library", "Library & storage", Icons.Rounded.Storage, "Songs on this phone, offline cache, backup", listOf("Local music", "Storage", "Backup")),
     SettingsSection("sources", "Sources & Home", Icons.Rounded.HighQuality, "Lossless add-ons, Atmos, Home feed languages", listOf("Sources & lossless", "Home feed")),
     SettingsSection("connected", "Connected", Icons.Rounded.Groups, "Last.fm, ListenBrainz, Listen Together", listOf("Scrobbling", "With friends")),
+    SettingsSection("experimental", "Experimental", Icons.Rounded.Science, "Vocal isolation, lo-fi mix", listOf("Experimental")),
 )
 
 /** Groups that stay on the overview itself. */
@@ -504,6 +513,11 @@ fun SettingsScreen(section: String? = null) {
                 }
             }
         }
+        if (show("Experimental")) item(key = "group:Experimental") {
+            CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
+                Group("Experimental") { VocalIsolationRow(s); LofiRows(s) }
+            }
+        }
         if (show("With friends")) item(key = "group:With friends") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
             Group("With friends") {
@@ -652,6 +666,125 @@ private fun ToggleRow(icon: ImageVector, title: String, sub: String, on: Boolean
         }
         Spacer(Modifier.width(12.dp))
         GlassSwitch(on)
+    }
+}
+
+/**
+ * Experimental vocal isolation: Off, Vocals only or Instrumental. The model it runs is downloaded
+ * the first time a mode is picked, and can be removed again to free the space.
+ */
+@Composable
+private fun VocalIsolationRow(s: com.dopdop.bopdop.data.Settings) {
+    val app = LocalApp.current
+    val model by com.dopdop.bopdop.playback.VocalModel.state.collectAsState()
+    val on = s.vocalMode != com.dopdop.bopdop.data.VocalMode.OFF
+    val status = when (val m = model) {
+        is com.dopdop.bopdop.playback.VocalModel.State.Downloading -> "Downloading the model… ${(m.progress * 100).toInt()}%"
+        is com.dopdop.bopdop.playback.VocalModel.State.Failed -> "The model didn't download (${m.message}). Pick a mode to try again."
+        com.dopdop.bopdop.playback.VocalModel.State.Missing ->
+            "Hear only the singing, or only the music. Needs a ${com.dopdop.bopdop.playback.VocalModel.SIZE_MB} MB model, downloaded the first time."
+        com.dopdop.bopdop.playback.VocalModel.State.Ready ->
+            if (on) "On. Each song starts a few seconds later while the first part is made, and the rest is made as it plays. If your phone can't keep up, the song pauses until the next part is ready. Uses more battery."
+            else "Hear only the singing, or only the music. It runs on your phone."
+    }
+    Searchable("Vocal isolation", status, "experimental karaoke vocals instrumental voice remove isolate acapella stems") {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) {
+            IconBadge(Icons.Rounded.RecordVoiceOver)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Vocal isolation", style = BopType.BodyStrong, color = Bop.Text)
+                Text(status, style = BopType.Caption, color = Bop.Text2)
+            }
+        }
+        ChipRow(com.dopdop.bopdop.data.VocalMode.entries, s.vocalMode, { it.label }) { m ->
+            LibraryStore.updateSettings { it.copy(vocalMode = m) }
+            if (m != com.dopdop.bopdop.data.VocalMode.OFF && !com.dopdop.bopdop.playback.VocalModel.ready) {
+                app.scope.launch { com.dopdop.bopdop.playback.VocalModel.download() }
+            }
+        }
+        if (model is com.dopdop.bopdop.playback.VocalModel.State.Ready && !on) Text(
+            "Remove the model (${com.dopdop.bopdop.playback.VocalModel.SIZE_MB} MB)", style = BopType.Caption, color = Bop.Text2,
+            modifier = Modifier.padding(start = 56.dp, bottom = 16.dp).bounceClick {
+                com.dopdop.bopdop.playback.VocalModel.delete()
+                app.toast("Vocal isolation model removed")
+            },
+        )
+    }
+}
+
+/** One lo-fi recipe: speed, pitch in semitones, reverb amount. */
+private data class LofiPreset(val label: String, val speed: Float, val pitch: Float, val reverb: Float)
+
+private val LOFI_PRESETS = listOf(
+    LofiPreset("Slowed + reverb", 0.85f, -2.5f, 0.45f),
+    LofiPreset("Chill", 0.92f, -1f, 0.3f),
+    LofiPreset("Dreamy", 0.8f, -3.5f, 0.7f),
+)
+
+/**
+ * Experimental lo-fi mix: songs slowed, pitched and given reverb. While it's on, its speed replaces
+ * the plain playback speed; speed and pitch move independently of each other.
+ */
+@Composable
+private fun LofiRows(s: com.dopdop.bopdop.data.Settings) {
+    ToggleRow(
+        Icons.Rounded.Waves, "Lo-fi mix",
+        "Slows songs down, shifts the pitch and adds reverb, for every song while it's on. It replaces the playback speed.",
+        s.lofi, keywords = "lofi lo-fi slowed reverb chill pitch speed daycore vibe",
+    ) { LibraryStore.updateSettings { it.copy(lofi = !it.lofi) } }
+    if (!s.lofi) return
+    val now = LOFI_PRESETS.firstOrNull { it.speed == s.lofiSpeed && it.pitch == s.lofiPitch && it.reverb == s.lofiReverb }
+    ChipRow(LOFI_PRESETS + listOfNotNull(if (now == null) LofiPreset("Custom", s.lofiSpeed, s.lofiPitch, s.lofiReverb) else null), now ?: LofiPreset("Custom", s.lofiSpeed, s.lofiPitch, s.lofiReverb), { it.label }) { p ->
+        LibraryStore.updateSettings { it.copy(lofiSpeed = p.speed, lofiPitch = p.pitch, lofiReverb = p.reverb) }
+    }
+    LofiSlider("Speed", "%.2f×".format(s.lofiSpeed), (s.lofiSpeed - 0.7f) / 0.3f) { f ->
+        LibraryStore.updateSettings { it.copy(lofiSpeed = (0.7f + f * 0.3f).let { v -> Math.round(v * 100) / 100f }) }
+    }
+    LofiSlider("Pitch", s.lofiPitch.let { p -> (if (p > 0) "+" else if (p < 0) "−" else "") + "%.1f".format(kotlin.math.abs(p)).removeSuffix(".0") + " semitones" }, (s.lofiPitch + 6f) / 9f) { f ->
+        LibraryStore.updateSettings { it.copy(lofiPitch = (-6f + f * 9f).let { v -> Math.round(v * 2) / 2f }) }
+    }
+    LofiSlider("Reverb", "${(s.lofiReverb * 100).toInt()}%", s.lofiReverb) { f ->
+        LibraryStore.updateSettings { it.copy(lofiReverb = Math.round(f * 20) / 20f) }
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+/** A labelled pill to drag or tap along; [fraction] is 0 to 1 across it. */
+@Composable
+private fun LofiSlider(label: String, value: String, fraction: Float, onFraction: (Float) -> Unit) {
+    val latest = androidx.compose.runtime.rememberUpdatedState(fraction)
+    Column(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 12.dp)) {
+        Row {
+            Text(label, style = BopType.Caption, color = Bop.Text2, modifier = Modifier.weight(1f))
+            Text(value, style = BopType.Caption, color = Bop.Text)
+        }
+        Spacer(Modifier.height(6.dp))
+        Box(
+            Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(50)).background(Bop.Ink.copy(alpha = 0.08f))
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        // A tap jumps to the spot; a drag moves from where the value was.
+                        var f = latest.value
+                        var moved = false
+                        while (true) {
+                            val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: break
+                            if (!c.pressed) { if (!moved) onFraction((down.position.x / size.width).coerceIn(0f, 1f)); break }
+                            if (kotlin.math.abs(c.position.x - down.position.x) > 6f) moved = true
+                            if (moved) {
+                                // Read the movement before consuming: a consumed change reports none.
+                                val dx = c.positionChange().x
+                                c.consume()
+                                f = (f + dx / size.width).coerceIn(0f, 1f)
+                                onFraction(f)
+                            }
+                        }
+                    }
+                },
+        ) {
+            val shown by androidx.compose.animation.core.animateFloatAsState(fraction.coerceIn(0f, 1f), spring(stiffness = 900f), label = "lofi")
+            Box(Modifier.fillMaxHeight().fillMaxWidth((0.12f + 0.88f * shown)).clip(RoundedCornerShape(50)).background(Bop.Accent))
+        }
     }
 }
 

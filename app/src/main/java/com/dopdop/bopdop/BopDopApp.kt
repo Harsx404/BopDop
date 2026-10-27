@@ -41,6 +41,7 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         com.dopdop.bopdop.playback.VideoQualityPolicy.init(this)
         com.dopdop.bopdop.data.DailyMixes.init(this)
         com.dopdop.bopdop.data.CatalogCache.init(this)
+        com.dopdop.bopdop.playback.VocalModel.init(this)
         // Read last launch's Home off the disk now, so it's ready before Home's first frame.
         kotlinx.coroutines.MainScope().launch(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.data.CatalogCache.lastHome() }
         com.dopdop.bopdop.data.together.Together.init(this)

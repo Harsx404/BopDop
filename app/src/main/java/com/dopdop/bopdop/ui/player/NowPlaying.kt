@@ -662,7 +662,10 @@ private fun ProgressPill(t: Track, q: StreamQuality?) {
             // Short while a video plays: the picture already says a lot.
             listOfNotNull(q?.let { if (it.hiRes) "Hi-Res" else it.codec }, res).joinToString(" · ")
         } else q?.let { if (it.hiRes) "Hi-Res · ${it.label}" else it.label }
-            .let { cap -> val sp = LibraryStore.settings.playbackSpeed; if (sp == 1f) cap else listOfNotNull(speedLabel(sp), cap).joinToString(" · ") }
+            .let { cap -> LibraryStore.settings.let { st ->
+                val tag = if (st.lofi) "Lo-fi" else st.playbackSpeed.takeIf { it != 1f }?.let { speedLabel(it) }
+                if (tag == null) cap else listOfNotNull(tag, cap).joinToString(" · ")
+            } }
             // The sleep timer lives in the ⋯ menu now; while it runs, the caption says so.
             .let { cap -> sleepLabel(sleepAt, pos)?.let { listOfNotNull(it, cap).joinToString(" · ") } ?: cap },
     )

@@ -19,3 +19,6 @@
 
 # Kuromoji loads its dictionary as resources next to its own classes; keep the names and packages.
 -keep class com.atilika.kuromoji.** { *; }
+
+# ONNX Runtime (vocal isolation) finds its Java classes from native code by name.
+-keep class ai.onnxruntime.** { *; }

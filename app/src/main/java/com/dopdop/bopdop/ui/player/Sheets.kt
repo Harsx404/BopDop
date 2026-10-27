@@ -238,7 +238,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         if (PlayerConnection.current.value?.id == t.id) {
             val sleepAt by PlayerConnection.sleepAt.collectAsState()
             Action(Icons.Rounded.Bedtime, sleepLabel(sleepAt)?.let { "Sleep timer · ${it.removePrefix("Sleep ")}" } ?: "Sleep timer") { app.sheet = Sheet.SleepTimer }
-            Action(Icons.Rounded.Speed, "Playback speed · ${speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
+            Action(Icons.Rounded.Speed, "Playback speed · ${if (lib.settings.lofi) "Lo-fi mix" else speedLabel(lib.settings.playbackSpeed)}") { app.sheet = Sheet.PlaybackSpeed }
             Action(Icons.Rounded.Cast, "Cast to a device") { close(); com.dopdop.bopdop.playback.CastPicker.show(ctx) }
             Action(Icons.Rounded.Insights, "Stats for nerds") { app.sheet = Sheet.AudioPipeline }
             Action(Icons.Rounded.Search, "Find other lyrics") { app.sheet = Sheet.LyricsSearch(t) }
@@ -700,7 +700,7 @@ private fun ColumnScope.SpeedSheet(app: AppState) {
                 val on = v == now
                 Box(
                     Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(16.dp)).background(if (on) Bop.Ink else Bop.Veil.copy(alpha = 0.6f))
-                        .bounceClick(0.94f) { LibraryStore.updateSettings { it.copy(playbackSpeed = v) } },
+                        .bounceClick(0.94f) { LibraryStore.updateSettings { it.copy(playbackSpeed = v, lofi = false) } },
                     contentAlignment = Alignment.Center,
                 ) { Text(speedLabel(v), style = BopType.BodyStrong, color = if (on) Bop.OnInk else Bop.Text) }
             }

@@ -35,6 +35,13 @@ enum class AudioQuality(val label: String, val maxKbps: Int, val saavn: String) 
     HIGH("High", Int.MAX_VALUE, "_320"), NORMAL("Normal", 140, "_160"), SAVER("Data saver", 80, "_96"),
 }
 
+/** Speed and pitch factor the player should use: the lo-fi mix's while it's on, else the plain speed. */
+val Settings.speedAndPitch: Pair<Float, Float>
+    get() = if (lofi) lofiSpeed to Math.pow(2.0, lofiPitch / 12.0).toFloat() else playbackSpeed to 1f
+
+/** Experimental vocal isolation: the voice alone, the song without it, or the song as it is. */
+enum class VocalMode(val label: String) { OFF("Off"), VOCALS("Vocals only"), INSTRUMENTAL("Instrumental") }
+
 /** Light or dark look; [SYSTEM] follows the phone. */
 enum class ThemeMode(val label: String) { SYSTEM("Auto"), LIGHT("Light"), DARK("Dark") }
 
@@ -97,6 +104,8 @@ data class Settings(
     val videoQuality: VideoQuality = VideoQuality.AUTO,
     /** Trim gaps of silence inside and between tracks. */
     val skipSilence: Boolean = false,
+    /** Experimental: play only the vocals, or only the instruments (an on-device model splits them). */
+    val vocalMode: VocalMode = VocalMode.OFF,
     /** Level every track to the same loudness. */
     val normalize: Boolean = false,
     /** Preferred display refresh rate in Hz; 0 leaves it to the system. */
@@ -138,6 +147,14 @@ data class Settings(
     val audioMobile: AudioQuality = AudioQuality.HIGH,
     /** Playback speed, 0.5x to 2x; pitch stays the same. */
     val playbackSpeed: Float = 1f,
+    /** Experimental lo-fi mix: slower, pitched and with reverb; its speed replaces [playbackSpeed] while on. */
+    val lofi: Boolean = false,
+    /** Lo-fi speed, 0.7x to 1x. */
+    val lofiSpeed: Float = 0.85f,
+    /** Lo-fi pitch shift in semitones, -6 to +3, independent of the speed. */
+    val lofiPitch: Float = -2.5f,
+    /** Lo-fi reverb, 0 (dry) to 1 (a big hall). */
+    val lofiReverb: Float = 0.45f,
     /** Shuffle and repeat as last left, so they survive restarts. [repeat] is a Media3 REPEAT_MODE_*. */
     val shuffle: Boolean = false,
     val repeat: Int = 0,
@@ -157,13 +174,14 @@ data class Settings(
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
         .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("lyricsFullScreen", lyricsFullScreen).put("canvas", canvas).put("canvasOnData", canvasOnData)
             .put("addons", JSONArray(addons)).put("lossless", lossless).put("addonsOff", JSONArray(addonsOff)).put("sourceOrder", JSONArray(sourceOrder)).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("ytHistory", ytHistory).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
-        .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("normalize", normalize)
+        .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("vocalMode", vocalMode.name).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("mascot", mascot.name)
         .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("skippedUpdate", skippedUpdate)
         .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).put("font", font.name).put("textSize", textSize.name).put("customFont", customFont).put("customFontName", customFontName)
         .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
+        .put("lofi", lofi).put("lofiSpeed", lofiSpeed.toDouble()).put("lofiPitch", lofiPitch.toDouble()).put("lofiReverb", lofiReverb.toDouble())
         .put("shuffle", shuffle).put("repeat", repeat).put("libraryList", libraryList).put("listenBrainzToken", listenBrainzToken).put("listenBrainzUser", listenBrainzUser)
             .put("lastFmSession", lastFmSession).put("lastFmUser", lastFmUser).put("lastFmKey", lastFmKey).put("lastFmSecret", lastFmSecret).put("lastFmLibre", lastFmLibre).apply { islandInApp?.let { put("islandInApp", it) } }
         .put("eq", eq.toJson())
@@ -223,6 +241,7 @@ data class Settings(
             showSaavnHome = o.optBoolean("showSaavnHome", true),
             videoQuality = runCatching { VideoQuality.valueOf(o.optString("videoQuality")) }.getOrDefault(VideoQuality.AUTO),
             skipSilence = o.optBoolean("skipSilence", false),
+            vocalMode = runCatching { VocalMode.valueOf(o.optString("vocalMode")) }.getOrDefault(VocalMode.OFF),
             normalize = o.optBoolean("normalize", false),
             refreshRate = o.optInt("refreshRate", 0),
             localFolder = o.optString("localFolder").ifEmpty { null },
@@ -250,6 +269,10 @@ data class Settings(
             audioWifi = runCatching { AudioQuality.valueOf(o.optString("audioWifi")) }.getOrDefault(AudioQuality.HIGH),
             audioMobile = runCatching { AudioQuality.valueOf(o.optString("audioMobile")) }.getOrDefault(AudioQuality.HIGH),
             playbackSpeed = o.optDouble("playbackSpeed", 1.0).toFloat().coerceIn(0.5f, 2f),
+            lofi = o.optBoolean("lofi", false),
+            lofiSpeed = o.optDouble("lofiSpeed", 0.85).toFloat().coerceIn(0.7f, 1f),
+            lofiPitch = o.optDouble("lofiPitch", -2.5).toFloat().coerceIn(-6f, 3f),
+            lofiReverb = o.optDouble("lofiReverb", 0.45).toFloat().coerceIn(0f, 1f),
             shuffle = o.optBoolean("shuffle", false),
             repeat = o.optInt("repeat", 0).coerceIn(0, 2),
             libraryList = o.optBoolean("libraryList", false),

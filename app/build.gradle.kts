@@ -69,6 +69,10 @@ android {
     }
 
     packaging {
+        // ONNX Runtime's library is ~33 MB per processor: compressed, the APK grows by a third of
+        // that (Android unpacks it once at install). 32-bit x86 isn't a build we ship.
+        jniLibs.useLegacyPackaging = true
+        jniLibs.excludes += "lib/x86/**"
         resources.excludes += setOf("/META-INF/{AL2.0,LGPL2.1}", "META-INF/DEPENDENCIES", "META-INF/INDEX.LIST", "META-INF/CONTRIBUTORS.md", "META-INF/LICENSE.md", "META-INF/NOTICE.md")
     }
 }
@@ -85,6 +89,8 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.17.0")
+    // Experimental vocal isolation runs Spleeter's two ONNX models on the phone (downloaded on demand).
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.30.0")
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
