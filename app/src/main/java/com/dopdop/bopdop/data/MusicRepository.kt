@@ -18,7 +18,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -30,19 +36,38 @@ import java.io.IOException
  */
 object MusicRepository {
 
-    /** Home is YouTube Music's own feed (yours when signed in), fresh each time; [mood] is one of its chips. */
-    suspend fun home(mood: String? = null): HomeFeed = withContext(Dispatchers.IO) {
-        // Signed in to Spotify: its personal shelves join in under All (never under a mood), asked at
-        // the same time and given a few seconds, so Home never waits on Spotify.
-        val spotify = if (mood == null && com.dopdop.bopdop.data.spotify.SpotifyCatalog.available)
-            async { withTimeoutOrNull(6_000) { runCatching { com.dopdop.bopdop.data.spotify.SpotifyCatalog.homeShelves() }.getOrNull() }.orEmpty() } else null
-        val (shelves, chips) = YtMusic.homeFeed(mood)
-        val feed = mergeHomeRecommendations(shelves, emptyList())
-        val sp = spotify?.await().orEmpty()
-        // After YouTube Music's first two rows (Quick picks and the next), then YouTube's rows go on.
-        val merged = if (sp.isEmpty()) feed.shelves else feed.shelves.take(2) + sp + feed.shelves.drop(2)
-        feed.copy(shelves = merged, chips = chips)
-    }
+    /**
+     * Home is YouTube Music's own feed (yours when signed in); [mood] is one of its chips. It arrives
+     * as it loads: the first page, then each continuation, then Spotify's shelves when they come.
+     * The finished All feed is kept on disk so the next launch has something to show at once.
+     */
+    fun home(mood: String? = null): Flow<HomeFeed> = channelFlow {
+        val lock = Mutex()
+        var yt = emptyList<Shelf>(); var chips = emptyList<Pair<String, String>>(); var sp = emptyList<Shelf>()
+        var shown: HomeFeed? = null
+        suspend fun publish() = lock.withLock {
+            if (yt.isEmpty()) return@withLock
+            val feed = mergeHomeRecommendations(yt, emptyList())
+            // After YouTube Music's first two rows (Quick picks and the next), then YouTube's rows go on.
+            feed.copy(shelves = if (sp.isEmpty()) feed.shelves else feed.shelves.take(2) + sp + feed.shelves.drop(2), chips = chips)
+                .also { shown = it; send(it) }
+        }
+        // Signed in to Spotify: its personal shelves join in under All (never under a mood). Home
+        // never waits on them; they slot in whenever they answer.
+        val spotify = if (mood == null && com.dopdop.bopdop.data.spotify.SpotifyCatalog.available) launch {
+            withTimeoutOrNull(10_000) { runCatching { com.dopdop.bopdop.data.spotify.SpotifyCatalog.homeShelves() }.getOrNull() }
+                ?.takeIf { it.isNotEmpty() }?.let { lock.withLock { sp = it }; publish() }
+        } else null
+        YtMusic.homeFeed(mood) { shelves, c -> lock.withLock { yt = shelves; chips = c }; publish() }
+        spotify?.join()
+        if (mood == null) lock.withLock { shown }?.let { CatalogCache.saveHome(it) }
+    }.flowOn(Dispatchers.IO)
+
+    /** The All feed from the last launch, for showing while a fresh one loads. It was saved already merged. */
+    suspend fun lastHome(): HomeFeed? = CatalogCache.lastHome()
+
+    /** [lastHome] without touching the disk: null until it has been read (it's warmed at launch). */
+    fun lastHomeNow(): HomeFeed? = CatalogCache.lastHomeNow()
 
     suspend fun search(q: String): SearchResults = withContext(Dispatchers.IO) {
         coroutineScope {

@@ -360,6 +360,7 @@ private fun AppNavHost(app: AppState, tabsX: androidx.compose.runtime.MutableFlo
         composable(Routes.TOGETHER, listOf(str("code"))) { e -> com.dopdop.bopdop.ui.screens.TogetherScreen(e.arguments!!.getString("code")!!) }
         composable(Routes.WRAPPED) { com.dopdop.bopdop.ui.screens.WrappedScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
+        composable(Routes.SETTINGS_SECTION, listOf(str("section"))) { e -> SettingsScreen(e.arguments!!.getString("section")) }
         composable(Routes.EQ) { com.dopdop.bopdop.ui.screens.EqualizerScreen() }
         composable(Routes.COLLECTION, listOf(str("id"), str("kind"), str("title"), str("sub"), str("art"))) { e ->
             val a = e.arguments!!

@@ -515,7 +515,11 @@ object YtMusic {
      * YouTube Music's Home, never from the cache: Quick picks and the rest follow your listening,
      * so a fresh copy is asked for every time. [params] is a mood chip ("Energize"…) or null for all.
      */
-    suspend fun homeFeed(params: String? = null): Pair<List<Shelf>, List<Pair<String, String>>> {
+    /**
+     * Home's first page and two continuations. [onPage] gets the shelves so far after each page,
+     * so the first rows can show while the rest are still on the way.
+     */
+    suspend fun homeFeed(params: String? = null, onPage: suspend (List<Shelf>, List<Pair<String, String>>) -> Unit) {
         val body = JSONObject().put("browseId", "FEmusic_home").apply { params?.let { put("params", it) } }
         var d = post("browse", body, cacheable = false)
         val chips = collect(d, mapOf("chipCloudChipRenderer" to { c: JSONObject ->
@@ -524,12 +528,13 @@ object YtMusic {
             if (label.isBlank() || p.isBlank() || label.equals("Podcasts", true)) null else label to p
         }))
         val out = shelves(d).toMutableList()
+        onPage(out.toList(), chips)
         for (i in 1 until 3) {
             val t = contToken(d) ?: break
             d = post("browse", JSONObject().put("continuation", t), cacheable = false)
             out += shelves(d)
+            onPage(out.toList(), chips)
         }
-        return out to chips
     }
 
     private suspend fun feed(browseId: String, pages: Int): List<Shelf> {

@@ -48,6 +48,8 @@ object Routes {
     const val WRAPPED = "wrapped"
     const val LIBRARY = "library"
     const val SETTINGS = "settings"
+    /** One section of Settings ("sound", "look"…), opened from the overview. */
+    const val SETTINGS_SECTION = "settings/{section}"
     const val COLLECTION = "collection?id={id}&kind={kind}&title={title}&sub={sub}&art={art}"
     const val ARTIST = "artist?id={id}&name={name}&art={art}"
     const val LOCAL = "local?id={id}"

@@ -94,6 +94,7 @@ import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import kotlinx.coroutines.flow.onCompletion
 import java.util.Calendar
 import kotlin.math.absoluteValue
 
@@ -117,7 +118,12 @@ fun HomeScreen() {
     val current by PlayerConnection.current.collectAsState()
     // YouTube Music's mood chips ("Energize", "Relax"…); null is everything.
     var mood by rememberSaveable { mutableStateOf<String?>(null) }
-    val home = rememberLoad("home:${mood.orEmpty()}") { MusicRepository.home(mood).also { com.dopdop.bopdop.data.ytm.YtHistory.refreshed() } }
+    // Last launch's feed shows at once (All only); the fresh one replaces it when it's in.
+    val home = com.dopdop.bopdop.ui.components.rememberLoadFlow(
+        "home:${mood.orEmpty()}",
+        staleNow = if (mood == null) ({ MusicRepository.lastHomeNow() }) else null,
+        stale = if (mood == null) ({ MusicRepository.lastHome() }) else null,
+    ) { MusicRepository.home(mood).onCompletion { if (it == null) com.dopdop.bopdop.data.ytm.YtHistory.refreshed() } }
     var chips by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
     (home.state as? Load.Ready<HomeFeed>)?.value?.chips?.takeIf { it.isNotEmpty() && mood == null }?.let { if (it != chips) chips = it }
     // Fresh Home: when you come back to the app after a few minutes, and as your plays reach YouTube

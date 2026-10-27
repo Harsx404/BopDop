@@ -567,6 +567,41 @@ fun <T> rememberLoad(cacheKey: String, maxAgeMs: Long = 15 * 60_000L, block: sus
     return Loader(state) { attempt++ }
 }
 
+/**
+ * [rememberLoad] for something that arrives in steps: each value [flow] sends is shown as it
+ * comes. Without a fresh copy in memory, an older one is shown meanwhile: [staleNow] if it's
+ * already in memory (so even the first frame has it), else [stale] (read from disk). A failure
+ * keeps whatever is already on screen.
+ */
+@Suppress("UNCHECKED_CAST")
+@Composable
+fun <T> rememberLoadFlow(
+    cacheKey: String, maxAgeMs: Long = 15 * 60_000L,
+    staleNow: (() -> T?)? = null, stale: (suspend () -> T?)? = null,
+    flow: () -> kotlinx.coroutines.flow.Flow<T>,
+): Loader<T> {
+    var attempt by remember(cacheKey) { mutableIntStateOf(0) }
+    val fresh = remember(cacheKey) { ScreenCache.get(cacheKey, maxAgeMs) as T? }
+    var state by remember(cacheKey) {
+        mutableStateOf<Load<T>>((fresh ?: staleNow?.invoke())?.let { Load.Ready(it) } ?: Load.Loading)
+    }
+    LaunchedEffect(cacheKey, attempt) {
+        if (fresh != null && attempt == 0) return@LaunchedEffect
+        if (state !is Load.Ready) state = stale?.invoke()?.let { Load.Ready(it) } ?: Load.Loading
+        // With nothing on screen, fill in step by step. Over an older copy, swap once at the end,
+        // so the page doesn't shrink to its first step and grow back.
+        val stepwise = state !is Load.Ready
+        try {
+            var last: T? = null
+            flow().collect { last = it; if (stepwise) state = Load.Ready(it) }
+            last?.let { state = Load.Ready(it); ScreenCache.put(cacheKey, it) }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
+            if (state !is Load.Ready) state = Load.Failed(e.message ?: "Network error")
+        }
+    }
+    return Loader(state) { attempt++ }
+}
+
 fun Color.mix(other: Color, f: Float) = lerp(this, other, f)
 
 // --- Choice chips --------------------------------------------------------------------

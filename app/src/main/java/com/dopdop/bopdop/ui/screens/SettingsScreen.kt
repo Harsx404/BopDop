@@ -112,10 +112,26 @@ import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import com.dopdop.bopdop.ui.theme.family
 
+/** One page of Settings: the overview links to it, and it shows only these groups. */
+private class SettingsSection(val id: String, val title: String, val icon: ImageVector, val blurb: String, val groups: List<String>)
+
+private val SECTIONS = listOf(
+    SettingsSection("sound", "Sound", Icons.Rounded.Headphones, "Quality, Automix, equalizer, speed", listOf("Sound")),
+    SettingsSection("lyrics", "Lyrics & video", Icons.Rounded.Lyrics, "Full screen lyrics, lock screen, video quality", listOf("Lyrics", "Music video")),
+    SettingsSection("look", "Appearance", Icons.Rounded.WaterDrop, "Theme, font, glass, seek bar, festive, island", listOf("Look & feel", "Festive", "Island")),
+    SettingsSection("library", "Library & storage", Icons.Rounded.Storage, "Songs on this phone, offline cache, backup", listOf("Local music", "Storage", "Backup")),
+    SettingsSection("sources", "Sources & Home", Icons.Rounded.HighQuality, "Lossless add-ons, Atmos, Home feed languages", listOf("Sources & lossless", "Home feed")),
+    SettingsSection("connected", "Connected", Icons.Rounded.Groups, "Last.fm, ListenBrainz, Listen Together", listOf("Scrobbling", "With friends")),
+)
+
+/** Groups that stay on the overview itself. */
+private val OVERVIEW = listOf("Account", "Help")
+
 private val LANGS = listOf("hindi", "english", "punjabi", "tamil", "telugu", "marathi", "gujarati", "bengali", "kannada", "malayalam", "bhojpuri", "haryanvi", "rajasthani", "odia", "urdu")
 
+/** Settings: an overview of short sections ([section] null), or one section's page. Search on the overview finds any setting. */
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(section: String? = null) {
     val app = LocalApp.current
     val ctx = LocalContext.current
     val lib by LibraryStore.state.collectAsState()
@@ -123,9 +139,12 @@ fun SettingsScreen() {
     val account by AccountStore.account.collectAsState()
     var query by remember { mutableStateOf("") }
     val total = remember { Hits() }
-    LargeTitleScaffold(title = "Settings", showBack = true) {
-        item { SettingsSearch(query) { query = it } }
-        item(key = "group:Account") {
+    val page = SECTIONS.firstOrNull { it.id == section }
+    // Searching shows every group that matches; otherwise the overview or this section's groups.
+    fun show(group: String) = query.isNotBlank() || (if (page == null) group in OVERVIEW else group in page.groups)
+    LargeTitleScaffold(title = page?.title ?: "Settings", showBack = true) {
+        if (page == null) item { SettingsSearch(query) { query = it } }
+        if (show("Account")) item(key = "group:Account") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Account") {
                     val spotify by com.dopdop.bopdop.data.spotify.SpotifyAccount.profile.collectAsState()
@@ -175,7 +194,13 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Sound") {
+        if (page == null && query.isBlank()) item(key = "sections") {
+            Text("SETTINGS", style = BopType.Micro, color = Bop.Text3, modifier = Modifier.padding(start = 28.dp, top = 22.dp, bottom = 8.dp))
+            Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glassLite(RoundedCornerShape(24.dp), alpha = 0.5f, shadow = 14.dp)) {
+                SECTIONS.forEach { sec -> NavRow(sec.icon, sec.title, sec.blurb) { app.nav.navigate("settings/${sec.id}") } }
+            }
+        }
+        if (show("Sound")) item(key = "group:Sound") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Sound") {
                     ToggleRow(Icons.Rounded.Headphones, "Resume when headphones reconnect", "If disconnecting your Bluetooth headphones, earbuds or car paused the music, it plays again when they're back (within 30 minutes).", s.resumeOnConnect, keywords = "bluetooth car reconnect resume auto play earbuds") {
@@ -231,12 +256,12 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Sources & lossless") {
+        if (show("Sources & lossless")) item(key = "group:Sources & lossless") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Sources & lossless") { AddonRows() }
             }
         }
-        item(key = "group:Lyrics") {
+        if (show("Lyrics")) item(key = "group:Lyrics") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Lyrics") {
                     ToggleRow(Icons.Rounded.BlurOn, "Moving background", "The cover swirls slowly behind the lyrics.", s.lyricsMotion, keywords = "motion animated lyrics background") {
@@ -251,7 +276,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Local music") {
+        if (show("Local music")) item(key = "group:Local music") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Local music") {
                     var allowed by remember { mutableStateOf(LocalMusic.hasPermission(ctx)) }
@@ -273,7 +298,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Music video") {
+        if (show("Music video")) item(key = "group:Music video") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Music video") {
                     RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.") {
@@ -292,7 +317,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Look & feel") {
+        if (show("Look & feel")) item(key = "group:Look & feel") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Look & feel") {
                     AppIconRow()
@@ -340,7 +365,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Festive") {
+        if (show("Festive")) item(key = "group:Festive") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Festive") {
                     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
@@ -359,7 +384,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Island") {
+        if (show("Island")) item(key = "group:Island") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Island") {
                     val native = com.dopdop.bopdop.ui.island.NativeIsland.name
@@ -383,7 +408,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Home feed") {
+        if (show("Home feed")) item(key = "group:Home feed") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Home feed") {
                     ToggleRow(Icons.Rounded.AutoAwesome, "JioSaavn picks", "Mix Indian charts, new releases and stations into Home.", s.showSaavnHome) {
@@ -412,7 +437,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Storage") {
+        if (show("Storage")) item(key = "group:Storage") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Storage") {
                     RowHead(Icons.Rounded.DownloadForOffline, "Offline cache", "Songs you play are kept so replays are instant and data-free. Applies on next launch. Remove one from its ⋯ menu.", keywords = "storage clear space data unlimited keep remove") {
@@ -448,12 +473,12 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:Backup") {
+        if (show("Backup")) item(key = "group:Backup") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Backup") { BackupRows() }
             }
         }
-        item(key = "group:Scrobbling") {
+        if (show("Scrobbling")) item(key = "group:Scrobbling") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Scrobbling") {
                 NavRow(
@@ -470,7 +495,7 @@ fun SettingsScreen() {
             }
             }
         }
-        item(key = "group:Help") {
+        if (show("Help")) item(key = "group:Help") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Help") {
                     NavRow(Icons.Rounded.BugReport, "Report a problem", "Send what went wrong with BopDop's recent log, so it can be fixed.", keywords = "bug crash feedback log help support") {
@@ -479,7 +504,7 @@ fun SettingsScreen() {
                 }
             }
         }
-        item(key = "group:With friends") {
+        if (show("With friends")) item(key = "group:With friends") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
             Group("With friends") {
                     NavRow(Icons.Rounded.Groups, "Listen Together", "Start or join a room and listen with friends.") {
@@ -494,7 +519,7 @@ fun SettingsScreen() {
                 Text("No settings match “${query.trim()}”", style = BopType.Body, color = Bop.Text2, modifier = Modifier.fillMaxWidth().padding(36.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
-            if (query.isBlank()) {
+            if (query.isBlank() && page == null) {
                 Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("BopDop", style = BopType.Title, color = Bop.Text)
                     Text("v${BuildConfig.VERSION_NAME} · DopDop music engine", style = BopType.Caption, color = Bop.Text3)
