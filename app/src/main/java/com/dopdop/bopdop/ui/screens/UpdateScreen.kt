@@ -96,6 +96,7 @@ fun UpdateScreen() {
                             style = BopType.Caption, color = Bop.Text2, modifier = Modifier.padding(top = 8.dp))
                     }
                     InstallState.Installing -> Text("Opening Android's installer… confirm there to finish.", style = BopType.Body, color = Bop.Text2)
+                    InstallState.Ready -> Text("Downloaded. Tap Install, then Update on Android's screen to finish.", style = BopType.Body, color = Bop.Text2)
                     InstallState.NeedsPermission -> Text("Allow \"Install unknown apps\" for BopDop, then come back: the update continues by itself.", style = BopType.Body, color = Bop.Text2)
                     is InstallState.Failed -> Text(s.message, style = BopType.Body, color = Bop.Danger)
                     else -> {}
@@ -104,9 +105,9 @@ fun UpdateScreen() {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     val busy = install is InstallState.Downloading || install == InstallState.Installing
                     if (u != null) Text(
-                        if (busy) "Updating…" else "Update now", style = BopType.BodyStrong, color = Bop.OnInk,
+                        when { install == InstallState.Ready -> "Install"; busy -> "Updating…"; else -> "Update now" }, style = BopType.BodyStrong, color = Bop.OnInk,
                         modifier = Modifier.clip(RoundedCornerShape(50)).background(Bop.Ink.copy(alpha = if (busy) 0.5f else 1f))
-                            .bounceClick { if (!busy) scope.launch { UpdateInstaller.install(ctx.applicationContext, u) } }
+                            .bounceClick { if (!busy) UpdateInstaller.start(ctx, u) }
                             .padding(horizontal = 20.dp, vertical = 11.dp),
                     )
                     Text(

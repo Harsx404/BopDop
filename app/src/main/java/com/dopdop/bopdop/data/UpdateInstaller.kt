@@ -1,5 +1,7 @@
 package com.dopdop.bopdop.data
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -7,11 +9,17 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import com.dopdop.bopdop.data.net.Http
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Request
 import java.io.File
@@ -19,7 +27,10 @@ import java.io.File
 sealed interface InstallState {
     data object Idle : InstallState
     data class Downloading(val fraction: Float) : InstallState
+    /** Handed to Android's installer; waiting for it to answer. */
     data object Installing : InstallState
+    /** Downloaded and ready: one tap on Install opens Android's "Update BopDop?" screen. */
+    data object Ready : InstallState
     /** Waiting for the user to allow "Install unknown apps" for BopDop. */
     data object NeedsPermission : InstallState
     data class Failed(val message: String) : InstallState
@@ -29,11 +40,37 @@ sealed interface InstallState {
  * One-tap update: downloads the release APK for this phone's processor and hands it to Android's
  * installer, which shows its own "Update BopDop?" confirmation. Needs "Install unknown apps" for
  * BopDop the first time; the app opens that switch when it's off.
+ *
+ * Android only lets an app open that confirmation while the app is on screen, so it's never left
+ * to chance: the confirmation is kept, opened straight away when BopDop is in front, and otherwise
+ * on the next return to the app, from a notification, or from the Install button. The work runs
+ * in the installer's own scope, so leaving the Updates page doesn't cancel a download.
  */
 object UpdateInstaller {
+    private const val TAG = "UpdateInstaller"
+    private const val ACTION = "com.dopdop.bopdop.UPDATE_STATUS"
+    private const val CHANNEL = "updates"
+    private const val NOTIFICATION = 7301
+    /** How long Android gets to answer the install session before the classic installer takes over. */
+    private const val ANSWER_MS = 15_000L
+
     private val _state = MutableStateFlow<InstallState>(InstallState.Idle)
     val state: StateFlow<InstallState> = _state.asStateFlow()
-    private const val ACTION = "com.dopdop.bopdop.UPDATE_STATUS"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var job: Job? = null
+
+    /** BopDop has a screen showing (set by the app's root from its lifecycle). */
+    @Volatile var visible = false
+
+    /** What the Install button opens: Android's confirmation for the session, or the classic installer. */
+    @Volatile private var confirm: Intent? = null
+    @Volatile private var apk: File? = null
+    /** The confirmation was opened while BopDop was showing, so it's on screen now. */
+    @Volatile private var shown = false
+
+    /** The update waiting for the "Install unknown apps" switch; [resume] picks it up on return. */
+    @Volatile private var waiting: AppUpdate? = null
 
     /** True when Android lets BopDop install packages; otherwise opens that switch and returns false. */
     fun ensureAllowed(context: Context): Boolean {
@@ -47,45 +84,105 @@ object UpdateInstaller {
         return false
     }
 
-    /** The update waiting for the "Install unknown apps" switch; [resume] picks it up on return. */
-    @Volatile private var waiting: AppUpdate? = null
+    /** Start (or carry on with) updating to [update]: download, then install. Taps while busy are ignored. */
+    fun start(context: Context, update: AppUpdate) {
+        val app = context.applicationContext
+        when (_state.value) {
+            InstallState.Ready -> { confirm(app); return }
+            is InstallState.Downloading, InstallState.Installing -> if (job?.isActive == true) return
+            else -> {}
+        }
+        job = scope.launch { install(app, update) }
+    }
 
-    suspend fun install(context: Context, update: AppUpdate) {
+    private suspend fun install(context: Context, update: AppUpdate) {
         val url = update.apkUrl ?: run { _state.value = InstallState.Failed("This release has no APK"); return }
         if (!ensureAllowed(context)) { waiting = update; _state.value = InstallState.NeedsPermission; return }
         waiting = null
-        val apk = runCatching { download(context, url) }.getOrElse {
+        confirm = null; shown = false
+        val file = runCatching { download(context, url) }.getOrElse {
+            Log.w(TAG, "download failed", it)
             _state.value = InstallState.Failed("Download failed: ${it.message ?: "no connection"}"); return
         }
-        _state.value = InstallState.Installing
-        runCatching { commit(context, apk) }.onFailure { openInstaller(context, apk); return }
-        // Android answers through [StatusReceiver] with its "Update BopDop?" screen. If nothing has
-        // shown up after a while (some phones' installers never answer a session), open the
-        // system installer on the file directly instead.
-        kotlinx.coroutines.delay(12_000)
-        if (_state.value == InstallState.Installing && !answered) openInstaller(context, apk)
+        installFile(context, file)
     }
 
-    /** Set when Android has answered the install session (shown its screen, or finished). */
-    @Volatile private var answered = false
+    /** Hand a downloaded [file] to Android's installer, and make sure its confirmation reaches the screen. */
+    private suspend fun installFile(context: Context, file: File) {
+        apk = file
+        confirm = null; shown = false
+        _state.value = InstallState.Installing
+        runCatching { commit(context, file) }.onFailure {
+            Log.w(TAG, "install session failed, using the classic installer", it)
+            offer(context, classic(context, file)); return
+        }
+        // Android answers through [StatusReceiver]. Some phones' installers never answer a session:
+        // then the classic installer, opened on the file, does the job.
+        delay(ANSWER_MS)
+        if (_state.value == InstallState.Installing) {
+            Log.w(TAG, "no answer from the install session in ${ANSWER_MS / 1000}s, offering the classic installer")
+            offer(context, classic(context, file))
+        }
+    }
 
     /** The system installer, opened on the downloaded APK (the classic way, before sessions). */
-    private fun openInstaller(context: Context, apk: File) {
-        runCatching {
-            val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", apk)
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-            _state.value = InstallState.Idle
-        }.onFailure { _state.value = InstallState.Failed("Couldn't open the installer. Download the update from GitHub instead.") }
+    private fun classic(context: Context, file: File): Intent {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", file)
+        return Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 
-    /** Back in the app after the permission screen: carry on if it was allowed. */
+    /**
+     * Keep [intent] as what Install opens, and open it now if BopDop is on screen. Otherwise a
+     * notification offers it and the next return to the app opens it.
+     */
+    private fun offer(context: Context, intent: Intent) {
+        confirm = intent
+        shown = false
+        _state.value = InstallState.Ready
+        if (visible) open(context) else notifyReady(context, intent)
+    }
+
+    /** Install, tapped: open what Android needs to finish the update. */
+    fun confirm(context: Context) {
+        if (confirm == null) apk?.takeIf { it.exists() }?.let { confirm = classic(context, it) }
+        if (confirm == null) { _state.value = InstallState.Idle; return }
+        open(context)
+    }
+
+    private fun open(context: Context) {
+        val i = confirm ?: return
+        runCatching { context.startActivity(Intent(i).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            .onSuccess { shown = true; context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION) }
+            .onFailure { Log.w(TAG, "couldn't open the installer", it); _state.value = InstallState.Failed("Couldn't open the installer. Download the update from GitHub instead.") }
+    }
+
+    /** Back in the app: finish an update waiting on the unknown-apps switch, or one Android couldn't show. */
     suspend fun resume(context: Context) {
-        val u = waiting ?: return
-        if (context.packageManager.canRequestPackageInstalls()) install(context, u)
-        else { waiting = null; _state.value = InstallState.Idle }
+        visible = true
+        waiting?.let { u ->
+            if (context.packageManager.canRequestPackageInstalls()) start(context, u)
+            else { waiting = null; _state.value = InstallState.Idle }
+            return
+        }
+        // The confirmation came while BopDop was away (Android won't open it then): open it now.
+        if (_state.value == InstallState.Ready && !shown) open(context)
+    }
+
+    private fun notifyReady(context: Context, intent: Intent) {
+        runCatching {
+            val nm = context.getSystemService(NotificationManager::class.java) ?: return
+            if (Build.VERSION.SDK_INT >= 33 && !nm.areNotificationsEnabled()) return
+            if (nm.getNotificationChannel(CHANNEL) == null) nm.createNotificationChannel(NotificationChannel(CHANNEL, "Updates", NotificationManager.IMPORTANCE_HIGH))
+            val tap = PendingIntent.getActivity(context, NOTIFICATION, Intent(intent), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            nm.notify(NOTIFICATION, androidx.core.app.NotificationCompat.Builder(context, CHANNEL)
+                .setSmallIcon(com.dopdop.bopdop.R.drawable.ic_launcher_mono)
+                .setContentTitle("BopDop update downloaded")
+                .setContentText("Tap to install")
+                .setContentIntent(tap).setAutoCancel(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .build())
+        }.onFailure { Log.w(TAG, "couldn't post the update notification", it) }
     }
 
     private suspend fun download(context: Context, url: String): File = withContext(Dispatchers.IO) {
@@ -119,7 +216,6 @@ object UpdateInstaller {
             setAppPackageName(context.packageName)
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
-        answered = false
         // Leftover sessions from an earlier try would sit in the way; drop them.
         installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
         val id = installer.createSession(params)
@@ -137,15 +233,17 @@ object UpdateInstaller {
     /** Android's answers about the install session. */
     class StatusReceiver : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            answered = true
-            when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)) {
+            val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
+            Log.i(TAG, "install session status $status ${intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()}")
+            when (status) {
                 PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                     @Suppress("DEPRECATION")
-                    val confirm = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
+                    val ask = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                     else intent.getParcelableExtra(Intent.EXTRA_INTENT)
-                    confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let { runCatching { context.startActivity(it) } }
+                    if (ask != null) offer(context.applicationContext, ask)
+                    else apk?.let { offer(context.applicationContext, classic(context.applicationContext, it)) }
                 }
-                PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED -> _state.value = InstallState.Idle
+                PackageInstaller.STATUS_SUCCESS, PackageInstaller.STATUS_FAILURE_ABORTED -> { confirm = null; _state.value = InstallState.Idle }
                 PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
                     _state.value = InstallState.Failed("This build is signed differently. Uninstall BopDop, then install the new one.")
                 else -> _state.value = InstallState.Failed(intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "Install failed")

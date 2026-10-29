@@ -228,6 +228,9 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     val ctx = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            // The updater may only open Android's install screen while BopDop is showing.
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_START) com.dopdop.bopdop.data.UpdateInstaller.visible = true
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) com.dopdop.bopdop.data.UpdateInstaller.visible = false
             if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) app.scope.launch {
                 com.dopdop.bopdop.data.UpdateInstaller.resume(ctx.applicationContext)
                 com.dopdop.bopdop.data.Updates.check()

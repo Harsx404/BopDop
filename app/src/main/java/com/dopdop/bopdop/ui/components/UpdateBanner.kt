@@ -49,15 +49,14 @@ fun openUpdate(ctx: android.content.Context, u: AppUpdate) {
         runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.pageUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
         return
     }
-    val busy = UpdateInstaller.state.value
-    if (busy is InstallState.Downloading || busy == InstallState.Installing) return
-    kotlinx.coroutines.MainScope().launch { UpdateInstaller.install(ctx.applicationContext, u) }
+    UpdateInstaller.start(ctx, u)
 }
 
 /** "Update" / "42%" / "Installing…" for the update buttons. */
 fun updateButtonLabel(s: InstallState) = when (s) {
     is InstallState.Downloading -> "${(s.fraction * 100).toInt()}%"
     InstallState.Installing -> "Installing…"
+    InstallState.Ready -> "Install"
     else -> "Update"
 }
 
