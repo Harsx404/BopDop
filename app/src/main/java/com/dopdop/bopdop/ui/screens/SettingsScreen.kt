@@ -126,11 +126,11 @@ private class SettingsSection(val id: String, val title: String, val icon: Image
 private val SECTIONS = listOf(
     SettingsSection("sound", "Sound", Icons.Rounded.Headphones, "Quality, Automix, equalizer, speed", listOf("Sound")),
     SettingsSection("lyrics", "Lyrics & video", Icons.Rounded.Lyrics, "Full screen lyrics, lock screen, video quality", listOf("Lyrics", "Music video")),
-    SettingsSection("look", "Appearance", Icons.Rounded.WaterDrop, "Theme, font, glass, seek bar, festive, island", listOf("Look & feel", "Festive", "Island")),
+    SettingsSection("look", "Appearance", Icons.Rounded.WaterDrop, "Theme, font, glass, seek bar, festive", listOf("Look & feel", "Festive", "Island")),
     SettingsSection("library", "Library & storage", Icons.Rounded.Storage, "Songs on this phone, offline cache, backup", listOf("Local music", "Storage", "Backup")),
     SettingsSection("sources", "Sources & Home", Icons.Rounded.HighQuality, "Lossless add-ons, Atmos, Home feed languages", listOf("Sources & lossless", "Home feed")),
     SettingsSection("connected", "Connected", Icons.Rounded.Groups, "Last.fm, ListenBrainz, Listen Together", listOf("Scrobbling", "With friends")),
-    SettingsSection("experimental", "Experimental", Icons.Rounded.Science, "Vocal isolation, lo-fi mix", listOf("Experimental")),
+    SettingsSection("experimental", "Experimental", Icons.Rounded.Science, "Vocal isolation, lo-fi mix, custom island", listOf("Experimental")),
 )
 
 /** Groups that stay on the overview itself. */
@@ -401,26 +401,14 @@ fun SettingsScreen(section: String? = null) {
                 }
             }
         }
-        if (show("Island")) item(key = "group:Island") {
+        // The phone's own island; BopDop's custom island lives under Experimental.
+        if (android.os.Build.VERSION.SDK_INT >= 36 && show("Island")) item(key = "group:Island") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Island") {
                     val native = com.dopdop.bopdop.ui.island.NativeIsland.name
-                    if (android.os.Build.VERSION.SDK_INT >= 36) {
-                        ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
-                            (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
-                            LibraryStore.updateSettings { it.copy(liveUpdate = !it.liveUpdate) }
-                        }
-                    }
-                    if (android.os.Build.VERSION.SDK_INT >= 30) {
-                        ToggleRow(Icons.Rounded.Contactless, "Island over other apps", "BopDop's own island while you use other apps. Asks to display over other apps.", s.islandOverlay) {
-                            val turnOn = !s.islandOverlay
-                            if (turnOn && !android.provider.Settings.canDrawOverlays(ctx)) {
-                                runCatching {
-                                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
-                                }
-                            }
-                            LibraryStore.updateSettings { it.copy(islandOverlay = turnOn) }
-                        }
+                    ToggleRow(Icons.Rounded.Contactless, "Show in your phone's island",
+                        (native?.let { "Shows the song in your $it" } ?: "Shows the song in your status bar and island") + " as a Live Update while music plays.", s.liveUpdate) {
+                        LibraryStore.updateSettings { it.copy(liveUpdate = !it.liveUpdate) }
                     }
                 }
             }
@@ -523,7 +511,20 @@ fun SettingsScreen(section: String? = null) {
         }
         if (show("Experimental")) item(key = "group:Experimental") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
-                Group("Experimental") { VocalIsolationRow(s); LofiRows(s) }
+                Group("Experimental") {
+                    VocalIsolationRow(s); LofiRows(s)
+                    if (android.os.Build.VERSION.SDK_INT >= 30) {
+                        ToggleRow(Icons.Rounded.Contactless, "Custom island over other apps", "BopDop's own Dynamic Island around the camera while you use other apps. Asks to display over other apps.", s.islandOverlay) {
+                            val turnOn = !s.islandOverlay
+                            if (turnOn && !android.provider.Settings.canDrawOverlays(ctx)) {
+                                runCatching {
+                                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION, android.net.Uri.parse("package:" + ctx.packageName)))
+                                }
+                            }
+                            LibraryStore.updateSettings { it.copy(islandOverlay = turnOn) }
+                        }
+                    }
+                }
             }
         }
         if (show("With friends")) item(key = "group:With friends") {

@@ -89,6 +89,7 @@ object MusicRepository {
                 albums = (a.albums + b.albums).distinctBy { it.title.lowercase() + it.subtitle.lowercase().take(12) }.take(24),
                 artists = (a.artists + b.artists).distinctBy { it.title.lowercase() }.take(16),
                 playlists = (a.playlists + b.playlists).take(24),
+                podcasts = a.podcasts.take(16),
             )
         }
     }
@@ -174,5 +175,7 @@ object MusicRepository {
     suspend fun moods(): List<Pair<String, String>> = withContext(Dispatchers.IO) { YtMusic.moods() }
     suspend fun moodCategory(params: String): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.moodCategory(params) }
     suspend fun explore(): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.explore() }
+    suspend fun podcasts(): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.podcasts() }
+    suspend fun podcastShow(id: String): com.dopdop.bopdop.data.model.PodcastShow = withContext(Dispatchers.IO) { YtMusic.podcastShow(id.removePrefix("yt:")) }
     suspend fun lyrics(t: Track): Lyrics? = withContext(Dispatchers.IO) { LyricsApi.get(t) }
 }

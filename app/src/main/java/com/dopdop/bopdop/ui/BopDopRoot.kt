@@ -213,6 +213,9 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             com.dopdop.bopdop.ui.player.HoldMenuHost(app)
             SheetHost(app)
             app.shareTrack?.let { com.dopdop.bopdop.ui.share.ShareStudio(it) { app.shareTrack = null } }
+            // Room reactions and chat, over whatever screen you're on.
+            val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
+            com.dopdop.bopdop.ui.together.TogetherOverlay(app, onRoomScreen = route == Routes.TOGETHER && app.player.targetValue < 0.5f)
             ToastHost(app)
         }
     }
@@ -389,6 +392,11 @@ private fun AppNavHost(app: AppState, tabsX: androidx.compose.runtime.MutableFlo
         composable(Routes.SPOTIFY) { com.dopdop.bopdop.ui.screens.SpotifyLibraryScreen() }
         composable(Routes.UPDATE) { com.dopdop.bopdop.ui.screens.UpdateScreen() }
         composable(Routes.SPOTIFY_LOGIN) { com.dopdop.bopdop.ui.screens.SpotifyLoginScreen() }
+        composable(Routes.PODCASTS) { com.dopdop.bopdop.ui.screens.PodcastsScreen() }
+        composable(Routes.PODCAST, listOf(str("id"), str("title"), str("art"))) { e ->
+            val a = e.arguments!!
+            com.dopdop.bopdop.ui.screens.PodcastScreen(a.getString("id")!!, a.getString("title")!!, a.getString("art")!!)
+        }
         composable(Routes.SPOTIFY_PLAYLIST, listOf(str("id"), str("name"), str("art"))) { e ->
             val a = e.arguments!!
             com.dopdop.bopdop.ui.screens.SpotifyPlaylistScreen(a.getString("id")!!, a.getString("name")!!, a.getString("art")!!)

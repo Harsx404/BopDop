@@ -43,11 +43,9 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.Chat
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material.icons.rounded.Sms
+import androidx.core.graphics.drawable.toBitmap
 import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -164,7 +162,7 @@ fun ShareStudio(t: Track, onDismiss: () -> Unit) {
         }
         return layers[page].toImageBitmap().asAndroidBitmap().also { freeze = null }
     }
-    val caption = "${t.title} · ${t.artist}\n${trackLink(t)}"
+    val caption = "${t.title} · ${t.artist}\nListen on YouTube Music: ${trackLink(t)}"
     fun send(build: (Uri) -> Intent) = scope.launch {
         val uri = cardFile(ctx, snapshot(), t.title)
         val intent = build(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -211,26 +209,25 @@ fun ShareStudio(t: Track, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(18.dp))
                 Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color.White.copy(alpha = 0.08f)))
                 Spacer(Modifier.height(16.dp))
+                val apps = remember { installedTargets(ctx) }
                 LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                     item {
-                        Target(Icons.Rounded.Link, "Copy link", Color.White.copy(alpha = 0.12f)) {
+                        Target(Icons.Rounded.Link, "Copy link") {
                             ctx.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(t.title, caption))
                             app.toast("Link copied")
                         }
                     }
-                    item { Target(Icons.Rounded.Chat, "WhatsApp", Color(0xFF25D366)) { send { imageIntent(it, caption).setPackage("com.whatsapp") } } }
-                    item {
-                        Target(Icons.Rounded.CameraAlt, "Instagram", null) { send { imageIntent(it, caption).setPackage("com.instagram.android") } }
-                    }
-                    item {
-                        Target(Icons.Rounded.Sms, "Message", Color.White.copy(alpha = 0.12f)) {
-                            try {
-                                ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", caption).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                            } catch (_: ActivityNotFoundException) { app.toast("No messaging app") }
+                    // Each installed app with its own icon; the rest are a tap away under More.
+                    items(apps, key = { it.pkg }) { a ->
+                        AppTarget(a) {
+                            if (a.sms) try {
+                                ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).setPackage(a.pkg).putExtra("sms_body", caption).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            } catch (_: ActivityNotFoundException) { app.toast("Couldn't open ${a.label}") }
+                            else send { imageIntent(it, caption).setPackage(a.pkg) }
                         }
                     }
                     item {
-                        Target(Icons.Rounded.MoreHoriz, "More", Color.White.copy(alpha = 0.12f)) {
+                        Target(Icons.Rounded.MoreHoriz, "More") {
                             send { Intent.createChooser(imageIntent(it, caption), "Share ${t.title}") }
                         }
                     }
@@ -367,19 +364,48 @@ private fun BackdropDots(t: Track, palette: ArtPalette, kind: CardKind, selected
     }
 }
 
+/** BopDop's own actions (copy, more): a glyph on a soft disc. */
 @Composable
-private fun Target(icon: ImageVector, label: String, color: Color?, onClick: () -> Unit) {
+private fun Target(icon: ImageVector, label: String, onClick: () -> Unit) {
     Column(Modifier.width(64.dp).bounceClick(0.92f, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(56.dp).clip(CircleShape).background(
-                if (color != null) Brush.linearGradient(listOf(color, color))
-                // Instagram's sunset.
-                else Brush.linearGradient(listOf(Color(0xFFFEDA75), Color(0xFFFA7E1E), Color(0xFFD62976), Color(0xFF962FBF), Color(0xFF4F5BD5))),
-            ),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp)) }
+        Box(Modifier.size(56.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
+        }
         Spacer(Modifier.height(6.dp))
         Text(label, style = BopType.Caption, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** An app to share to, as the phone has it installed: its own name and launcher icon. */
+private class ShareApp(val pkg: String, val label: String, val icon: ImageBitmap, val sms: Boolean = false)
+
+/** The chat and social apps people share music to, in that order, that are on this phone. */
+private val SHARE_APPS = listOf(
+    "com.whatsapp" to "WhatsApp", "com.whatsapp.w4b" to "WhatsApp Business", "com.instagram.android" to "Instagram",
+    "org.telegram.messenger" to "Telegram", "com.snapchat.android" to "Snapchat", "com.twitter.android" to "X", "com.facebook.orca" to "Messenger",
+)
+
+private fun installedTargets(ctx: Context): List<ShareApp> {
+    val pm = ctx.packageManager
+    fun icon(pkg: String) = runCatching {
+        val px = (56 * ctx.resources.displayMetrics.density).toInt()
+        pm.getApplicationIcon(pkg).toBitmap(px, px).asImageBitmap()
+    }.getOrNull()
+    val apps = SHARE_APPS.mapNotNull { (pkg, label) -> icon(pkg)?.let { ShareApp(pkg, label, it) } }
+    // Messages: whichever app the phone uses for texts, under its own name.
+    val sms = android.provider.Telephony.Sms.getDefaultSmsPackage(ctx)?.let { pkg ->
+        icon(pkg)?.let { ShareApp(pkg, runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrDefault("Messages"), it, sms = true) }
+    }
+    return apps + listOfNotNull(sms)
+}
+
+@Composable
+private fun AppTarget(a: ShareApp, onClick: () -> Unit) {
+    Column(Modifier.width(64.dp).bounceClick(0.92f, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
+        // The launcher icon already carries the app's own shape and colours.
+        Image(a.icon, a.label, Modifier.size(56.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(a.label, style = BopType.Caption, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -406,6 +432,12 @@ private fun rememberClipPlayer(clip: Clip): ExoPlayer {
 
 /** The song's music video, at the moment of the song you're on, in a small size that loads fast. */
 private suspend fun clipFor(t: Track, listening: Long): Clip? {
+    // A podcast episode is its own video: the moment you're at, no music video to look for.
+    if (t.isPodcast) {
+        val streams = VideoResolver.prepare(t.rawId, 360)
+        val aspect = if (streams.width > 0 && streams.height > 0) streams.width.toFloat() / streams.height else 16f / 9f
+        return Clip(streams.video.url, streams.video.userAgent, listening, aspect)
+    }
     val match = YtMusic.musicVideoFor(t) ?: return null
     val streams = VideoResolver.prepare(match.videoId, 360)
     val songAt = match.segments.singleOrNull()?.let { it.videoStartMs - it.songStartMs }?.coerceAtLeast(0) ?: 0L

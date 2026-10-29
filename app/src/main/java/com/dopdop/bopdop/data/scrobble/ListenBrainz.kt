@@ -52,7 +52,8 @@ object ListenBrainz {
         startedAt = System.currentTimeMillis() / 1000
         heardSec = 0
         counted = false
-        if (t == null || token.isBlank()) return
+        // Podcast episodes are not songs: never scrobbled.
+        if (t == null || t.isPodcast || token.isBlank()) return
         val now = JSONArray().put(JSONObject().put("track_metadata", metadata(t)))
         scope.launch { runCatching { submit("playing_now", now) }.onFailure { Log.i("ListenBrainz", "playing_now: ${it.message}") } }
     }
@@ -60,7 +61,7 @@ object ListenBrainz {
     /** One more second of [t] heard (called only while it's actually playing). */
     fun tick(t: Track) {
         if (t.id != trackId) onTrack(t)
-        if (counted || token.isBlank()) return
+        if (counted || t.isPodcast || token.isBlank()) return
         if (++heardSec < needed(t.durationSec)) return
         counted = true
         val listen = JSONObject().put("listened_at", startedAt).put("track_metadata", metadata(t))

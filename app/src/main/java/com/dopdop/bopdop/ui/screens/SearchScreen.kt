@@ -86,7 +86,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
-private enum class Filter(val label: String) { ALL("Top"), SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums"), PLAYLISTS("Playlists") }
+private enum class Filter(val label: String) { ALL("Top"), SONGS("Songs"), ARTISTS("Artists"), ALBUMS("Albums"), PLAYLISTS("Playlists"), PODCASTS("Podcasts") }
 
 /**
  * Which catalogue the results come from. Spotify shows only for people signed in to it; its songs
@@ -357,6 +357,7 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
                         if (r.artists.isNotEmpty()) item { SectionHeader("Artists"); CardRow(r.artists, 116.dp) }
                         if (r.albums.isNotEmpty()) item { SectionHeader("Albums"); CardRow(r.albums) }
                         if (r.playlists.isNotEmpty()) item { SectionHeader("Playlists"); CardRow(r.playlists) }
+                        if (r.podcasts.isNotEmpty()) item { SectionHeader("Podcasts", action = if (r.podcasts.size > 6) "See all" else null) { onFilter(Filter.PODCASTS) }; CardRow(r.podcasts) }
                     }
                     Filter.SONGS -> items(r.tracks.size) { i ->
                         val t = r.tracks[i]
@@ -365,6 +366,7 @@ private fun Results(q: String, filter: Filter, onFilter: (Filter) -> Unit) {
                     Filter.ARTISTS -> cardGrid(r.artists)
                     Filter.ALBUMS -> cardGrid(r.albums)
                     Filter.PLAYLISTS -> cardGrid(r.playlists)
+                    Filter.PODCASTS -> cardGrid(r.podcasts)
                 }
             }
         }

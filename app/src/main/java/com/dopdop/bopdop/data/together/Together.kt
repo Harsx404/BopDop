@@ -29,6 +29,12 @@ enum class RoomStatus { IDLE, CONNECTING, WAITING, LIVE, RECONNECTING }
 
 data class Member(val id: String, val name: String, val host: Boolean)
 
+/** A chat line in the room; [mine] when this phone sent it. */
+data class ChatMessage(val seq: Long, val from: String, val name: String, val text: String, val mine: Boolean)
+
+/** An emoji someone sent, with a [seq] so each one animates on its own even when repeated. */
+data class Reaction(val seq: Long, val from: String, val name: String, val emoji: String, val mine: Boolean)
+
 data class RoomState(
     val status: RoomStatus = RoomStatus.IDLE,
     val code: String = "",
@@ -39,7 +45,12 @@ data class RoomState(
     val mode: String = "host",
     val members: List<Member> = emptyList(),
     val pending: List<Member> = emptyList(),
-    val reaction: Pair<String, String>? = null,
+    /** The latest reactions, newest last; the UI floats each one up once. */
+    val reactions: List<Reaction> = emptyList(),
+    /** The room's chat since you joined, newest last. */
+    val chat: List<ChatMessage> = emptyList(),
+    /** Messages from others not yet seen on the room screen. */
+    val unread: Int = 0,
 ) {
     val live get() = status == RoomStatus.LIVE
     val isHost get() = meId.isNotEmpty() && meId == hostId
@@ -108,7 +119,13 @@ object Together {
     fun end() { send(JSONObject().put("t", "end")); leave() }
     fun approve(id: String, ok: Boolean) = send(JSONObject().put("t", "approve").put("id", id).put("ok", ok))
     fun setMode(all: Boolean) = send(JSONObject().put("t", "mode").put("mode", if (all) "all" else "host"))
+    /** The reactions the relay passes on (it drops anything else). */
+    val REACTIONS = listOf("❤️", "🔥", "😂", "😮", "👏", "🎉", "😢", "👍")
     fun react(emoji: String) = send(JSONObject().put("t", "react").put("emoji", emoji))
+    fun chat(text: String) { text.trim().take(400).takeIf { it.isNotEmpty() }?.let { send(JSONObject().put("t", "chat").put("text", it)) } }
+    /** The room screen is showing the chat. */
+    fun chatSeen() = _state.update { it.copy(unread = 0) }
+    private var seq = 0L
 
     private fun start(i: Intent) {
         leave()
@@ -190,7 +207,15 @@ object Together {
             "pending" -> _state.update { it.copy(pending = it.pending + Member(m.optString("id"), m.optString("name"), false)) }
             "queue" -> if (!_state.value.canControl || m.optString("by") != _state.value.meId) applyQueue(m.optJSONArray("items"), m.optInt("index"))
             "sync" -> if (m.optString("by") != _state.value.meId) applySync(m)
-            "react" -> _state.update { it.copy(reaction = m.optString("name") to m.optString("emoji")) }
+            "react" -> _state.update {
+                val r = Reaction(++seq, m.optString("from"), m.optString("name"), m.optString("emoji"), m.optString("from") == it.meId)
+                it.copy(reactions = (it.reactions + r).takeLast(12))
+            }
+            "chat" -> _state.update {
+                val mine = m.optString("from") == it.meId
+                val c = ChatMessage(++seq, m.optString("from"), m.optString("name"), m.optString("text").take(400), mine)
+                it.copy(chat = (it.chat + c).takeLast(100), unread = if (mine) it.unread else it.unread + 1)
+            }
             "error" -> _state.update { it.copy(error = m.optString("msg")) }
             "closed", "kicked", "denied" -> { leave(); _state.value = RoomState(error = if (m.optString("t") == "closed") "The host ended the room" else "You left the room") }
         }

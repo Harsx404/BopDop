@@ -99,6 +99,7 @@ object StreamResolver {
         .appendQueryParameter("d", t.durationSec.toString())
         .apply { t.streamUrl?.let { appendQueryParameter("u", it) } }
         .apply { if (addon) appendQueryParameter("src", "addon") }
+        .apply { if (t.isPodcast) appendQueryParameter("k", "pod") }
         .build()
 
     /** Some add-on is switched on, and the connection's quality is High (add-ons are only for that). */
@@ -123,7 +124,7 @@ object StreamResolver {
      * Songs start on their built-in source and move to what this finds, so it may take its time.
      */
     suspend fun lookUpAddon(t: Track, above: String = Settings.YOUTUBE): ResolvedStream? {
-        if (t.source == com.dopdop.bopdop.data.model.Source.LOCAL || VideoQualityPolicy.audio() != AudioQuality.HIGH) return null
+        if (t.source == com.dopdop.bopdop.data.model.Source.LOCAL || t.isPodcast || VideoQualityPolicy.audio() != AudioQuality.HIGH) return null
         val bases = LibraryStore.settings.addonsAbove(above).ifEmpty {
             note(t.id, if (above == Settings.SAAVN) "Playing from JioSaavn, which ranks above your add-ons" else "No add-on ranks above YouTube")
             return null
@@ -194,7 +195,11 @@ object StreamResolver {
         val order = settings.sources().filter(settings::sourceOn)
         val download = uri.getQueryParameter("q") != null
         var fromAddon = false
-        val s: ResolvedStream = if (id.startsWith("sv:")) {
+        val s: ResolvedStream = if (uri.getQueryParameter("k") == "pod") {
+            // A podcast episode: only its own YouTube audio. A song search on JioSaavn or the add-ons
+            // would find some other recording with the same title.
+            YtStreams.resolve(id.removePrefix("yt:"), quality.maxKbps)
+        } else if (id.startsWith("sv:")) {
             // A JioSaavn song: its own file is the only copy.
             val u = saavnAt(uri.getQueryParameter("u") ?: throw IOException("missing saavn url"), quality)
             ResolvedStream(u, null, saavnKbps(u), "AAC", "JioSaavn", Long.MAX_VALUE)

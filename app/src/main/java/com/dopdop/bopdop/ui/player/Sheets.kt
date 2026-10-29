@@ -223,8 +223,9 @@ private fun share(ctx: android.content.Context, text: String) {
     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
 }
 
+/** The song on YouTube Music: its own page, or a search for it when it came from elsewhere. */
 internal fun trackLink(t: Track) = if (t.id.startsWith("yt:")) "https://music.youtube.com/watch?v=${t.rawId}"
-    else "https://www.jiosaavn.com/search/${android.net.Uri.encode("${t.title} ${t.artist}")}"
+    else "https://music.youtube.com/search?q=${android.net.Uri.encode("${t.title} ${t.artist}")}"
 
 @Composable
 private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String?) {
@@ -232,7 +233,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
     val lib by LibraryStore.state.collectAsState()
     val liked = t.id in lib.likedIds
     val close = { app.sheet = null }
-    Header({ Artwork(t.artwork, Modifier.size(56.dp), corner = 10.dp, size = 226) }, t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · "))
+    Header({ Artwork(t.artwork, Modifier.size(56.dp), corner = 10.dp, size = 226) }, t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.distinct().joinToString(" · "))
     Column(Modifier.verticalScroll(rememberScrollState())) {
         // The player's own controls (sleep, speed, cast, stats) lead when this is the song playing.
         if (PlayerConnection.current.value?.id == t.id) {
@@ -257,7 +258,7 @@ private fun ColumnScope.TrackOptions(app: AppState, t: Track, playlistId: String
         }
         Action(Icons.AutoMirrored.Rounded.PlaylistAdd, "Add to playlist…") { app.sheet = Sheet.AddToPlaylist(listOf(t)) }
         if (playlistId != null) Action(Icons.Rounded.RemoveCircleOutline, "Remove from this playlist") { LibraryStore.removeFromPlaylist(playlistId, t.id); close() }
-        t.albumId?.let { id -> Action(Icons.Rounded.Album, "Go to album") { close(); app.collapsePlayer(); app.openAlbum(id, t.album, t.artwork) } }
+        t.albumId?.let { id -> Action(Icons.Rounded.Album, if (t.isPodcast) "Go to podcast" else "Go to album") { close(); app.collapsePlayer(); app.openAlbum(id, t.album, t.artwork) } }
         t.artistId?.let { id -> Action(Icons.Rounded.Person, "Go to artist") { close(); app.collapsePlayer(); app.openArtist(id, t.artist.split(",").first()) } }
         if (t.source != com.dopdop.bopdop.data.model.Source.LOCAL) {
             val dl by com.dopdop.bopdop.playback.Downloads.status.collectAsState()
@@ -334,8 +335,8 @@ private fun ColumnScope.CardOptions(app: AppState, c: Card) {
                 CardKind.ARTIST -> "https://music.youtube.com/channel/${c.rawId}"
                 CardKind.ALBUM -> "https://music.youtube.com/browse/${c.rawId}"
                 else -> "https://music.youtube.com/playlist?list=${c.rawId}"
-            } else "https://www.jiosaavn.com/search/${android.net.Uri.encode(c.title)}"
-            share(ctx, "${c.title}\n$link"); close()
+            } else "https://music.youtube.com/search?q=${android.net.Uri.encode(listOf(c.title, c.subtitle).filter { it.isNotBlank() }.joinToString(" "))}"
+            share(ctx, "${c.title}\nListen on YouTube Music: $link"); close()
         }
     }
 }

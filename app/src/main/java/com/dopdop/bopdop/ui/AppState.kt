@@ -11,6 +11,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.navigation.NavHostController
 import com.dopdop.bopdop.data.MusicRepository
 import com.dopdop.bopdop.data.model.Card
+import com.dopdop.bopdop.data.model.isPodcast
 import com.dopdop.bopdop.data.model.CardKind
 import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.share.ShareCodec
@@ -64,6 +65,8 @@ object Routes {
     const val UPDATE = "update"
     const val SPOTIFY_LOGIN = "spotify/login"
     const val SPOTIFY_PLAYLIST = "spotify/playlist?id={id}&name={name}&art={art}"
+    const val PODCASTS = "podcasts"
+    const val PODCAST = "podcast?id={id}&title={title}&art={art}"
     val tabs = listOf(HOME, EXPLORE, LIBRARY)
 }
 
@@ -111,6 +114,7 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     private fun enc(s: String) = Uri.encode(s)
 
     fun open(card: Card) {
+        if (card.isPodcast) { openPodcast(card.id, card.title, card.artwork); return }
         when (card.kind) {
             CardKind.ARTIST -> openArtist(card.id, card.title, card.artwork)
             CardKind.ALBUM, CardKind.PLAYLIST -> {
@@ -124,8 +128,11 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
     fun openArtist(id: String, name: String = "", art: String = "") =
         nav.navigate("artist?id=${enc(id)}&name=${enc(name)}&art=${enc(art)}")
 
+    fun openPodcast(id: String, title: String = "", art: String = "") =
+        nav.navigate("podcast?id=${enc(id)}&title=${enc(title)}&art=${enc(art)}")
+
     fun openAlbum(id: String, title: String = "", art: String = "") =
-        nav.navigate("collection?id=${enc(id)}&kind=ALBUM&title=${enc(title)}&sub=&art=${enc(art)}")
+        if (id.startsWith("yt:" + com.dopdop.bopdop.data.model.PODCAST_PREFIX)) openPodcast(id, title, art) else nav.navigate("collection?id=${enc(id)}&kind=ALBUM&title=${enc(title)}&sub=&art=${enc(art)}")
 
     fun openLocal(id: String) = nav.navigate("local?id=${enc(id)}")
     fun openMood(title: String, params: String) = nav.navigate("mood?title=${enc(title)}&params=${enc(params)}")

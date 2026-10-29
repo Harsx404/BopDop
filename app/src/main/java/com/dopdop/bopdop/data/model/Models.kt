@@ -29,6 +29,8 @@ data class Track(
         else -> Source.YTM
     }
     val rawId: String get() = id.substringAfter(':')
+    /** A podcast episode: its "album" is the show's page (MPSP…). Plays as speech, never swapped for a song. */
+    val isPodcast: Boolean get() = albumId?.startsWith("yt:$PODCAST_PREFIX") == true
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id); put("title", title); put("artist", artist)
@@ -58,6 +60,12 @@ data class Track(
 }
 
 enum class CardKind { ALBUM, PLAYLIST, ARTIST, STATION, MOOD }
+
+/** YouTube Music's podcast show pages are "MPSP" + the show's playlist id. */
+const val PODCAST_PREFIX = "MPSP"
+
+/** A podcast show card: a playlist-like card whose id is the show page. */
+val Card.isPodcast: Boolean get() = id.startsWith("yt:$PODCAST_PREFIX")
 
 /** Something browsable: album, playlist, artist, radio station. */
 data class Card(
@@ -127,9 +135,24 @@ data class SearchResults(
     val albums: List<Card> = emptyList(),
     val artists: List<Card> = emptyList(),
     val playlists: List<Card> = emptyList(),
+    val podcasts: List<Card> = emptyList(),
 ) {
-    val isEmpty get() = tracks.isEmpty() && albums.isEmpty() && artists.isEmpty() && playlists.isEmpty()
+    val isEmpty get() = tracks.isEmpty() && albums.isEmpty() && artists.isEmpty() && playlists.isEmpty() && podcasts.isEmpty()
 }
+
+/** A podcast episode: the track that plays, when it came out ("2 days ago", "Mar 6") and its notes. */
+data class Episode(val track: Track, val date: String, val description: String)
+
+/** A podcast show page: who makes it and its episodes, newest first. */
+data class PodcastShow(
+    val id: String,
+    val title: String,
+    val author: String,
+    val authorId: String?,
+    val artwork: String,
+    val description: String,
+    val episodes: List<Episode>,
+)
 
 /** One timed word of a word-synced line (enhanced LRC): when it starts and its text, spaces included. */
 data class LyricWord(val timeMs: Long, val text: String)

@@ -65,7 +65,8 @@ object LastFm {
         startedAt = System.currentTimeMillis() / 1000
         heardSec = 0
         counted = false
-        if (t == null || !signedIn) return
+        // Podcast episodes are not songs: never scrobbled.
+        if (t == null || t.isPodcast || !signedIn) return
         scope.launch {
             runCatching { call("track.updateNowPlaying", trackParams(t, null), post = true) }
                 .onFailure { Log.i("LastFm", "now playing: ${it.message}") }
@@ -74,7 +75,7 @@ object LastFm {
 
     fun tick(t: Track) {
         if (t.id != trackId) onTrack(t)
-        if (counted || !signedIn || t.durationSec in 1..30) return
+        if (counted || t.isPodcast || !signedIn || t.durationSec in 1..30) return
         if (++heardSec < needed(t.durationSec)) return
         counted = true
         val scrobble = JSONObject(trackParams(t, startedAt))

@@ -6,6 +6,9 @@ import com.dopdop.bopdop.data.model.ArtistPage
 import com.dopdop.bopdop.data.model.Card
 import com.dopdop.bopdop.data.model.CardKind
 import com.dopdop.bopdop.data.model.Collection
+import com.dopdop.bopdop.data.model.Episode
+import com.dopdop.bopdop.data.model.PodcastShow
+import com.dopdop.bopdop.data.model.isPodcast
 import com.dopdop.bopdop.data.model.SearchResults
 import com.dopdop.bopdop.data.model.Shelf
 import com.dopdop.bopdop.data.model.ShelfStyle
@@ -36,6 +39,7 @@ object YtMusic {
     const val WEB_REMIX_VERSION = "1.20260213.01.00"
     const val WEB_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
     private const val FILTER_SONGS = "EgWKAQIIAWoKEAkQBRAKEAMQBA%3D%3D"
+    private const val FILTER_PODCASTS = "EgWKAQJQAWoOEBEQAxAQEAQQChAVEAk%3D"
 
     val gl: String = Locale.getDefault().country.takeIf { it.length == 2 } ?: "IN"
     val hl: String = "en"
@@ -167,6 +171,8 @@ object YtMusic {
         "MUSIC_PAGE_TYPE_ARTIST" to CardKind.ARTIST,
         "MUSIC_PAGE_TYPE_LIBRARY_ARTIST" to CardKind.ARTIST,
         "MUSIC_PAGE_TYPE_USER_CHANNEL" to CardKind.ARTIST,
+        // A podcast show: a playlist-like card whose id keeps its MPSP page prefix (see Card.isPodcast).
+        "MUSIC_PAGE_TYPE_PODCAST_SHOW_DETAIL_PAGE" to CardKind.PLAYLIST,
     )
 
     private fun browseCard(be: JSONObject?, title: String, subtitle: String, thumbs: JSONArray?): Card? {
@@ -213,9 +219,44 @@ object YtMusic {
         return browseCard(r.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint"), text(r.optJSONObject("title")), text(r.optJSONObject("subtitle")), thumbs)?.let { Item.C(it) }
     }
 
+    /** "1 hr 14 min", "37 min", "45 sec" → seconds. */
+    private fun spokenSecs(s: String): Int {
+        var total = 0
+        Regex("(\\d+)\\s*(hr|hour|min|sec)").findAll(s).forEach { m ->
+            val n = m.groupValues[1].toInt()
+            total += when (m.groupValues[2]) { "hr", "hour" -> n * 3600; "min" -> n * 60; else -> n }
+        }
+        return total
+    }
+
+    /**
+     * A podcast episode row (musicMultiRowListItemRenderer) as a track whose album is its show.
+     * [show] is the show page's (id, title, author) when the row itself doesn't name it.
+     */
+    private fun episode(r: JSONObject, show: Triple<String, String, String>? = null): Episode? {
+        val vid = r.optJSONObject("onTap")?.optJSONObject("watchEndpoint")?.optString("videoId")?.ifEmpty { null }
+            ?: walk(r.optJSONObject("overlay")).firstNotNullOfOrNull { it.optJSONObject("watchEndpoint")?.optString("videoId")?.ifEmpty { null } }
+            ?: return null
+        val title = text(r.optJSONObject("title")).ifBlank { return null }
+        val showRun = runs(r.optJSONObject("secondTitle")).firstOrNull()
+        val showId = showRun?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")?.ifEmpty { null } ?: show?.first
+        val showTitle = showRun?.optString("text")?.ifBlank { null } ?: show?.second.orEmpty()
+        val progress = r.optJSONObject("playbackProgress")?.optJSONObject("musicPlaybackProgressRenderer")
+        val duration = spokenSecs(text(progress?.optJSONObject("durationText")))
+        // "31K views • 2h ago": the last part is when it came out.
+        val date = runs(r.optJSONObject("subtitle")).map { it.optString("text").trim() }.lastOrNull { it.isNotEmpty() && it != "•" }.orEmpty()
+        val thumbs = r.optJSONObject("thumbnail")?.optJSONObject("musicThumbnailRenderer")?.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+        val t = Track(
+            id = "yt:$vid", title = title, artist = show?.third?.ifBlank { null } ?: showTitle,
+            album = showTitle, albumId = showId?.let { "yt:$it" }, durationSec = duration, artwork = bigThumb(thumbs, 800),
+        )
+        return Episode(t, date, text(r.optJSONObject("description")).trim())
+    }
+
     private val itemHandlers: Map<String, (JSONObject) -> Item?> = mapOf(
         "musicResponsiveListItemRenderer" to ::listItem,
         "musicTwoRowItemRenderer" to ::twoRowItem,
+        "musicMultiRowListItemRenderer" to { r -> episode(r)?.let { Item.T(it.track) } },
     )
 
     private fun items(root: Any?) = collect(root, itemHandlers)
@@ -335,12 +376,15 @@ object YtMusic {
                 top + items(d).cards()
             }.getOrDefault(emptyList())
         }
+        val podcasts = async { runCatching { searchPodcasts(q) }.getOrDefault(emptyList()) }
         val cards = all.await().distinctBy { it.id }
         SearchResults(
             tracks = songs.await(),
             albums = cards.filter { it.kind == CardKind.ALBUM },
             artists = cards.filter { it.kind == CardKind.ARTIST },
-            playlists = cards.filter { it.kind == CardKind.PLAYLIST },
+            playlists = cards.filter { it.kind == CardKind.PLAYLIST && !it.isPodcast },
+            // Shows from the general results first (a top match), then the podcast search's own.
+            podcasts = (cards.filter { it.isPodcast } + podcasts.await()).distinctBy { it.id },
         )
     }
 
@@ -497,7 +541,7 @@ object YtMusic {
         val title = text(h?.optJSONObject("title"))
         if (title.isBlank() || found.isEmpty()) null else {
             val tracks = found.tracks(); val cards = found.cards()
-            val listy = sh.optJSONArray("contents")?.optJSONObject(0)?.has("musicResponsiveListItemRenderer") == true
+            val listy = sh.optJSONArray("contents")?.optJSONObject(0)?.let { it.has("musicResponsiveListItemRenderer") || it.has("musicMultiRowListItemRenderer") } == true
             Shelf(
                 title = title,
                 subtitle = text(h?.optJSONObject("strapline")),
@@ -593,6 +637,39 @@ object YtMusic {
         post("player", JSONObject().put("videoId", videoId)).optJSONObject("videoDetails")?.optString("shortDescription").orEmpty()
 
     suspend fun explore(): List<Shelf> = feed("FEmusic_explore", 2)
+
+    /** YouTube Music's Podcasts tab: popular shows and episodes, then shelves by topic. */
+    suspend fun podcasts(): List<Shelf> = feed("FEmusic_non_music_audio", 2)
+
+    /** A podcast show page ([id] is "MPSP…") with its episodes, newest first, a few pages deep. */
+    suspend fun podcastShow(id: String): PodcastShow {
+        var d = browse(id)
+        val hdr = walk(d).firstNotNullOfOrNull { it.optJSONObject("musicResponsiveHeaderRenderer") }
+        val thumbs = hdr?.let { h -> walk(h.opt("thumbnail") ?: h).firstOrNull { it.has("thumbnails") }?.optJSONArray("thumbnails") }
+        val title = text(hdr?.optJSONObject("title")).ifEmpty { "Podcast" }
+        val authorRun = runs(hdr?.optJSONObject("straplineTextOne")).firstOrNull()
+        val author = authorRun?.optString("text").orEmpty()
+        val authorId = authorRun?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId")?.ifEmpty { null }?.let { "yt:$it" }
+        val about = walk(hdr).firstNotNullOfOrNull { it.optJSONObject("musicDescriptionShelfRenderer") }?.let { text(it.optJSONObject("description")) }.orEmpty()
+        val show = Triple(id, title, author)
+        val eps = mutableListOf<Episode>()
+        fun take(page: JSONObject) = walk(page).mapNotNull { n -> n.optJSONObject("musicMultiRowListItemRenderer")?.let { episode(it, show) } }
+        eps += take(d)
+        for (i in 1 until 4) {
+            val t = contToken(d) ?: break
+            d = post("browse", JSONObject().put("continuation", t))
+            val more = take(d)
+            if (more.isEmpty()) break
+            eps += more
+        }
+        return PodcastShow("yt:$id", title, author, authorId, bigThumb(thumbs, 1000), about, eps.distinctBy { it.track.id })
+    }
+
+    /** Podcast shows matching [q]. */
+    suspend fun searchPodcasts(q: String): List<Card> {
+        val d = post("search", JSONObject().put("query", q).put("params", java.net.URLDecoder.decode(FILTER_PODCASTS, "UTF-8")))
+        return items(d).cards().filter { it.isPodcast }
+    }
 
     /** Moods & genres grid: (title, params) pairs for FEmusic_moods_and_genres_category. */
     suspend fun moods(): List<Pair<String, String>> {

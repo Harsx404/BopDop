@@ -110,7 +110,9 @@ fun ScanScreen() {
 
     fun deliver(text: String) {
         if (handled) return
-        if (ShareCodec.decode(text) == null) { app.toast("That isn’t a BopDop code"); return }
+        // Shared playlists and albums, and Listen Together room codes.
+        val room = Regex("^bopdop://together/[A-Za-z0-9]{4,8}").containsMatchIn(text.trim())
+        if (!room && ShareCodec.decode(text) == null) { app.toast("That isn’t a BopDop code"); return }
         handled = true
         app.nav.popBackStack()
         app.openShared(text)

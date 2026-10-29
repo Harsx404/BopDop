@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Podcasts
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +80,12 @@ fun ExploreScreen() {
                 "Listen Together", if (room.live) "In room ${room.code}" else "Same song, same second, with friends", Icons.Rounded.Groups,
                 listOf(Color(0xFFB9A6E8), Color(0xFF7B63C2)), Modifier.padding(horizontal = 20.dp, vertical = 14.dp).fillMaxWidth(),
             ) { app.nav.navigate("together?code=") }
+        }
+        item(key = "podcasts") {
+            ActionTile(
+                "Podcasts", "Shows and episodes from YouTube Music", Icons.Rounded.Podcasts,
+                listOf(Color(0xFFFFB86B), Color(0xFFE0592B)), Modifier.padding(horizontal = 20.dp).padding(bottom = 14.dp).fillMaxWidth(),
+            ) { app.nav.navigate(com.dopdop.bopdop.ui.Routes.PODCASTS) }
         }
         // What's charting, then what's new: a couple of rows each, the rest a tap away.
         discoveryShelves(charts.state, "charts", 2)
