@@ -39,7 +39,7 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -97,7 +97,8 @@ fun Modifier.bounceClick(
 ): Modifier = composed {
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val pressed by source.collectIsPressedAsState()
-    val s by animateFloatAsState(if (pressed) scaleDown else 1f, spring(dampingRatio = 0.55f, stiffness = 900f), label = "press")
+    val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
+    val s by animateFloatAsState(if (pressed && !reduce) scaleDown else 1f, spring(dampingRatio = 0.55f, stiffness = 900f), label = "press")
     val haptics = LocalHapticFeedback.current
     this
         .graphicsLayer { scaleX = s; scaleY = s; alpha = if (pressed) 0.92f else 1f }
@@ -390,6 +391,12 @@ fun EqualizerBars(modifier: Modifier = Modifier, color: Color = Color.White, ani
 /** Play ▸ ⇄ pause ❚❚ morph: the triangle splits into two bars. */
 @Composable
 fun PlayPauseGlyph(playing: Boolean, modifier: Modifier = Modifier, color: Color = Color.White) {
+    if (Bop.halloween) {
+        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(
+            if (playing) com.dopdop.bopdop.ui.festive.HalloweenGlyph.PAUSE else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PLAY,
+            if (playing) "Pause" else "Play", modifier, color)
+        return
+    }
     val p by animateFloatAsState(if (playing) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "pp")
     Canvas(modifier) {
         val w = size.width; val h = size.height
@@ -521,6 +528,10 @@ fun ShelfSkeleton() {
 @Composable
 fun ErrorState(message: String, modifier: Modifier = Modifier, onRetry: () -> Unit) {
     Column(modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (Bop.halloween) {
+            com.dopdop.bopdop.ui.festive.HalloweenEmptyArt(Modifier.fillMaxWidth().height(96.dp))
+            Spacer(Modifier.height(14.dp))
+        }
         Text("Couldn’t load this", style = BopType.Headline, color = Bop.Text)
         Spacer(Modifier.height(6.dp))
         Text(message, style = BopType.Caption, color = Bop.Text3, maxLines = 3)

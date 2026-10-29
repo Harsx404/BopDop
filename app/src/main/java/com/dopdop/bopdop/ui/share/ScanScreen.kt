@@ -41,7 +41,7 @@ import androidx.compose.material.icons.rounded.FlashlightOff
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.NoPhotography
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect

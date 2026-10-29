@@ -3,6 +3,7 @@ package com.dopdop.bopdop.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -28,38 +29,41 @@ object Bop {
     var dark by androidx.compose.runtime.mutableStateOf(false)
     /** Clear glass lets the backdrop through, so secondary text firms up to stay readable. */
     var clear by androidx.compose.runtime.mutableStateOf(false)
+    /** A complete seasonal palette; explicit light/dark preference is still respected. */
+    var halloween by androidx.compose.runtime.mutableStateOf(false)
 
     /** Always graphite: icons and text on white discs and pills, whatever the theme. */
     val Graphite = Color(0xFF15161B)
     private val Snow = Color(0xFFF2F2F5)
 
     /** Primary text and solid buttons: graphite in light, soft white in dark. */
-    val Ink get() = if (dark) Snow else Graphite
+    val Ink get() = if (halloween) (if (dark) Color(0xFFF4E4C1) else Color(0xFF251C2E)) else if (dark) Snow else Graphite
     /** Text and icons on an [Ink] surface. */
     val OnInk get() = if (dark) Graphite else Color.White
     val Text get() = Ink
-    val Text2 get() = if (dark) (if (clear) Color(0xE0F2F2F5) else Color(0xA8F2F2F5)) else if (clear) Color(0xE015161B) else Color(0x9E15161B)
-    val Text3 get() = if (dark) (if (clear) Color(0xB8F2F2F5) else Color(0x70F2F2F5)) else if (clear) Color(0xB815161B) else Color(0x6615161B)
+    val Text2 get() = if (halloween) (if (dark) Color(0xFFD2BEDD) else Color(0xFF67536E)) else if (dark) (if (clear) Color(0xE0F2F2F5) else Color(0xA8F2F2F5)) else if (clear) Color(0xE015161B) else Color(0x9E15161B)
+    val Text3 get() = if (halloween) (if (dark) Color(0xFFBCA6CE) else Color(0xFF6D586D)) else if (dark) (if (clear) Color(0xB8F2F2F5) else Color(0x70F2F2F5)) else if (clear) Color(0xB815161B) else Color(0x6615161B)
     val Hairline get() = if (dark) Color(0x1FF2F2F5) else Color(0x1415161B)
     /** Base of the metal backdrop (also the window background). */
-    val Pearl get() = if (dark) Color(0xFF101116) else Color(0xFFDCDFE4)
+    val Pearl get() = if (halloween) (if (dark) Color(0xFF140E1D) else Color(0xFFF2E7D1)) else if (dark) Color(0xFF101116) else Color(0xFFDCDFE4)
     /** The tint glass and chips are made of: white in light, smoked graphite in dark. */
-    val Veil get() = if (dark) Color(0xFF2A2B33) else Color.White
+    val Veil get() = if (halloween) (if (dark) Color(0xFF2B2137) else Color(0xFFF1E4D2)) else if (dark) Color(0xFF2A2B33) else Color.White
     /** A selected light chip (graphite text on it in both themes). */
     val Chip get() = if (dark) Snow else Color.White
     /** Text / icons sitting on photos and colour washes. */
-    val OnMedia = Color.White
-    val OnMedia2 = Color(0xCCFFFFFF)
-    val OnMedia3 = Color(0x99FFFFFF)
+    val OnMedia get() = if (halloween) Color(0xFFF4E4C1) else Color.White
+    val OnMedia2 get() = if (halloween) Color(0xFFE0CFDF) else Color(0xCCFFFFFF)
+    val OnMedia3 get() = if (halloween) Color(0xFFC5AFCF) else Color(0x99FFFFFF)
     val Violet = Color(0xFF7A4DFF)
     val Magenta = Color(0xFFE0359B)
     val Orange = Color(0xFFFF8A3D)
     val Sage = Color(0xFF8FA65A)
     val Sky = Color(0xFF8FB3D9)
     val Gold = Color(0xFFFFD36B)
-    val Like = Color(0xFFFF3B6B)
+    val Like get() = if (halloween) Color(0xFFFFA34C) else Color(0xFFFF3B6B)
     /** Active / primary accent on glass. */
-    val Accent get() = Ink
+    val Accent get() = if (halloween) (if (dark) Color(0xFFF7A34F) else Color(0xFFA7441B)) else Ink
+    val MediaAccent get() = if (halloween) Color(0xFFF7A34F) else Color.White
     val Danger = Color(0xFFE5484D)
     val Brand = Brush.linearGradient(listOf(Sky, Sage))
 }
@@ -133,18 +137,24 @@ private val casual = FontFamily(Font(androidx.compose.ui.text.font.DeviceFontFam
 
 @Composable
 fun BopDopTheme(content: @Composable () -> Unit) {
+    val library by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
+    val settings = library.settings
+    val festive = com.dopdop.bopdop.ui.festive.rememberFestive(settings.festiveLevel, settings.festivePick, settings.halloweenPreview)
+    Bop.halloween = festive.festival == com.dopdop.bopdop.data.Festival.HALLOWEEN
+    androidx.compose.runtime.CompositionLocalProvider(com.dopdop.bopdop.ui.festive.LocalFestive provides festive) {
     MaterialTheme(
         colorScheme = if (Bop.dark) androidx.compose.material3.darkColorScheme(
-            primary = Bop.Ink, onPrimary = Bop.OnInk,
-            secondary = Bop.Sage, background = Bop.Pearl, surface = Color(0xFF1A1B21),
+            primary = Bop.Accent, onPrimary = Bop.Graphite,
+            secondary = if (Bop.halloween) Bop.Accent else Bop.Sage, background = Bop.Pearl, surface = if (Bop.halloween) Bop.Veil else Color(0xFF1A1B21),
             onBackground = Bop.Text, onSurface = Bop.Text,
             surfaceVariant = Color(0xFF24252C), onSurfaceVariant = Bop.Text2,
         ) else lightColorScheme(
-            primary = Bop.Ink, onPrimary = Bop.OnInk,
-            secondary = Bop.Sage, background = Bop.Pearl, surface = Color(0xFFF2F3F5),
+            primary = Bop.Accent, onPrimary = Color.White,
+            secondary = if (Bop.halloween) Bop.Accent else Bop.Sage, background = Bop.Pearl, surface = if (Bop.halloween) Bop.Veil else Color(0xFFF2F3F5),
             onBackground = Bop.Text, onSurface = Bop.Text,
             surfaceVariant = Color(0xFFE6E8EC), onSurfaceVariant = Bop.Text2,
         ),
         content = content,
     )
+    }
 }

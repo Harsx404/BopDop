@@ -3,24 +3,33 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>BopDop: Music, wrapped in glass</title>
+  <title>BopDop: press play, it comes alive</title>
   <meta name="description" content="BopDop is a free Android music player for YouTube Music and JioSaavn, with word-synced lyrics, offline downloads and mixes made from what you play.">
   <link rel="canonical" href="https://bopdop.online/">
-  <meta name="theme-color" content="#0e0f13" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#0b0b0e" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#dcdfe4" media="(prefers-color-scheme: light)">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://bopdop.online/">
-  <meta property="og:title" content="BopDop: Music, wrapped in glass">
+  <meta property="og:title" content="BopDop: press play, it comes alive">
   <meta property="og:description" content="A free Android music player for YouTube Music and JioSaavn. Synced lyrics, offline downloads and mixes made from your listening.">
   <meta property="og:image" content="https://bopdop.online/assets/og.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" type="image/png" href="assets/brand/favicon-64.png">
   <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
   <link rel="preload" href="assets/fonts/jakarta.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="assets/fonts/mono.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/screens/player.webp" as="image">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    try {
+      if (!sessionStorage.getItem("bopdop-seen") && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        document.documentElement.classList.add("loading");
+        sessionStorage.setItem("bopdop-seen", "1");
+      }
+    } catch (_) {}
+  </script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -37,67 +46,85 @@
   </script>
 </head>
 <body>
-  <div class="backdrop" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div class="stage-bg" aria-hidden="true"><i class="smoke"></i><i class="smoke smoke-2"></i><i class="ember"></i></div>
   <div class="grain" aria-hidden="true"></div>
+  <div class="cursor" aria-hidden="true"><i></i></div>
+  <div class="loader" aria-hidden="true">
+    <picture>
+      <source srcset="assets/brand/wordmark-dark.svg" media="(prefers-color-scheme: dark)">
+      <img class="loader-word" src="assets/brand/wordmark.svg" alt="" height="28">
+    </picture>
+    <span class="loader-n" id="loaderN">00</span>
+    <span class="loader-bar"><i id="loaderBar"></i></span>
+  </div>
 
   <header class="nav">
     <a class="nav-brand" href="#top" aria-label="BopDop home">
-      <img src="assets/brand/app-icon-glass.png" alt="" width="34" height="34">
+      <img src="assets/brand/app-icon-glass.png" alt="" width="30" height="30">
       <picture>
         <source srcset="assets/brand/wordmark-dark.svg" media="(prefers-color-scheme: dark)">
-        <img class="wordmark" src="assets/brand/wordmark.svg" alt="bopdop" height="20">
+        <img class="wordmark" src="assets/brand/wordmark.svg" alt="bopdop" height="18">
       </picture>
     </a>
-    <nav class="nav-links" aria-label="Sections">
-      <a href="#lyrics">Lyrics</a>
-      <a href="#details">Details</a>
-      <a href="#features">Features</a>
-      <a href="#faq">FAQ</a>
-    </nav>
-    <a class="btn btn-primary btn-sm" href="#download"><i class="ph ph-download-simple"></i>Download</a>
+    <p class="mono nav-tag">Android music player</p>
   </header>
 
+  <!-- A dock that floats at the bottom, where a thumb can reach it. -->
+  <nav class="dock" aria-label="Sections">
+    <a class="dock-home" href="#top" aria-label="Back to top"><img src="assets/brand/app-icon-glass.png" alt="" width="34" height="34"></a>
+    <div class="dock-links mono">
+      <a href="#lyrics">Lyrics</a>
+      <a href="#pets">Pets</a>
+      <a href="#screens">Screens</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <a class="btn btn-solid btn-sm" href="#download"><i class="ph ph-download-simple"></i>Get it</a>
+  </nav>
+
   <main id="top">
-    <!-- Hero: the promise on the left, the app itself on the right. -->
+    <!-- Hero: one object on a lit stage, like a record on a plinth. -->
     <section class="hero">
-      <div class="hero-copy reveal">
-        <h1>Music, wrapped<br>in <em>glass.</em></h1>
-        <p class="lede">A free Android player for YouTube Music and JioSaavn. Synced lyrics, offline downloads, and mixes made from what you play.</p>
+      <h1 class="sr-only">BopDop, a free music player for Android. Press play, it comes alive.</h1>
+      <div class="hero-a reveal">
+        <p class="mono kicker">Free music player for Android</p>
+        <p class="big" aria-hidden="true">press play.</p>
+        <p class="lede">YouTube Music and JioSaavn in one player, with synced lyrics, offline downloads and mixes made from what you play.</p>
         <div class="cta-row">
-          <a class="btn btn-primary js-apk" href="https://github.com/Harsx404/BopDop/releases/latest"><i class="ph-fill ph-android-logo"></i>Download for Android</a>
-          <a class="btn btn-glass" href="https://github.com/Harsx404/BopDop"><i class="ph ph-github-logo"></i>GitHub</a>
+          <a class="btn btn-solid js-apk" href="https://github.com/Harsx404/BopDop/releases/latest"><i class="ph-fill ph-android-logo"></i>Download APK</a>
+          <a class="btn btn-line" href="https://github.com/Harsx404/BopDop"><i class="ph ph-github-logo"></i>Source</a>
         </div>
       </div>
-      <div class="hero-phones" aria-hidden="true">
-        <figure class="phone phone-back phone-left"><img src="assets/screens/lyrics.webp" alt="" width="660" height="1469"></figure>
-        <figure class="phone phone-front"><img src="assets/screens/player.webp" alt="" width="660" height="1469" fetchpriority="high"></figure>
-        <figure class="phone phone-back phone-right"><img src="assets/screens/home.webp" alt="" width="660" height="1469"></figure>
+      <div class="plinth" aria-hidden="true">
+        <span class="beam"></span>
+        <span class="lamp"></span>
+        <figure class="phone hero-phone"><img src="assets/screens/player.webp" alt="" width="660" height="1469" fetchpriority="high"></figure>
+        <span class="base"></span>
+      </div>
+      <div class="hero-b reveal">
+        <p class="big" aria-hidden="true">it comes alive.</p>
+        <p class="mono hero-meta" id="heroMeta">Android 8.0+ / Free</p>
+      </div>
+      <a class="mono scroll-hint" href="#lyrics">Scroll<i class="ph ph-caret-down"></i></a>
+    </section>
+
+    <!-- Where the music comes from, as a slow ticker. -->
+    <section class="ticker" aria-label="Works with">
+      <div class="ticker-track mono">
+        <span>YouTube Music</span><b>/</b><span>JioSaavn</span><b>/</b><span>Spotify playlists</span><b>/</b><span>Last.fm</span><b>/</b><span>ListenBrainz</span><b>/</b><span>Google Cast</span><b>/</b>
+        <span aria-hidden="true">YouTube Music</span><b>/</b><span aria-hidden="true">JioSaavn</span><b>/</b><span aria-hidden="true">Spotify playlists</span><b>/</b><span aria-hidden="true">Last.fm</span><b>/</b><span aria-hidden="true">ListenBrainz</span><b>/</b><span aria-hidden="true">Google Cast</span><b>/</b>
       </div>
     </section>
 
-    <!-- Where the music comes from. -->
-    <section class="sources reveal" aria-label="Works with">
-      <h2 class="sources-title">Plays from the catalogues you already use</h2>
-      <ul class="logos">
-        <li><img src="https://cdn.simpleicons.org/youtubemusic/FF0000" alt="YouTube Music" title="YouTube Music" width="34" height="34" loading="lazy"></li>
-        <li><img src="https://www.google.com/s2/favicons?domain=jiosaavn.com&sz=128" alt="JioSaavn" title="JioSaavn" width="34" height="34" loading="lazy"></li>
-        <li><img src="https://cdn.simpleicons.org/spotify/1ED760" alt="Spotify" title="Spotify playlists and Canvas" width="34" height="34" loading="lazy"></li>
-        <li><img src="https://cdn.simpleicons.org/lastdotfm/D51007" alt="Last.fm" title="Last.fm scrobbling" width="34" height="34" loading="lazy"></li>
-        <li><img src="https://www.google.com/s2/favicons?domain=listenbrainz.org&sz=128" alt="ListenBrainz" title="ListenBrainz scrobbling" width="34" height="34" loading="lazy"></li>
-        <li><img src="https://cdn.simpleicons.org/googlecast/4285F4" alt="Google Cast" title="Cast to speakers and TVs" width="34" height="34" loading="lazy"></li>
-      </ul>
-    </section>
-
-    <!-- Lyrics: a real screen recording from the app, nothing mocked up. -->
-    <section class="lyrics-story" id="lyrics">
-      <div class="lyrics-copy reveal">
-        <p class="eyebrow">Lyrics</p>
-        <h2>Every word lands on the beat.</h2>
-        <p>Lyrics light up word by word as they're sung. Leave them for a second and the player steps aside, so it's just you and the words.</p>
-        <dl class="facts">
-          <div><dt>Translation</dt><dd>Under each line, with romaji for Japanese and other scripts.</dd></div>
-          <div><dt>Timing</dt><dd>Off by a beat? Nudge it and BopDop remembers, per song.</dd></div>
-          <div><dt>Lock screen</dt><dd>The current line follows you onto the lock screen.</dd></div>
+    <!-- 01 Lyrics: a real screen recording from the app, nothing mocked up. -->
+    <section class="lyrics" id="lyrics">
+      <div class="lyrics-copy">
+        <p class="mono label reveal"><span>01</span>Lyrics</p>
+        <h2 class="reveal">every word,<br>right on the beat.</h2>
+        <p class="body reveal">Lyrics light up word by word as they're sung. Leave them for a second and the player steps aside, so it's just you and the words.</p>
+        <dl class="spec reveal">
+          <div><dt class="mono">Translation</dt><dd>Under each line, with romaji for Japanese and other scripts.</dd></div>
+          <div><dt class="mono">Timing</dt><dd>Off by a beat? Nudge it and BopDop remembers, per song.</dd></div>
+          <div><dt class="mono">Lock screen</dt><dd>The current line follows you onto the lock screen.</dd></div>
         </dl>
       </div>
       <figure class="lyrics-shot reveal">
@@ -107,141 +134,122 @@
             <source src="assets/screens/lyrics.mp4" type="video/mp4">
           </video>
         </div>
-        <figcaption>Recorded in the app. No mockups.</figcaption>
+        <figcaption class="mono">Recorded in the app</figcaption>
       </figure>
     </section>
 
-    <!-- The small details: seek bars and the pets that walk along them. -->
-    <section class="details" id="details">
-      <div class="details-head reveal">
-        <h2>The seek bar is the fun part.</h2>
-        <p>Four ways to draw a song's progress, and seven pets that walk along it while it plays. Pause, and they settle down for a nap.</p>
+    <!-- 02 Pets: collectible cards, and the seek bar they walk along. -->
+    <section class="pets" id="pets">
+      <div class="pets-head">
+        <p class="mono label reveal"><span>02</span>Seek bar pets</p>
+        <h2 class="reveal">seven little friends<br>walk your songs.</h2>
+        <p class="body reveal">One walks along the seek bar while a song plays. Pause, and it curls up for a nap. Pick yours.</p>
       </div>
-      <div class="player-demo reveal">
-        <div class="demo-art" aria-hidden="true">
-          <div class="demo-cover"></div>
-          <div class="demo-meta"><b>Glass House</b><span>The BopDops</span></div>
-        </div>
-        <div class="demo-bar">
-          <div class="pet" id="pet" aria-hidden="true"></div>
-          <canvas id="seek" height="64" aria-label="Seek bar preview"></canvas>
-          <div class="demo-times"><span id="tNow">0:00</span><span id="tDur">3:24</span></div>
-        </div>
-        <div class="demo-controls">
-          <button class="round" id="playBtn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
-        </div>
-        <div class="picker picker-style" role="group" aria-label="Seek bar style">
-          <span class="picker-label">Seek bar</span>
-          <div class="seg" id="styleSeg">
+
+      <div class="deck reveal" id="deck" role="listbox" aria-label="Pets" tabindex="0"></div>
+      <div class="deck-nav">
+        <button class="btn btn-line btn-icon" id="deckPrev" aria-label="Previous pet"><i class="ph ph-arrow-left"></i></button>
+        <span class="mono" id="deckCount">01 / 07</span>
+        <button class="btn btn-line btn-icon" id="deckNext" aria-label="Next pet"><i class="ph ph-arrow-right"></i></button>
+      </div>
+
+      <div class="seek-demo reveal">
+        <div class="seek-top">
+          <p class="mono label"><span>02.1</span>Draw the song</p>
+          <div class="seg mono" id="styleSeg" role="group" aria-label="Seek bar style">
             <button data-style="wave" class="on">Wave</button>
             <button data-style="line">Line</button>
             <button data-style="bars">Bars</button>
             <button data-style="dots">Dots</button>
           </div>
         </div>
-        <div class="picker picker-pets" role="group" aria-label="Pet">
-          <span class="picker-label">Pet</span>
-          <div class="pets" id="petPicker"></div>
+        <div class="seek-row">
+          <button class="play" id="playBtn" aria-label="Pause"><i class="ph-fill ph-pause"></i></button>
+          <div class="demo-bar">
+            <div class="pet" id="pet" aria-hidden="true"></div>
+            <canvas id="seek" height="64" aria-label="Seek bar preview, drag to scrub"></canvas>
+            <div class="demo-times mono"><span id="tNow">0:00</span><span>3:24</span></div>
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Features: a bento of the big things. -->
-    <section class="bento" id="features">
-      <h2 class="reveal">Built around how you actually listen.</h2>
-      <div class="bento-grid">
-        <article class="cell cell-made reveal">
-          <div class="cell-text">
-            <h3>Made for you</h3>
-            <p>Your week, On repeat, Forgotten favourites and Discover, built on your phone from what you play.</p>
-          </div>
-          <figure class="phone phone-peek"><img src="assets/screens/library.webp" alt="Library with Made for you" width="660" height="1469" loading="lazy"></figure>
-        </article>
-        <article class="cell cell-offline reveal">
-          <i class="ph ph-cloud-arrow-down cell-icon"></i>
-          <h3>Offline, properly</h3>
-          <p>Download songs, albums and playlists with their covers and lyrics. Airplane mode is fine.</p>
-        </article>
-        <article class="cell cell-together reveal">
-          <i class="ph ph-users-three cell-icon"></i>
-          <h3>Listen Together</h3>
-          <p>Friends in a room hear the same song at the same second.</p>
-        </article>
-        <article class="cell cell-hires reveal">
-          <div class="badge-stack" aria-hidden="true">
-            <span>AAC 320 kbps</span><span>FLAC 24/96</span><span>Dolby Atmos</span>
-          </div>
-          <h3>Sounds as good as it can</h3>
-          <p>JioSaavn's 320 kbps copy when it has the song, lossless add-ons, and bit-perfect USB DACs.</p>
-        </article>
-        <article class="cell cell-widgets reveal">
-          <div class="cell-text">
-            <h3>On your home screen</h3>
-            <p>Widgets tinted by the cover, an island around your camera and lyrics on the lock screen.</p>
-          </div>
-          <figure class="widgets-shot"><img src="assets/screens/widgets.webp" alt="BopDop home screen widgets" width="660" height="1469" loading="lazy"></figure>
-        </article>
+    <!-- 03 Screens: pinned while you scroll; each step flips the phone to the next screen. -->
+    <section class="screens" id="screens">
+      <div class="screens-head">
+        <p class="mono label reveal"><span>03</span>Screens</p>
+        <h2 class="reveal">out of all of it,<br>these i'd show you first.</h2>
       </div>
-    </section>
-
-    <!-- Gallery: swipe through the app. -->
-    <section class="gallery" aria-label="Screens">
-      <h2 class="reveal">Have a look around.</h2>
-      <div class="strip" tabindex="0">
-        <figure class="phone"><img src="assets/screens/home.webp" alt="Home" width="660" height="1469" loading="lazy"><figcaption>Home</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/player.webp" alt="Now Playing" width="660" height="1469" loading="lazy"><figcaption>Now Playing</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/queue.webp" alt="Queue" width="660" height="1469" loading="lazy"><figcaption>Queue</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/search.webp" alt="Results while typing" width="660" height="1469" loading="lazy"><figcaption>Search</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/explore.webp" alt="Explore and daily mixes" width="660" height="1469" loading="lazy"><figcaption>Explore</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/browse.webp" alt="Moods and genres" width="660" height="1469" loading="lazy"><figcaption>Moods</figcaption></figure>
-        <figure class="phone"><img src="assets/screens/library.webp" alt="Library" width="660" height="1469" loading="lazy"><figcaption>Library</figcaption></figure>
-      </div>
-    </section>
-
-    <!-- Everything else, as a cloud of chips. -->
-    <section class="extras reveal">
-      <h2>And the rest of the list.</h2>
-      <ul class="chips">
-        <li><i class="ph ph-equalizer"></i>Equalizer and spatial</li>
-        <li><i class="ph ph-gauge"></i>Speed 0.5x to 2x</li>
-        <li><i class="ph ph-moon-stars"></i>Sleep timer that fades</li>
-        <li><i class="ph ph-shuffle"></i>Automix crossfades</li>
-        <li><i class="ph ph-cast"></i>Cast</li>
-        <li><i class="ph ph-hand-swipe-right"></i>Swipe to queue</li>
-        <li><i class="ph ph-thumbs-down"></i>Not for me</li>
-        <li><i class="ph ph-chart-line-up"></i>Replay stats</li>
-        <li><i class="ph ph-spotify-logo"></i>Spotify playlists</li>
-        <li><i class="ph ph-film-strip"></i>Spotify Canvas</li>
-        <li><i class="ph ph-broadcast"></i>Scrobbling</li>
-        <li><i class="ph ph-floppy-disk"></i>Backup and restore</li>
-        <li><i class="ph ph-palette"></i>Light, dark and app icons</li>
-        <li><i class="ph ph-confetti"></i>Festival themes</li>
-        <li><i class="ph ph-magnifying-glass"></i>Search inside Settings</li>
-        <li><i class="ph ph-info"></i>Stats for nerds</li>
-      </ul>
-    </section>
-
-    <!-- Download: the right file, and how to install it. -->
-    <section class="download" id="download">
-      <div class="download-card reveal">
-        <img class="download-icon" src="assets/brand/app-icon-glass.png" alt="" width="96" height="96">
-        <h2>Get BopDop</h2>
-        <p class="download-meta" id="relMeta">Free for Android 8.0 and newer.</p>
-        <div class="cta-row center">
-          <a class="btn btn-primary btn-lg js-apk" href="https://github.com/Harsx404/BopDop/releases/latest"><i class="ph-fill ph-android-logo"></i>Download APK</a>
-        </div>
-        <p class="download-alt">Older phone or not sure? <a class="js-universal" href="https://github.com/Harsx404/BopDop/releases/latest">Get the version that works everywhere</a>.</p>
-        <ol class="steps">
-          <li><i class="ph ph-download-simple"></i><b>Download</b><span>The APK, straight from GitHub.</span></li>
-          <li><i class="ph ph-shield-check"></i><b>Allow installs</b><span>Android asks once to let your browser install apps.</span></li>
-          <li><i class="ph ph-arrows-clockwise"></i><b>Stay current</b><span>BopDop shows new versions and updates itself.</span></li>
+      <div class="story" id="story">
+      <div class="index">
+        <ol class="index-list" id="indexList">
+          <li data-shot="assets/screens/home.webp" class="on"><span class="mono n">01</span><b>Home</b><span class="d">Mixes made on your phone from what you play.</span><img src="assets/screens/home.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/player.webp"><span class="mono n">02</span><b>Now playing</b><span class="d">Colours from the cover. The art breathes with the beat.</span><img src="assets/screens/player.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/library.webp"><span class="mono n">03</span><b>Library</b><span class="d">Made for you, and downloads that work in airplane mode.</span><img src="assets/screens/library.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/explore.webp"><span class="mono n">04</span><b>Explore</b><span class="d">Daily mixes, charts, and Listen Together with friends.</span><img src="assets/screens/explore.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/queue.webp"><span class="mono n">05</span><b>Queue</b><span class="d">Swipe a song to queue it. Automix crossfades the rest.</span><img src="assets/screens/queue.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/search.webp"><span class="mono n">06</span><b>Search</b><span class="d">Results while you type, across every catalogue.</span><img src="assets/screens/search.webp" alt="" loading="lazy" width="660" height="1469"></li>
+          <li data-shot="assets/screens/widgets.webp"><span class="mono n">07</span><b>Home screen</b><span class="d">Widgets tinted by the cover, lyrics on the lock screen.</span><img src="assets/screens/widgets.webp" alt="" loading="lazy" width="660" height="1469"></li>
         </ol>
+        <div class="index-view" aria-hidden="true">
+          <div class="flip" id="flip">
+            <figure class="phone face front"><img src="assets/screens/home.webp" alt="" width="660" height="1469" loading="lazy"></figure>
+            <figure class="phone face back"><img src="assets/screens/player.webp" alt="" width="660" height="1469" loading="lazy"></figure>
+          </div>
+          <span class="mono index-step" id="indexStep">01 / 07</span>
+        </div>
       </div>
+      </div>
+    </section>
+
+    <!-- 04 The rest, as a spec sheet. -->
+    <section class="specs">
+      <p class="mono label reveal"><span>04</span>Spec sheet</p>
+      <h2 class="reveal">the rest of the list.</h2>
+      <div class="stats reveal">
+        <div><b class="odo" data-to="320">320</b><span class="mono">kbps AAC</span></div>
+        <div><b class="odo" data-to="24">24</b><span class="mono">bit FLAC</span></div>
+        <div><b class="odo" data-to="7">7</b><span class="mono">pets</span></div>
+        <div><b class="odo" data-to="0">0</b><span class="mono">ads</span></div>
+      </div>
+      <dl class="spec spec-wide reveal">
+        <div><dt class="mono">Sound</dt><dd>AAC 320 kbps from JioSaavn when it has the song. FLAC 24/96 with add-ons. Bit-perfect USB DACs. Equalizer and spatial audio.</dd></div>
+        <div><dt class="mono">Playback</dt><dd>Speed 0.5x to 2x. Sleep timer that fades out. Automix crossfades. Cast to speakers and TVs.</dd></div>
+        <div><dt class="mono">Taste</dt><dd>Not for me, to skip and teach. Replay stats. Spotify playlists and Canvas. Last.fm and ListenBrainz scrobbling.</dd></div>
+        <div><dt class="mono">Together</dt><dd>Listen Together rooms, where friends hear the same song at the same second.</dd></div>
+        <div><dt class="mono">Look</dt><dd>Light and dark, app icons, festival themes, beat-reactive ambient light.</dd></div>
+        <div><dt class="mono">Yours</dt><dd>Backup and restore to a file. Search inside Settings. Stats for nerds.</dd></div>
+      </dl>
+    </section>
+
+    <!-- Download: the icon on the plinth, the right file, how to install. -->
+    <section class="download" id="download">
+      <div class="plinth plinth-sm" aria-hidden="true">
+        <span class="lamp"></span>
+        <img class="download-icon" src="assets/brand/app-icon-glass.png" alt="" width="120" height="120">
+        <span class="base"></span>
+      </div>
+      <h2 class="reveal">free. no ads.<br>no account.</h2>
+      <p class="mono meta reveal" id="relMeta">Android 8.0 and newer</p>
+      <div class="cta-row reveal">
+        <a class="btn btn-solid btn-lg js-apk" href="https://github.com/Harsx404/BopDop/releases/latest"><i class="ph-fill ph-android-logo"></i>Download APK</a>
+      </div>
+      <div class="qr-card reveal">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" class="qr" role="img" aria-label="QR code for bopdop.online"><path class="qrline" stroke="currentColor" d="M0 0.5h7m1 0h1m1 0h1m3 0h2m2 0h2m2 0h7m-29 1h1m5 0h1m1 0h4m2 0h1m2 0h1m1 0h1m2 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m3 0h1m3 0h1m1 0h2m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h3m1 0h2m4 0h1m1 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h4m2 0h1m2 0h3m2 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m3 0h1m3 0h1m2 0h4m1 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-21 1h2m1 0h1m2 0h1m1 0h2m2 0h1m-20 1h2m1 0h1m1 0h2m1 0h3m1 0h2m2 0h1m1 0h2m1 0h1m1 0h5m-29 1h3m2 0h1m3 0h3m1 0h1m1 0h1m1 0h1m2 0h4m2 0h1m1 0h1m-27 1h1m1 0h1m1 0h2m1 0h1m1 0h1m2 0h1m8 0h1m2 0h3m-28 1h1m2 0h1m5 0h3m3 0h2m2 0h3m1 0h1m2 0h1m-27 1h8m2 0h3m2 0h2m2 0h1m1 0h2m-23 1h3m4 0h1m1 0h1m5 0h1m3 0h4m3 0h2m-28 1h3m1 0h5m2 0h1m4 0h1m2 0h1m1 0h2m2 0h3m-27 1h1m1 0h1m2 0h2m2 0h1m1 0h2m1 0h3m3 0h2m3 0h2m-27 1h1m2 0h2m2 0h2m2 0h1m1 0h3m3 0h2m2 0h1m1 0h1m-27 1h4m3 0h1m1 0h1m1 0h1m2 0h1m4 0h4m1 0h4m-29 1h1m1 0h1m1 0h1m1 0h2m4 0h1m3 0h2m3 0h1m1 0h6m-28 1h1m3 0h1m1 0h1m3 0h1m1 0h1m1 0h1m1 0h2m1 0h1m1 0h1m5 0h1m-29 1h1m4 0h3m2 0h1m1 0h3m1 0h2m1 0h6m2 0h1m-20 1h2m2 0h2m2 0h5m3 0h1m2 0h2m-29 1h7m1 0h2m2 0h1m1 0h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h3m-29 1h1m5 0h1m6 0h2m1 0h3m1 0h1m3 0h1m3 0h1m-29 1h1m1 0h3m1 0h1m1 0h1m2 0h2m2 0h3m2 0h6m1 0h1m-28 1h1m1 0h3m1 0h1m2 0h2m3 0h2m1 0h1m2 0h2m2 0h1m1 0h1m-27 1h1m1 0h3m1 0h1m1 0h2m2 0h3m1 0h1m1 0h2m3 0h2m3 0h1m-29 1h1m5 0h1m1 0h3m3 0h4m1 0h2m2 0h1m3 0h1m-28 1h7m2 0h3m1 0h1m2 0h5m1 0h1m1 0h1m2 0h2"/></svg>
+        <p><b>On a computer?</b><span>Scan this with your phone to open the download there.</span></p>
+      </div>
+      <p class="download-alt reveal">Older phone or not sure? <a class="js-universal" href="https://github.com/Harsx404/BopDop/releases/latest">Get the version that works everywhere</a>.</p>
+      <ol class="steps reveal">
+        <li><span class="mono">01</span><b>Download</b><span>The APK, straight from GitHub.</span></li>
+        <li><span class="mono">02</span><b>Allow installs</b><span>Android asks once to let your browser install apps.</span></li>
+        <li><span class="mono">03</span><b>Stay current</b><span>BopDop spots new versions and updates itself.</span></li>
+      </ol>
     </section>
 
     <!-- FAQ -->
+    <div class="marquee" aria-hidden="true"><div class="marquee-track"><span>questions?</span><span>questions?</span><span>questions?</span><span>questions?</span><span>questions?</span><span>questions?</span></div></div>
     <section class="faq" id="faq">
-      <h2 class="reveal">Questions</h2>
+      <p class="mono label reveal"><span>05</span>Questions</p>
       <div class="faq-list reveal">
         <details>
           <summary>Is BopDop free?</summary>
@@ -272,16 +280,15 @@
   </main>
 
   <footer class="footer">
-    <div class="footer-brand">
-      <img src="assets/brand/app-icon-glass.png" alt="" width="28" height="28">
-      <span>BopDop</span>
+    <p class="footer-word" aria-hidden="true">bopdop</p>
+    <div class="footer-row">
+      <nav class="mono" aria-label="Links">
+        <a href="https://github.com/Harsx404/BopDop">GitHub</a>
+        <a href="https://github.com/Harsx404/BopDop/releases">All releases</a>
+        <a href="https://github.com/Harsx404/BopDop/issues">Report a problem</a>
+      </nav>
+      <p class="fine">An independent project, not affiliated with YouTube, Google, JioSaavn or Spotify. BopDop doesn't host any music.</p>
     </div>
-    <nav aria-label="Links">
-      <a href="https://github.com/Harsx404/BopDop">GitHub</a>
-      <a href="https://github.com/Harsx404/BopDop/releases">All releases</a>
-      <a href="https://github.com/Harsx404/BopDop/issues">Report a problem</a>
-    </nav>
-    <p class="fine">BopDop is an independent project, not affiliated with YouTube, Google, JioSaavn or Spotify. It doesn't host any music.</p>
   </footer>
 
   <script src="app.js" defer></script>

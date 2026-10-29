@@ -1,7 +1,7 @@
 package com.dopdop.bopdop.ui.components
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf

@@ -27,7 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,6 +58,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import androidx.core.content.ContextCompat
 import com.dopdop.bopdop.data.model.formatDuration
 import com.dopdop.bopdop.ui.glass.LocalReduceMotion
@@ -72,11 +77,12 @@ import kotlin.math.sin
  * With [onLongPress], a press held still for the long-press time calls it instead of seeking.
  */
 @Composable
-internal fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: (Float) -> Unit, inset: Dp = 0.dp, onLongPress: (() -> Unit)? = null): Modifier {
+internal fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd: (Float) -> Unit, inset: Dp = 0.dp, onLongPress: (() -> Unit)? = null, onCancel: () -> Unit = {}): Modifier {
     val start by rememberUpdatedState(onStart)
     val move by rememberUpdatedState(onMove)
     val end by rememberUpdatedState(onEnd)
     val long by rememberUpdatedState(onLongPress)
+    val cancel by rememberUpdatedState(onCancel)
     return pointerInput(inset, onLongPress != null) {
         awaitEachGesture {
             val down = awaitFirstDown()
@@ -102,8 +108,11 @@ internal fun Modifier.scrub(onStart: () -> Unit, onMove: (Float) -> Unit, onEnd:
                 }
             }
             start(); move(v)
-            if (!released) horizontalDrag(down.id) { c -> v = frac(c.position.x); move(v); if (c.positionChange() != Offset.Zero) c.consume() }
-            end(v)
+            var completed = false
+            try {
+                val finished = released || horizontalDrag(down.id) { c -> v = frac(c.position.x); move(v); if (c.positionChange() != Offset.Zero) c.consume() }
+                if (finished) { end(v); completed = true }
+            } finally { if (!completed) cancel() }
         }
     }
 }
@@ -160,10 +169,15 @@ fun VolumeSlider(modifier: Modifier = Modifier) {
             tint = Bop.OnMedia2, modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f).height(40.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1f).height(48.dp), contentAlignment = Alignment.Center) {
             Canvas(
-                Modifier.fillMaxWidth().height(40.dp)
-                    .scrub(onStart = { touching = true }, onMove = ::apply, onEnd = { apply(it); touching = false; raw = step / max.toFloat() }),
+                Modifier.fillMaxWidth().height(48.dp)
+                    .semantics {
+                        contentDescription = "Media volume"
+                        progressBarRangeInfo = ProgressBarRangeInfo(step / max.toFloat(), 0f..1f, max - 1)
+                        setProgress { value -> apply(value.coerceIn(0f, 1f)); true }
+                    }
+                    .scrub(onStart = { touching = true }, onMove = ::apply, onEnd = { apply(it); touching = false; raw = step / max.toFloat() }, onCancel = { touching = false; raw = step / max.toFloat() }),
             ) {
                 val h = (7.dp + 7.dp * grow).toPx()
                 val top = (size.height - h) / 2
@@ -172,7 +186,7 @@ fun VolumeSlider(modifier: Modifier = Modifier) {
                 // A hairline rim keeps the empty track reading as glass.
                 drawRoundRect(Color.White.copy(alpha = 0.18f), Offset(0f, top), Size(size.width, h), r, style = Stroke(0.8.dp.toPx()))
                 val fw = (size.width * shown).coerceAtLeast(if (shown > 0f) h else 0f)
-                if (fw > 0f) drawRoundRect(Color.White, Offset(0f, top), Size(fw, h), r)
+                if (fw > 0f) drawRoundRect(Bop.MediaAccent, Offset(0f, top), Size(fw, h), r)
             }
             if (touching) Text(
                 "${(step * 100f / max).roundToInt()}%", style = BopType.Micro, color = Bop.Graphite,

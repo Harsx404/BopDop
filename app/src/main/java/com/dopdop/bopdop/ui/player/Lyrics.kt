@@ -10,7 +10,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.runtime.mutableStateListOf
 import com.dopdop.bopdop.data.lyrics.LyricsTranslate
 import com.dopdop.bopdop.data.lyrics.Romanize

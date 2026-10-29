@@ -31,6 +31,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
 import com.dopdop.bopdop.data.LibraryStore
 import com.dopdop.bopdop.data.Mascot
 import com.dopdop.bopdop.data.SeekStyle
@@ -40,6 +47,7 @@ import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import kotlin.math.PI
 import kotlin.math.sin
+import kotlin.math.roundToInt
 
 private fun smooth(t: Float) = t * t * (3f - 2f * t)
 
@@ -63,44 +71,46 @@ fun SeekBar(
 ) {
     val settings by LibraryStore.state.collectAsState()
     val look = style ?: settings.settings.seekStyle
-    val friend = mascot ?: settings.settings.mascot
+    val friend = (mascot ?: settings.settings.mascot).forFestival(com.dopdop.bopdop.ui.festive.LocalFestive.current.festival)
     val frames = if (friend == Mascot.NONE) null else rememberMascotFrames(friend)
     val dur = durationMs.coerceAtLeast(1L)
     var drag by remember { mutableStateOf<Float?>(null) }
     val frac = drag ?: (positionMs.toFloat() / dur).coerceIn(0f, 1f)
     val reduce = LocalReduceMotion.current
-    val amp by animateFloatAsState(if (playing && drag == null) 1f else 0f, tween(420), label = "amp")
+    val amp by animateFloatAsState(if (playing && drag == null && !reduce) 1f else 0f, tween(420), label = "amp")
     val thumbH by animateFloatAsState(if (drag != null) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 700f), label = "thumb")
     val moving = (playing || drag != null) && !reduce
-    // Seconds of animation; keeps running while paused only when the kitty is asleep.
-    val time by produceState(0f, moving, friend, reduce) {
-        if (reduce || (!moving && friend == Mascot.NONE)) return@produceState
-        if (!moving) {
-            // Paused: only the kitty's slow sleep frames change, so a few ticks a second, not every frame.
-            while (true) { kotlinx.coroutines.delay(150); value += 0.15f }
-        }
-        val start = withInfiniteAnimationFrameMillis { it }
-        val base = value
-        while (true) withInfiniteAnimationFrameMillis { value = base + (it - start) / 1000f }
-    }
-    // When playback paused, so the kitty lies down once and then dozes.
+    val time by com.dopdop.bopdop.ui.festive.rememberHalloweenTime(playing || drag != null || frames != null, fps = if (moving) 24 else 8)
+    // When playback paused, so the mascot lies down once and then dozes.
     var pausedAt by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(playing) { if (!playing) pausedAt = time }
+    LaunchedEffect(playing, friend) { if (!playing) pausedAt = time }
     // Which way the mascot faces: back to the left while you scrub backwards.
     var facing by remember { mutableFloatStateOf(1f) }
     var last by remember { mutableFloatStateOf(frac) }
     if (drag != null && frac != last) { facing = if (frac < last) -1f else 1f; last = frac }
     if (drag == null) { if (facing < 0f) facing = 1f; last = frac }
-    val petRoom = if (friend == Mascot.NONE) 0.dp else 30.dp
+    val density = LocalDensity.current
+    val petRoom = if (frames == null) 0.dp else if (frames.gridCell > 0) with(density) {
+        ((40.dp.toPx() / frames.gridCell).roundToInt().coerceAtLeast(1) * frames.gridCell).toDp()
+    } else 30.dp
 
     Column(modifier.fillMaxWidth()) {
         Canvas(
-            Modifier.fillMaxWidth().height(38.dp + petRoom)
-                .scrub(onStart = {}, onMove = { drag = it }, onEnd = { onSeek((it * dur).toLong()); drag = null }, inset = 8.dp, onLongPress = onLongPress),
+            Modifier.fillMaxWidth().height(48.dp + petRoom)
+                .semantics {
+                    contentDescription = "Playback position"
+                    progressBarRangeInfo = ProgressBarRangeInfo(frac, 0f..1f)
+                    setProgress { value ->
+                        if (durationMs <= 0) false else { onSeek((value.coerceIn(0f, 1f) * dur).toLong()); true }
+                    }
+                    if (onLongPress != null) onLongClick("Change seek bar appearance") { onLongPress(); true }
+                }
+                .scrub(onStart = {}, onMove = { drag = it }, onEnd = { if (durationMs > 0) onSeek((it * dur).toLong()); drag = null },
+                    inset = 8.dp, onLongPress = onLongPress, onCancel = { drag = null }),
         ) {
             val pad = 8.dp.toPx()
             val w = size.width - 2 * pad
-            val cy = petRoom.toPx() + 19.dp.toPx()
+            val cy = petRoom.toPx() + 24.dp.toPx()
             val x = pad + w * frac
             // Read here, in drawing, so each animation frame redraws the bar without recomposing it.
             val phase = time * 2f * PI.toFloat() * 0.9f
@@ -109,12 +119,26 @@ fun SeekBar(
                 SeekStyle.LINE -> drawPlainLine(pad, w, cy, x, thumbH)
                 SeekStyle.BARS -> drawBars(pad, w, cy, x, amp, phase, thumbH, seed)
                 SeekStyle.DOTS -> drawDots(pad, w, cy, x, amp, phase, thumbH)
+                SeekStyle.COIL -> drawCoil(pad, w, cy, x, amp, phase, thumbH)
+                SeekStyle.PULSE -> drawPulse(pad, w, cy, x, amp, time, thumbH)
+            }
+            if (Bop.halloween && moving) {
+                // Candle embers follow the playhead; they never cover an unplayed segment.
+                for (i in 0..3) {
+                    val age = (time * 0.9f + i * 0.25f) % 1f
+                    val px = x - (10f + age * 24f).dp.toPx()
+                    if (px > pad) {
+                        val py = cy - (3f + age * 9f).dp.toPx()
+                        val u = 1.dp.toPx().roundToInt().coerceAtLeast(1).toFloat()
+                        drawRect(Played.copy(alpha = (1f - age) * 0.65f), Offset(px.roundToInt().toFloat(), py.roundToInt().toFloat()), Size(u, u))
+                    }
+                }
             }
             if (frames != null) {
                 val mode = when { drag != null -> MascotMode.HOP; playing -> MascotMode.WALK; else -> MascotMode.SLEEP }
-                // Reduced motion: a still kitty, asleep when paused.
+                // Reduced motion: a still mascot, asleep when paused.
                 drawMascot(frames, x, top - 1.dp.toPx(), if (reduce) 0f else time, if (reduce && mode == MascotMode.HOP) MascotMode.WALK else mode, facing,
-                    asleepFor = if (reduce) 99f else (time - pausedAt).coerceAtLeast(0f))
+                    asleepFor = if (reduce) 99f else (time - pausedAt).coerceAtLeast(0f), heightDp = if (frames.gridCell > 0) 40f else 30f)
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
@@ -130,13 +154,14 @@ fun SeekBar(
     }
 }
 
-private val Rest = Color.White.copy(alpha = 0.26f)
+private val Rest get() = if (Bop.halloween) Color(0xFF9D80B5).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.26f)
+private val Played get() = Bop.MediaAccent
 
 /** The upright pill that marks the playhead; returns the y of its top. */
 private fun DrawScope.pillThumb(x: Float, cy: Float, thumbH: Float): Float {
     val th = (18.dp + 8.dp * thumbH).toPx()
     val tw = (5.dp + 1.dp * thumbH).toPx()
-    drawRoundRect(Color.White, Offset(x - tw / 2, cy - th / 2), Size(tw, th), CornerRadius(tw / 2))
+    drawRoundRect(Bop.OnMedia, Offset(x - tw / 2, cy - th / 2), Size(tw, th), CornerRadius(tw / 2))
     return cy - th / 2
 }
 
@@ -163,7 +188,7 @@ private fun DrawScope.drawWave(pad: Float, w: Float, cy: Float, x: Float, amp: F
             val taper = room * smooth(inT) * smooth(outT)
             p.lineTo(px, cy + wave * taper * sin((px - pad) / lambda * 2f * PI.toFloat() - phase))
         }
-        drawPath(p, Color.White, style = Stroke(stroke, cap = StrokeCap.Round))
+        drawPath(p, Played, style = Stroke(stroke, cap = StrokeCap.Round))
     }
     return pillThumb(x, cy, thumbH)
 }
@@ -172,10 +197,10 @@ private fun DrawScope.drawWave(pad: Float, w: Float, cy: Float, x: Float, amp: F
 private fun DrawScope.drawPlainLine(pad: Float, w: Float, cy: Float, x: Float, thumbH: Float): Float {
     val stroke = 5.dp.toPx()
     drawLine(Rest, Offset(pad, cy), Offset(pad + w, cy), stroke, StrokeCap.Round)
-    drawLine(Color.White, Offset(pad, cy), Offset(x, cy), stroke, StrokeCap.Round)
+    drawLine(Played, Offset(pad, cy), Offset(x, cy), stroke, StrokeCap.Round)
     val r = (6.dp + 3.dp * thumbH).toPx()
-    drawCircle(Color.White.copy(alpha = 0.25f * thumbH), r + 6.dp.toPx() * thumbH, Offset(x, cy))
-    drawCircle(Color.White, r, Offset(x, cy))
+    drawCircle(Played.copy(alpha = 0.25f * thumbH), r + 6.dp.toPx() * thumbH, Offset(x, cy))
+    drawCircle(Bop.OnMedia, r, Offset(x, cy))
     return cy - r
 }
 
@@ -203,10 +228,88 @@ private fun DrawScope.drawBars(pad: Float, w: Float, cy: Float, x: Float, amp: F
         val breathe = if (played) 1f - 0.22f * amp + 0.22f * amp * sin(phase * 1.4f + i * 0.55f) else 1f
         val h = (maxH * barShape(seed, i) * breathe).coerceAtLeast(bw)
         drawRoundRect(
-            if (played) Color.White else Rest, Offset(bx - bw / 2, cy - h / 2), Size(bw, h), CornerRadius(bw / 2),
+            if (played) Played else Rest, Offset(bx - bw / 2, cy - h / 2), Size(bw, h), CornerRadius(bw / 2),
         )
     }
     return minOf(pillThumb(x, cy, thumbH), cy - maxH / 2)
+}
+
+/**
+ * A coiled spring: the played part loops like a phone cord, the loops rolling forward while the
+ * song plays and drawing tight into a line when it pauses.
+ */
+private fun DrawScope.drawCoil(pad: Float, w: Float, cy: Float, x: Float, amp: Float, phase: Float, thumbH: Float): Float {
+    val stroke = 2.4.dp.toPx()
+    val gap = 7.dp.toPx()
+    if (x + gap < pad + w) drawLine(Rest, Offset(x + gap, cy), Offset(pad + w, cy), 4.dp.toPx(), StrokeCap.Round)
+    val end = (x - gap).coerceAtLeast(pad)
+    if (end > pad) {
+        // A prolate cycloid: it loops wherever the radius outgrows the pitch's own radius.
+        val a = 10.dp.toPx() / (2f * PI.toFloat())
+        val r = a * 0.4f + (5.dp.toPx() - a * 0.4f) * amp
+        val taperLen = 14.dp.toPx()
+        val total = (end - pad) / a
+        val p = Path()
+        p.moveTo(pad, cy)
+        var th = 0f
+        while (th < total) {
+            th = (th + 0.12f).coerceAtMost(total)
+            val along = th * a
+            val taper = smooth((along / taperLen).coerceIn(0f, 1f)) * smooth(((end - pad - along) / taperLen).coerceIn(0f, 1f))
+            val k = th - phase
+            p.lineTo(pad + along - r * taper * sin(k), cy + r * taper * kotlin.math.cos(k) - r * taper)
+        }
+        drawPath(p, Played, style = Stroke(stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+    }
+    return pillThumb(x, cy, thumbH)
+}
+
+/** One heartbeat of an ECG trace over [s] in 0..1: a small P wave, the QRS spike, then a T wave. */
+private fun heartbeat(s: Float): Float = when {
+    s in 0.10f..0.20f -> 0.14f * sin(PI.toFloat() * (s - 0.10f) / 0.10f)
+    s in 0.26f..0.29f -> -0.16f * (s - 0.26f) / 0.03f
+    s in 0.29f..0.32f -> -0.16f + 1.16f * (s - 0.29f) / 0.03f
+    s in 0.32f..0.36f -> 1f - 1.32f * (s - 0.32f) / 0.04f
+    s in 0.36f..0.39f -> -0.32f + 0.32f * (s - 0.36f) / 0.03f
+    s in 0.48f..0.66f -> 0.28f * sin(PI.toFloat() * (s - 0.48f) / 0.18f)
+    else -> 0f
+}
+
+/**
+ * A heart monitor: the played part carries a heartbeat trace that scrolls in toward the playhead,
+ * and the playhead glows and sends out a ring on every beat. Paused, the trace goes flat.
+ */
+private fun DrawScope.drawPulse(pad: Float, w: Float, cy: Float, x: Float, amp: Float, time: Float, thumbH: Float): Float {
+    val stroke = 2.6.dp.toPx()
+    val gap = 7.dp.toPx()
+    val period = 48.dp.toPx()
+    val height = 11.dp.toPx() * amp
+    // About 75 beats a minute.
+    val bpm = 1.25f
+    if (x + gap < pad + w) drawLine(Rest, Offset(x + gap, cy), Offset(pad + w, cy), 3.dp.toPx(), StrokeCap.Round)
+    val end = (x - gap).coerceAtLeast(pad)
+    if (end > pad) {
+        val p = Path()
+        p.moveTo(pad, cy)
+        var px = pad
+        val step = 0.75.dp.toPx()
+        val shift = time * bpm * period
+        // Beats fade in from the left cap, so the trace starts on a quiet line.
+        val fadeIn = 24.dp.toPx()
+        while (px < end) {
+            px = (px + step).coerceAtMost(end)
+            val s = (((px - pad - shift) / period) % 1f + 1f) % 1f
+            val taper = smooth(((px - pad) / fadeIn).coerceIn(0f, 1f)) * smooth(((end - px) / (gap * 2)).coerceIn(0f, 1f))
+            p.lineTo(px, cy - height * taper * heartbeat(s))
+        }
+        drawPath(p, Played, style = Stroke(stroke, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+    }
+    val beat = (time * bpm) % 1f
+    val r = (6.dp + 3.dp * thumbH).toPx()
+    if (amp > 0f) drawCircle(Played.copy(alpha = 0.55f * (1f - beat) * amp), r + 14.dp.toPx() * beat, Offset(x, cy), style = Stroke(1.6.dp.toPx()))
+    drawCircle(Played.copy(alpha = 0.22f + 0.2f * (1f - beat) * amp), r + 4.dp.toPx(), Offset(x, cy))
+    drawCircle(Bop.OnMedia, r, Offset(x, cy))
+    return cy - r
 }
 
 /** A string of beads: the played ones bigger and bright, and a glowing bead at the playhead. */
@@ -215,12 +318,12 @@ private fun DrawScope.drawDots(pad: Float, w: Float, cy: Float, x: Float, amp: F
     val n = (w / step).toInt()
     for (i in 0..n) {
         val dx = pad + i * step
-        if (dx <= x) drawCircle(Color.White, 2.6.dp.toPx(), Offset(dx, cy))
+        if (dx <= x) drawCircle(Played, 2.6.dp.toPx(), Offset(dx, cy))
         else drawCircle(Rest, 1.8.dp.toPx(), Offset(dx, cy))
     }
     val pulse = 0.5f + 0.5f * sin(phase * 1.2f) * amp
     val r = (6.dp + 3.dp * thumbH).toPx()
-    drawCircle(Color.White.copy(alpha = 0.18f + 0.14f * pulse), r + (4.dp + 3.dp * pulse).toPx(), Offset(x, cy))
-    drawCircle(Color.White, r, Offset(x, cy))
+    drawCircle(Played.copy(alpha = 0.18f + 0.14f * pulse), r + (4.dp + 3.dp * pulse).toPx(), Offset(x, cy))
+    drawCircle(Bop.OnMedia, r, Offset(x, cy))
     return cy - r
 }

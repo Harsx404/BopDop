@@ -57,7 +57,7 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -195,7 +195,12 @@ fun CollectionLayout(
             when {
                 error != null -> item { ErrorState(error, onRetry = onRetry) }
                 loading || tracks == null -> items(8) { RowSkeleton() }
-                tracks.isEmpty() -> item { Text(empty, style = BopType.Body, color = Bop.Text2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(36.dp)) }
+                tracks.isEmpty() -> item {
+                    androidx.compose.foundation.layout.Column {
+                        if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenEmptyArt(Modifier.fillMaxWidth().padding(top = 28.dp).height(96.dp))
+                        Text(empty, style = BopType.Body, color = Bop.Text2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(36.dp))
+                    }
+                }
                 else -> {
                     if (toolbar != null) item(key = "toolbar") { toolbar() }
                     if (editing && onMove != null) reorderItems(tracks, drag, onMove, onRemove)

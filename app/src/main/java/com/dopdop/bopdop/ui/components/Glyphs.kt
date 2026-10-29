@@ -33,6 +33,11 @@ private fun DrawScope.triangle(cx: Float, cy: Float, r: Float, pointRight: Boole
 /** Outline play ▷ that turns into two hairline pause bars. */
 @Composable
 fun LinePlayPause(playing: Boolean, modifier: Modifier = Modifier, color: Color = Color.Black, stroke: Dp = 2.2.dp) {
+    if (com.dopdop.bopdop.ui.theme.Bop.halloween) {
+        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(if (playing) com.dopdop.bopdop.ui.festive.HalloweenGlyph.PAUSE else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PLAY,
+            if (playing) "Pause" else "Play", modifier, color)
+        return
+    }
     val p by animateFloatAsState(if (playing) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "lpp")
     Canvas(modifier) {
         val w = stroke.toPx()
@@ -54,6 +59,11 @@ fun LinePlayPause(playing: Boolean, modifier: Modifier = Modifier, color: Color 
 /** Hairline skip glyph: |◁ or ▷| */
 @Composable
 fun LineSkip(next: Boolean, modifier: Modifier = Modifier, color: Color = Color.White, stroke: Dp = 2.dp) {
+    if (com.dopdop.bopdop.ui.theme.Bop.halloween) {
+        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(if (next) com.dopdop.bopdop.ui.festive.HalloweenGlyph.NEXT else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PREVIOUS,
+            if (next) "Next" else "Previous", modifier, color)
+        return
+    }
     Canvas(modifier) {
         val w = stroke.toPx()
         val r = size.minDimension / 2f

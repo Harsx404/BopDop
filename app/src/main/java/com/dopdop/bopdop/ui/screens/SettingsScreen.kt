@@ -91,7 +91,7 @@ import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.DownloadForOffline
 import androidx.compose.material.icons.rounded.HighQuality
 import com.dopdop.bopdop.ui.glass.glassEdges
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -365,7 +365,7 @@ fun SettingsScreen(section: String? = null) {
                             ChipRow(listOf(0) + rates, s.refreshRate, { if (it == 0) "Auto" else "$it Hz" }) { hz -> LibraryStore.updateSettings { it.copy(refreshRate = hz) } }
                         }
                     }
-                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${when (s.mascot) { com.dopdop.bopdop.data.Mascot.NONE -> ""; com.dopdop.bopdop.data.Mascot.BUNNY -> " with the bunny hopping along"; com.dopdop.bopdop.data.Mascot.BIKE -> " with the bike riding along"; com.dopdop.bopdop.data.Mascot.WAGON -> " with the wagon rolling along"; com.dopdop.bopdop.data.Mascot.DINO -> " with the dino stomping along"; else -> " with the ${s.mascot.label.lowercase()} walking along".replace("the hana","Hana").replace("the mei","Mei").replace("the yui","Yui")}}. Long-press the seek bar to change it from the player.") {
+                    NavRow(Icons.Rounded.Pets, "Seek bar & mascot", "${s.seekStyle.label} seek bar${when (s.mascot) { com.dopdop.bopdop.data.Mascot.NONE -> ""; com.dopdop.bopdop.data.Mascot.BUNNY -> " with the bunny hopping along"; else -> " with the ${s.mascot.label.lowercase()} walking along".replace("the hana","Hana").replace("the mei","Mei").replace("the yui","Yui")}}. Long-press the seek bar to change it from the player.") {
                         app.sheet = com.dopdop.bopdop.ui.Sheet.SeekBarLook
                     }
                     ToggleRow(Icons.Rounded.MotionPhotosOff, "Reduce motion", "Freeze the living background and calm the animations.", s.reduceMotion) {
@@ -378,16 +378,24 @@ fun SettingsScreen(section: String? = null) {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Festive") {
                     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
-                    val now = festive.festival?.let { f ->
-                        val end = com.dopdop.bopdop.data.Festivals.window(f, java.time.LocalDate.now().year)?.endInclusive
+                    val now = if (festive.preview && festive.decor) "Halloween preview is on. " else festive.festival?.let { f ->
+                        val end = com.dopdop.bopdop.data.Festivals.window(f, festive.today.year)?.endInclusive
                         "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
                     }.orEmpty()
                     RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends; festivals that are over for the year drop off the list.") {
-                        ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l -> LibraryStore.updateSettings { it.copy(festiveLevel = l) } }
+                        ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l ->
+                            LibraryStore.updateSettings { it.copy(festiveLevel = l, halloweenPreview = it.halloweenPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF) }
+                        }
+                    }
+                    ToggleRow(Icons.Rounded.Celebration, "Preview Halloween", "Try the full palette, pixel icons and animated night sky any time. Seasonal uses Wisp; other mascot choices stay yours.", s.halloweenPreview, keywords = "halloween ghost pumpkin bat theme preview") {
+                        LibraryStore.updateSettings { it.copy(halloweenPreview = !it.halloweenPreview,
+                            festiveLevel = if (!it.halloweenPreview) com.dopdop.bopdop.data.FestiveLevel.FULL else it.festiveLevel) }
                     }
                     if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
-                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows where your phone is: Navaratri in India and Nepal, Halloween elsewhere. Pick one to swap it in while a festival is on.") {
-                            ChipRow(com.dopdop.bopdop.data.Festivals.picks(java.time.LocalDate.now()), s.festivePick.takeIf { it in com.dopdop.bopdop.data.Festivals.picks(java.time.LocalDate.now()) } ?: com.dopdop.bopdop.data.FestivePick.AUTO, { it.label }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
+                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows your phone's country. Choose a festival while the season is on, or use Preview Halloween above.") {
+                            val picks = com.dopdop.bopdop.data.Festivals.picks(festive.today)
+                            val choices = if (s.festivePick in picks) picks else picks + s.festivePick
+                            ChipRow(choices, s.festivePick, { it.label + if (it !in picks) " · ended" else "" }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f, halloweenPreview = false) } }
                         }
                     }
                 }

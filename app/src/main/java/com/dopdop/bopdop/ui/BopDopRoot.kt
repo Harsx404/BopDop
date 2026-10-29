@@ -39,7 +39,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -64,6 +64,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.Role
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -176,27 +180,30 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
     val scaled = remember(density, lib.settings.textSize) {
         androidx.compose.ui.unit.Density(density.density, density.fontScale * lib.settings.textSize.scale)
     }
+    val reduceMotion = com.dopdop.bopdop.ui.festive.rememberReducedMotion(lib.settings.reduceMotion)
     CompositionLocalProvider(
         androidx.compose.ui.platform.LocalDensity provides scaled,
         androidx.compose.material3.LocalTextStyle provides androidx.compose.material3.LocalTextStyle.current.copy(fontFamily = com.dopdop.bopdop.ui.theme.BopType.family),
         LocalApp provides app,
         LocalHaze provides haze,
         LocalGlassLevel provides lib.settings.glass.also { Bop.clear = it == com.dopdop.bopdop.data.GlassLevel.CLEAR },
-        LocalReduceMotion provides lib.settings.reduceMotion,
-        com.dopdop.bopdop.ui.festive.LocalFestive provides com.dopdop.bopdop.ui.festive.rememberFestive(lib.settings.festiveLevel, lib.settings.festivePick),
-        com.dopdop.bopdop.ui.glass.LocalGlassLight provides com.dopdop.bopdop.ui.glass.rememberTiltLight(!lib.settings.reduceMotion),
+        LocalReduceMotion provides reduceMotion,
+        com.dopdop.bopdop.ui.glass.LocalGlassLight provides com.dopdop.bopdop.ui.glass.rememberTiltLight(!reduceMotion),
         LocalChromePadding provides PaddingValues(bottom = chrome + 12.dp),
         // Rubber-band ends on every list (F39); reduced motion keeps Android's own stretch.
-        androidx.compose.foundation.LocalOverscrollFactory provides if (lib.settings.reduceMotion) androidx.compose.foundation.LocalOverscrollFactory.current
+        androidx.compose.foundation.LocalOverscrollFactory provides if (reduceMotion) androidx.compose.foundation.LocalOverscrollFactory.current
             else bounceFactory,
     ) {
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                LiquidMetalBackground(palette, Modifier.fillMaxSize())
+                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenBackground(Modifier.fillMaxSize())
+                else LiquidMetalBackground(palette, Modifier.fillMaxSize())
                 // How far the (empty) tabs page in the navigation stack has slid, in px; TabsHost turns
                 // it into the tabs' fade, so they follow every page change, a back swipe included.
-                // NaN while a page covers them.
-                val tabsX = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                // NaN while a page covers them. It starts NaN: when Android restores the app with a page
+                // open (after it was cleared from memory in the background), the tabs page is never
+                // composed, so only the tabs page itself, once laid out, may say the tabs are showing.
+                val tabsX = remember { androidx.compose.runtime.mutableFloatStateOf(Float.NaN) }
                 TabsHost(app, tabsX)
                 AppNavHost(app, tabsX)
             }
@@ -449,7 +456,7 @@ private fun TabBar(app: AppState) {
     val light by com.dopdop.bopdop.ui.glass.LocalGlassLight.current
     val lensShape = RoundedCornerShape(27.dp)
     // At rest the lens is a milky pill marking the tab; held, it clears into a magnifying lens.
-    val restTint = if (level == com.dopdop.bopdop.data.GlassLevel.CLEAR) Color.Transparent else Color.White.copy(alpha = 0.78f)
+    val restTint = if (level == com.dopdop.bopdop.data.GlassLevel.CLEAR) Color.Transparent else if (Bop.halloween) Bop.Veil.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.78f)
     val lensTint = androidx.compose.ui.graphics.lerp(restTint, Color.Transparent, held)
     val lensStyle = remember(level, light, lensTint) {
         com.dopdop.bopdop.ui.glass.liquidStyle(com.dopdop.bopdop.data.GlassLevel.CLEAR, light, lensShape, lensTint, strong = true)
@@ -518,13 +525,17 @@ private fun TabIcons(tabs: List<Tab>, selected: Int, modifier: Modifier, clickab
             val on = i == selected
             Column(
                 Modifier.weight(1f).fillMaxHeight().then(if (clickable) Modifier.bounceClick(0.9f) { onTap(i) } else Modifier)
+                    .then(if (clickable) Modifier.semantics { this.selected = on; role = Role.Tab } else Modifier)
                     .graphicsLayer { this.alpha = alpha() },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Icon(t.icon, t.label, tint = if (on) Bop.Ink else Bop.Text2, modifier = Modifier.size(24.dp))
+                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(
+                    com.dopdop.bopdop.ui.festive.HalloweenGlyph.fromName(t.icon.name)!!, t.label, Modifier.size(24.dp),
+                    if (on) Bop.Accent else Bop.Text2, active = on && clickable)
+                else Icon(t.icon, t.label, tint = if (on) Bop.Ink else Bop.Text2, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.height(2.dp))
-                Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on) Bop.Ink else Bop.Text3)
+                Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on && Bop.halloween) Bop.Accent else if (on) Bop.Ink else Bop.Text3)
             }
         }
     }

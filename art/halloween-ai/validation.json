@@ -1,0 +1,109 @@
+{
+  "source": "Built-in image_gen",
+  "character_sha256": {
+    "wisp": "89fea6857c49125ad9ef055d0eb11fa6c4660afd08b9ac8a66770e05edb42b1a",
+    "ember": "b2758bcb06f4459520d7f4eee2cfad43eb8cf51e676c2cb1de187c41c51061b7",
+    "echo": "a980196bdaa54877df66e38f4a3397733f2978fdb4a6f1805154a22cde71d7a2"
+  },
+  "assets": {
+    "halloween_echo.png": {
+      "size": [
+        256,
+        256
+      ],
+      "colors": 12,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_ember.png": {
+      "size": [
+        256,
+        256
+      ],
+      "colors": 10,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_icons_a.png": {
+      "size": [
+        96,
+        96
+      ],
+      "colors": 2,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_icons_b.png": {
+      "size": [
+        96,
+        96
+      ],
+      "colors": 2,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_icons_c.png": {
+      "size": [
+        96,
+        96
+      ],
+      "colors": 2,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_launcher.png": {
+      "size": [
+        108,
+        108
+      ],
+      "colors": 11,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_props.png": {
+      "size": [
+        256,
+        256
+      ],
+      "colors": 15,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_rooftops.png": {
+      "size": [
+        288,
+        96
+      ],
+      "colors": 13,
+      "alpha": [
+        0,
+        255
+      ]
+    },
+    "halloween_wisp.png": {
+      "size": [
+        256,
+        256
+      ],
+      "colors": 12,
+      "alpha": [
+        0,
+        255
+      ]
+    }
+  }
+}

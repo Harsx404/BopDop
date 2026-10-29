@@ -129,8 +129,9 @@ object Festivals {
      * the other way round); All shows each festival in its own window. Nothing shows outside the
      * festive windows, and Off shows nothing at all.
      */
-    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate): Festival? {
+    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate, halloweenPreview: Boolean = false): Festival? {
         if (level == FestiveLevel.OFF) return null
+        if (halloweenPreview) return Festival.HALLOWEEN
         val open = open(today)
         if (open.isEmpty()) return null
         return when (pick) {

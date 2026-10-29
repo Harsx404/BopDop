@@ -26,7 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -144,27 +144,23 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
         }
         // Progress hairline
         Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.Black.copy(alpha = 0.07f))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(listOf(palette.wash, palette.washDeep))))
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(if (Bop.halloween) listOf(Bop.Accent, Bop.Accent) else listOf(palette.wash, palette.washDeep))))
         }
-        MiniPet(progress, playing, Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp))
+        MiniPet(progress, playing, Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp), active = app.player.value < 0.02f)
     }
 }
 
 /** The mascot, smaller, walking along the mini player's progress line. */
 @Composable
-private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier) {
+private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier, active: Boolean) {
     val lib by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
     if (lib.settings.mascot == com.dopdop.bopdop.data.Mascot.NONE) return
     val frames = rememberMascotFrames(lib.settings.mascot)
     val reduce = com.dopdop.bopdop.ui.glass.LocalReduceMotion.current
-    // Progress arrives in steps; glide between them so the kitty walks instead of teleporting.
-    val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")
-    // Paused, the mini kitty is asleep on one frame: no clock at all.
-    val time by androidx.compose.runtime.produceState(0f, reduce, playing) {
-        if (reduce || !playing) return@produceState
-        val start = androidx.compose.animation.core.withInfiniteAnimationFrameMillis { it }
-        while (true) androidx.compose.animation.core.withInfiniteAnimationFrameMillis { value = (it - start) / 1000f }
-    }
+    // Progress arrives in steps; glide between them so the mascot walks instead of teleporting.
+    val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(if (reduce) 0 else 300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")
+    // Paused, the mini mascot is asleep on one frame: no clock at all.
+    val time by com.dopdop.bopdop.ui.festive.rememberHalloweenTime(active && playing, fps = 12)
     androidx.compose.foundation.Canvas(modifier.fillMaxWidth().height(22.dp)) {
         val px = size.width * x
         val feet = size.height - 1.dp.toPx()

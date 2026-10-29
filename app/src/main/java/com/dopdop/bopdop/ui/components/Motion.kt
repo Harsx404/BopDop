@@ -52,6 +52,7 @@ fun Modifier.riseIn(order: Int = 0): Modifier = composed {
  */
 @Composable
 fun Burst(trigger: Int, color: Color, modifier: Modifier = Modifier) {
+    if (LocalReduceMotion.current) return
     val p = remember { Animatable(1f) }
     LaunchedEffect(trigger) {
         if (trigger == 0) return@LaunchedEffect

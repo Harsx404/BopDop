@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -31,21 +34,38 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** The festival on now and how much of it to show. */
-data class FestiveNow(val festival: Festival?, val level: FestiveLevel) {
+data class FestiveNow(val festival: Festival?, val level: FestiveLevel, val today: LocalDate = LocalDate.now(), val preview: Boolean = false) {
     /** Home gets its decoration. */
     val decor: Boolean get() = festival != null && level == FestiveLevel.FULL
-    /** Pets dress up (and the festival's own pet can be picked). */
 }
 
 val LocalFestive = staticCompositionLocalOf { FestiveNow(null, FestiveLevel.OFF) }
 
-/** Today's festival for these settings; rechecked every hour so it arrives and leaves on its own. */
+/** Refresh at date/time changes and on resume, including an app left open across midnight. */
 @Composable
-fun rememberFestive(level: FestiveLevel, pick: FestivePick): FestiveNow {
+fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Boolean = false): FestiveNow {
     val ctx = LocalContext.current
-    val country = remember { Festivals.country(ctx) }
-    val today by produceState(LocalDate.now()) { while (true) { delay(3_600_000); value = LocalDate.now() } }
-    return remember(level, pick, country, today) { FestiveNow(Festivals.current(level, pick, country, today), level) }
+    var country by remember { mutableStateOf(Festivals.country(ctx)) }
+    var today by remember { mutableStateOf(LocalDate.now()) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(ctx, lifecycle) {
+        fun refresh() { today = LocalDate.now(); country = Festivals.country(ctx) }
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) = refresh()
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_DATE_CHANGED)
+            addAction(android.content.Intent.ACTION_TIME_CHANGED)
+            addAction(android.content.Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        androidx.core.content.ContextCompat.registerReceiver(ctx, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh() }
+        lifecycle.addObserver(observer)
+        onDispose { ctx.unregisterReceiver(receiver); lifecycle.removeObserver(observer) }
+    }
+    return remember(level, pick, country, today, halloweenPreview) {
+        FestiveNow(Festivals.current(level, pick, country, today, halloweenPreview), level, today, halloweenPreview)
+    }
 }
 
 /** Saffron, marigold and leaf for Navaratri; pumpkin and witch purple for Halloween; diya gold for Diwali; dawn for Chhath. */
@@ -59,7 +79,7 @@ object FestiveColors {
     val Dawn = Color(0xFFFF9E5E)
     fun accent(f: Festival) = when (f) {
         Festival.NAVARATRI -> Saffron
-        Festival.HALLOWEEN -> Pumpkin
+        Festival.HALLOWEEN -> com.dopdop.bopdop.ui.theme.Bop.Accent
         Festival.DIWALI -> Gold
         Festival.CHHATH -> Dawn
     }
@@ -72,6 +92,7 @@ object FestiveColors {
  */
 @Composable
 fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
+    if (festival == Festival.HALLOWEEN) { HalloweenHeaderScene(modifier); return }
     // Still while reduced motion is on, or while Home is hidden under another tab or page.
     val reduce = LocalReduceMotion.current || !com.dopdop.bopdop.ui.LocalTabActive.current
     val t by produceState(0f, reduce) {
@@ -83,7 +104,7 @@ fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
     }
     // Hung just under the status bar, so the clock and icons stay clear.
     val inset = WindowInsets.statusBars.getTop(LocalDensity.current).toFloat()
-    val dussehra = remember { Festivals.isDussehra(LocalDate.now()) }
+    val dussehra = Festivals.isDussehra(LocalFestive.current.today)
     Canvas(modifier) {
         when (festival) {
             Festival.NAVARATRI -> {
@@ -132,7 +153,11 @@ private fun DrawScope.fireworks(
 /** Crossed dandiya sticks for Navratri, a drawn bow and arrow for Dussehra, a pumpkin for Halloween. */
 @Composable
 fun FestiveMark(festival: Festival, modifier: Modifier = Modifier) {
-    val dussehra = remember { Festivals.isDussehra(LocalDate.now()) }
+    if (festival == Festival.HALLOWEEN) {
+        HalloweenDecorIcon(HalloweenDecor.JACK_O_LANTERN, null, modifier)
+        return
+    }
+    val dussehra = Festivals.isDussehra(LocalFestive.current.today)
     Canvas(modifier) {
         val u = size.minDimension / 16f
         when {

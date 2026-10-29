@@ -8,7 +8,8 @@ import android.content.pm.PackageManager
 enum class AppIcon(val alias: String, val label: String, val background: Int, val foreground: Int) {
     CLASSIC(".IconClassic", "Classic", R.drawable.ic_launcher_bg, R.drawable.ic_launcher_fg),
     DARK(".IconDark", "Orange glass", R.drawable.ic_launcher_bg_dark, R.drawable.ic_launcher_fg_dark),
-    LIGHT(".IconLight", "Light glass", R.drawable.ic_launcher_bg_light, R.drawable.ic_launcher_fg_light);
+    LIGHT(".IconLight", "Light glass", R.drawable.ic_launcher_bg_light, R.drawable.ic_launcher_fg_light),
+    HALLOWEEN(".IconHalloween", "Halloween", R.drawable.ic_launcher_bg_halloween, R.drawable.halloween_launcher);
 
     private fun component(context: Context) = ComponentName(context.packageName, "com.dopdop.bopdop" + alias)
 

@@ -68,7 +68,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material3.Icon
+import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -148,8 +148,8 @@ fun NowPlaying(app: AppState) {
     val t = track ?: return
     if (p <= 0.001f) return
     val palette = rememberArtPalette(t.artwork)
-    val wash by animateColorAsState(palette.wash, tween(900), label = "wash")
-    val washDeep by animateColorAsState(palette.washDeep, tween(900), label = "washDeep")
+    val wash by animateColorAsState(if (Bop.halloween) Color(0xFF31223E) else palette.wash, tween(900), label = "wash")
+    val washDeep by animateColorAsState(if (Bop.halloween) Color(0xFF140E1D) else palette.washDeep, tween(900), label = "washDeep")
     val haze = rememberHazeState()
     val scope = rememberCoroutineScope()
     val video by PlayerConnection.video.collectAsState()
@@ -287,6 +287,7 @@ fun NowPlaying(app: AppState) {
                 Box(Modifier.fillMaxSize().background(washDeep.copy(alpha = dim)))
                 // Contrast floor: light covers wash out white controls, so deepen the bottom a touch.
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.62f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f))))
+                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenPlayerHorizon(Modifier.fillMaxWidth().aspectRatio(0.86f).graphicsLayer { alpha = 1f - dim })
             }
 
             // Lyrics full screen: after a few quiet seconds while the song plays, everything but the
@@ -613,14 +614,17 @@ private fun TransportCluster(playing: Boolean, buffering: Boolean, haze: HazeSta
         SideDrop(next = false, haze = haze,
             onLong = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); PlayerConnection.seekTo((PlayerConnection.position - 10_000).coerceAtLeast(0)); app.toast("−10 seconds") },
         ) { PlayerConnection.previous() }
+        Box(Modifier.zIndex(1f).size(76.dp), contentAlignment = Alignment.Center) {
+            if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenPlayMotes(playing, Modifier.requiredSize(112.dp))
         Box(
-            Modifier.zIndex(1f).size(76.dp).bounceClick(0.9f) { PlayerConnection.toggle() }
+            Modifier.size(76.dp).bounceClick(0.9f) { PlayerConnection.toggle() }
                 .softShadow(CircleShape, 16.dp, color = Color.Black, alpha = 0.16f, dy = 4.dp)
-                .clip(CircleShape).background(Color.White),
+                .clip(CircleShape).background(Bop.MediaAccent),
             contentAlignment = Alignment.Center,
         ) {
             LinePlayPause(playing, Modifier.size(26.dp), color = Bop.Graphite, stroke = 2.4.dp)
             if (buffering) androidx.compose.material3.CircularProgressIndicator(Modifier.size(72.dp), color = Bop.Graphite.copy(alpha = 0.25f), strokeWidth = 1.5.dp)
+        }
         }
         SideDrop(next = true, haze = haze,
             onLong = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); PlayerConnection.seekTo(PlayerConnection.position + 10_000); app.toast("+10 seconds") },
@@ -764,14 +768,15 @@ private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState,
             }.mediaGlass(CircleShape, haze, interactionSource = press, strong = true),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
+            com.dopdop.bopdop.ui.festive.ThemedIcon(
                 if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, "Like",
                 tint = if (liked) Bop.Like else Color.White,
                 modifier = Modifier.size(22.dp).graphicsLayer { scaleX = s; scaleY = s },
             )
         }
-        // Hearts fly out when you like it.
-        com.dopdop.bopdop.ui.components.Burst(bursts, Bop.Like, Modifier.requiredSize(120.dp))
+        // Hearts fly out when you like it; at Halloween, candy and embers.
+        if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenLikeBurst(bursts, Modifier.requiredSize(120.dp))
+        else com.dopdop.bopdop.ui.components.Burst(bursts, Bop.Like, Modifier.requiredSize(120.dp))
     }
 }
 
@@ -791,7 +796,7 @@ private fun PageToggle(icon: ImageVector, desc: String, on: Boolean, haze: HazeS
         Modifier.size(48.dp).bounceClick(0.85f, interactionSource = press, onClick = onClick)
             .then(if (on) Modifier.mediaGlass(CircleShape, haze, emphasis = 1.6f, interactionSource = press, strong = true) else Modifier.clip(CircleShape)),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, desc, tint = if (on) Color.White else Color.White.copy(alpha = 0.92f), modifier = Modifier.size(24.dp)) }
+    ) { Icon(icon, desc, tint = if (on) Bop.MediaAccent else Bop.OnMedia, modifier = Modifier.size(24.dp)) }
 }
 
 /** Compact "now playing" line shown above lyrics and the queue. */
