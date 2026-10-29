@@ -81,7 +81,7 @@ fun ColumnScope.SeekLookSheet() {
         Box(Modifier.weight(1f)) { SeekBar(pos, DEMO_MS, playing, onSeek = { pos = it.coerceIn(0, DEMO_MS) }, seed = 7) }
         Spacer(Modifier.width(8.dp))
         Box(
-            Modifier.size(48.dp).clip(CircleShape).background(if (Bop.halloween) Bop.MediaAccent else Color.White).bounceClick(0.9f) { playing = !playing },
+            Modifier.size(48.dp).clip(CircleShape).background(if (Bop.pixel) Bop.MediaAccent else Color.White).bounceClick(0.9f) { playing = !playing },
             contentAlignment = Alignment.Center,
         ) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause preview" else "Play preview", tint = Bop.Graphite, modifier = Modifier.size(20.dp)) }
     }
@@ -132,7 +132,7 @@ private fun Choice(label: String, on: Boolean, modifier: Modifier, art: (@Compos
 @Composable
 private fun MascotIcon(mascot: Mascot) {
     val frames = rememberMascotFrames(mascot)
-    val t by com.dopdop.bopdop.ui.festive.rememberHalloweenTime(fps = 12)
+    val t by com.dopdop.bopdop.ui.festive.rememberFestiveTime(fps = 12)
     // On a dusk backing, like the player.
     Canvas(Modifier.size(56.dp, 44.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF2E2640))) {
         // Wide mascots (the bike) shrink to fit the tile.

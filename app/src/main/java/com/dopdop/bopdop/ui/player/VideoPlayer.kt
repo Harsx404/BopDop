@@ -77,7 +77,8 @@ fun VideoModeSwitch(video: VideoPlaybackState, haze: HazeState, modifier: Modifi
                 ) {
                     val ink = if (selected) Color(0xFF15161B) else Color.White
                     if (option && video.loading) CircularProgressIndicator(Modifier.size(11.dp), color = ink, strokeWidth = 1.5.dp)
-                    else Icon(if (option) Icons.Rounded.Videocam else Icons.Rounded.MusicNote, null, Modifier.size(13.dp), tint = ink)
+                    // Pixel festival glyphs need a 16dp box to draw at twice their art size; 13dp leaves them at one.
+                    else Icon(if (option) Icons.Rounded.Videocam else Icons.Rounded.MusicNote, null, Modifier.size(if (com.dopdop.bopdop.ui.theme.Bop.pixel) 16.dp else 13.dp), tint = ink)
                     Text(if (option && video.loading) "Finding…" else if (option) "Video" else "Song", style = BopType.Caption.copy(fontSize = 11.5.sp, fontWeight = androidx.compose.ui.text.font.FontWeight(600)), color = ink, maxLines = 1)
                 }
             }

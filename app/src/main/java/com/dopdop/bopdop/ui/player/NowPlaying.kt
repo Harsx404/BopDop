@@ -148,8 +148,8 @@ fun NowPlaying(app: AppState) {
     val t = track ?: return
     if (p <= 0.001f) return
     val palette = rememberArtPalette(t.artwork)
-    val wash by animateColorAsState(if (Bop.halloween) Color(0xFF31223E) else palette.wash, tween(900), label = "wash")
-    val washDeep by animateColorAsState(if (Bop.halloween) Color(0xFF140E1D) else palette.washDeep, tween(900), label = "washDeep")
+    val wash by animateColorAsState(if (Bop.halloween) Color(0xFF31223E) else if (Bop.diwali) Color(0xFF292147) else palette.wash, tween(900), label = "wash")
+    val washDeep by animateColorAsState(if (Bop.halloween) Color(0xFF140E1D) else if (Bop.diwali) Color(0xFF17152D) else palette.washDeep, tween(900), label = "washDeep")
     val haze = rememberHazeState()
     val scope = rememberCoroutineScope()
     val video by PlayerConnection.video.collectAsState()
@@ -285,9 +285,19 @@ fun NowPlaying(app: AppState) {
                 val motionA by animateFloatAsState(if (motion) 1f else 0f, tween(900), label = "motionBg")
                 if (motionA > 0.01f) LyricsMotionBackground(t.artwork, Modifier.fillMaxSize().graphicsLayer { alpha = motionA })
                 Box(Modifier.fillMaxSize().background(washDeep.copy(alpha = dim)))
+                // Lyrics at a festival: its own night takes over behind the words (always the dark one,
+                // so the cream lyrics read), calmed through the middle where the lines scroll.
+                val festiveLyrics by animateFloatAsState(if (Bop.pixel && app.nowPlayingPage == NowPlayingPage.LYRICS) 1f else 0f, tween(700), label = "festiveLyrics")
+                if (festiveLyrics > 0.01f) Box(Modifier.fillMaxSize().graphicsLayer { alpha = festiveLyrics }) {
+                    if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenBackground(Modifier.fillMaxSize(), dark = true)
+                    else com.dopdop.bopdop.ui.festive.DiwaliBackground(Modifier.fillMaxSize(), dark = true)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to wash.copy(alpha = 0.15f), 0.25f to washDeep.copy(alpha = 0.55f),
+                        0.75f to washDeep.copy(alpha = 0.55f), 1f to wash.copy(alpha = 0.2f))))
+                }
                 // Contrast floor: light covers wash out white controls, so deepen the bottom a touch.
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.62f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.30f))))
-                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenPlayerHorizon(Modifier.fillMaxWidth().aspectRatio(0.86f).graphicsLayer { alpha = 1f - dim })
+                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenPlayerHorizon(Modifier.fillMaxWidth().aspectRatio(0.86f).graphicsLayer { alpha = (1f - dim) * (1f - festiveLyrics) })
+                else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliPlayerHorizon(Modifier.fillMaxWidth().aspectRatio(0.86f).graphicsLayer { alpha = (1f - dim) * (1f - festiveLyrics) })
             }
 
             // Lyrics full screen: after a few quiet seconds while the song plays, everything but the
@@ -616,6 +626,7 @@ private fun TransportCluster(playing: Boolean, buffering: Boolean, haze: HazeSta
         ) { PlayerConnection.previous() }
         Box(Modifier.zIndex(1f).size(76.dp), contentAlignment = Alignment.Center) {
             if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenPlayMotes(playing, Modifier.requiredSize(112.dp))
+            else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliPlayMotes(playing, Modifier.requiredSize(112.dp))
         Box(
             Modifier.size(76.dp).bounceClick(0.9f) { PlayerConnection.toggle() }
                 .softShadow(CircleShape, 16.dp, color = Color.Black, alpha = 0.16f, dy = 4.dp)
@@ -774,8 +785,9 @@ private fun LikeCircle(t: Track, liked: Boolean, haze: HazeState, app: AppState,
                 modifier = Modifier.size(22.dp).graphicsLayer { scaleX = s; scaleY = s },
             )
         }
-        // Hearts fly out when you like it; at Halloween, candy and embers.
+        // Hearts fly out when you like it; at Halloween, candy and embers; at Diwali, marigold petals.
         if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenLikeBurst(bursts, Modifier.requiredSize(120.dp))
+        else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliLikeBurst(bursts, Modifier.requiredSize(120.dp))
         else com.dopdop.bopdop.ui.components.Burst(bursts, Bop.Like, Modifier.requiredSize(120.dp))
     }
 }

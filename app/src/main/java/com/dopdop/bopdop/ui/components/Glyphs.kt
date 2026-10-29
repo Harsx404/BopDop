@@ -33,8 +33,8 @@ private fun DrawScope.triangle(cx: Float, cy: Float, r: Float, pointRight: Boole
 /** Outline play ▷ that turns into two hairline pause bars. */
 @Composable
 fun LinePlayPause(playing: Boolean, modifier: Modifier = Modifier, color: Color = Color.Black, stroke: Dp = 2.2.dp) {
-    if (com.dopdop.bopdop.ui.theme.Bop.halloween) {
-        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(if (playing) com.dopdop.bopdop.ui.festive.HalloweenGlyph.PAUSE else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PLAY,
+    if (com.dopdop.bopdop.ui.theme.Bop.pixel) {
+        com.dopdop.bopdop.ui.festive.FestiveGlyphIcon(if (playing) com.dopdop.bopdop.ui.festive.FestiveGlyph.PAUSE else com.dopdop.bopdop.ui.festive.FestiveGlyph.PLAY,
             if (playing) "Pause" else "Play", modifier, color)
         return
     }
@@ -59,8 +59,8 @@ fun LinePlayPause(playing: Boolean, modifier: Modifier = Modifier, color: Color 
 /** Hairline skip glyph: |◁ or ▷| */
 @Composable
 fun LineSkip(next: Boolean, modifier: Modifier = Modifier, color: Color = Color.White, stroke: Dp = 2.dp) {
-    if (com.dopdop.bopdop.ui.theme.Bop.halloween) {
-        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(if (next) com.dopdop.bopdop.ui.festive.HalloweenGlyph.NEXT else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PREVIOUS,
+    if (com.dopdop.bopdop.ui.theme.Bop.pixel) {
+        com.dopdop.bopdop.ui.festive.FestiveGlyphIcon(if (next) com.dopdop.bopdop.ui.festive.FestiveGlyph.NEXT else com.dopdop.bopdop.ui.festive.FestiveGlyph.PREVIOUS,
             if (next) "Next" else "Previous", modifier, color)
         return
     }

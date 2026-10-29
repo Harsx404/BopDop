@@ -43,7 +43,7 @@ val LocalFestive = staticCompositionLocalOf { FestiveNow(null, FestiveLevel.OFF)
 
 /** Refresh at date/time changes and on resume, including an app left open across midnight. */
 @Composable
-fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Boolean = false): FestiveNow {
+fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Boolean = false, diwaliPreview: Boolean = false): FestiveNow {
     val ctx = LocalContext.current
     var country by remember { mutableStateOf(Festivals.country(ctx)) }
     var today by remember { mutableStateOf(LocalDate.now()) }
@@ -63,8 +63,8 @@ fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Bo
         lifecycle.addObserver(observer)
         onDispose { ctx.unregisterReceiver(receiver); lifecycle.removeObserver(observer) }
     }
-    return remember(level, pick, country, today, halloweenPreview) {
-        FestiveNow(Festivals.current(level, pick, country, today, halloweenPreview), level, today, halloweenPreview)
+    return remember(level, pick, country, today, halloweenPreview, diwaliPreview) {
+        FestiveNow(Festivals.current(level, pick, country, today, halloweenPreview, diwaliPreview), level, today, halloweenPreview || diwaliPreview)
     }
 }
 
@@ -80,19 +80,21 @@ object FestiveColors {
     fun accent(f: Festival) = when (f) {
         Festival.NAVARATRI -> Saffron
         Festival.HALLOWEEN -> com.dopdop.bopdop.ui.theme.Bop.Accent
-        Festival.DIWALI -> Gold
+        Festival.DIWALI -> com.dopdop.bopdop.ui.theme.Bop.Accent
         Festival.CHHATH -> Dawn
     }
 }
 
 /**
  * A light touch of the festival across the top of Home: a marigold toran swaying gently for
- * Navaratri, a corner cobweb with a dangling spider and a bat or two for Halloween. Drawn behind
- * the header, small and soft, so it decorates without getting in the way.
+ * Navaratri, a corner cobweb with a dangling spider and a bat or two for Halloween, swaying akash
+ * kandils and blooming fireworks for Diwali. Drawn behind the header, small and soft, so it
+ * decorates without getting in the way.
  */
 @Composable
 fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
     if (festival == Festival.HALLOWEEN) { HalloweenHeaderScene(modifier); return }
+    if (festival == Festival.DIWALI) { DiwaliHeaderScene(modifier); return }
     // Still while reduced motion is on, or while Home is hidden under another tab or page.
     val reduce = LocalReduceMotion.current || !com.dopdop.bopdop.ui.LocalTabActive.current
     val t by produceState(0f, reduce) {
@@ -113,10 +115,7 @@ fun FestiveHomeDecor(festival: Festival, modifier: Modifier = Modifier) {
                 fireworks(t, inset, if (dussehra) 3.5f else 8f)
             }
             Festival.HALLOWEEN -> halloween(t, inset)
-            Festival.DIWALI -> {
-                fairyLights(t, inset)
-                fireworks(t, inset, 5f, listOf(FestiveColors.Gold, Color(0xFFFF6B9A), Color(0xFF7CD8FF), Color(0xFFFFF1B8)))
-            }
+            Festival.DIWALI -> Unit
             Festival.CHHATH -> sunrise(t, inset)
         }
     }
@@ -150,23 +149,21 @@ private fun DrawScope.fireworks(
     }
 }
 
-/** Crossed dandiya sticks for Navratri, a drawn bow and arrow for Dussehra, a pumpkin for Halloween. */
+/** Crossed dandiya sticks for Navratri, a drawn bow and arrow for Dussehra, a pumpkin for Halloween, a lit diya for Diwali. */
 @Composable
 fun FestiveMark(festival: Festival, modifier: Modifier = Modifier) {
     if (festival == Festival.HALLOWEEN) {
         HalloweenDecorIcon(HalloweenDecor.JACK_O_LANTERN, null, modifier)
         return
     }
+    if (festival == Festival.DIWALI) {
+        DiwaliDecorIcon(DiwaliDecor.LIT_DIYA, null, modifier)
+        return
+    }
     val dussehra = Festivals.isDussehra(LocalFestive.current.today)
     Canvas(modifier) {
         val u = size.minDimension / 16f
         when {
-            festival == Festival.DIWALI -> {
-                // A diya: clay bowl and a flame.
-                val bowl = Path().apply { moveTo(2f * u, 10f * u); quadraticTo(8f * u, 16f * u, 14f * u, 10f * u); lineTo(11.5f * u, 10f * u); quadraticTo(8f * u, 12f * u, 4.5f * u, 10f * u); close() }
-                drawPath(bowl, Color(0xFFC0602A))
-                drawPath(Path().apply { moveTo(8f * u, 2f * u); quadraticTo(11f * u, 7f * u, 8f * u, 9.5f * u); quadraticTo(5f * u, 7f * u, 8f * u, 2f * u); close() }, FestiveColors.Gold)
-            }
             festival == Festival.CHHATH -> {
                 // The sun on the water, as it is offered arghya.
                 drawCircle(FestiveColors.Dawn, 4.5f * u, Offset(8f * u, 8f * u))
@@ -298,51 +295,6 @@ private fun DrawScope.jackOLantern(c: Offset, r: Float, t: Float) {
     drawPath(Path().apply { moveTo(c.x - r * 0.55f, c.y - r * 0.1f); lineTo(c.x - r * 0.25f, c.y - r * 0.45f); lineTo(c.x - r * 0.05f, c.y - r * 0.1f); close() }, face)
     drawPath(Path().apply { moveTo(c.x + r * 0.05f, c.y - r * 0.1f); lineTo(c.x + r * 0.25f, c.y - r * 0.45f); lineTo(c.x + r * 0.55f, c.y - r * 0.1f); close() }, face)
     drawPath(Path().apply { moveTo(c.x - r * 0.5f, c.y + r * 0.15f); quadraticTo(c.x, c.y + r * 0.6f, c.x + r * 0.5f, c.y + r * 0.15f); quadraticTo(c.x, c.y + r * 0.35f, c.x - r * 0.5f, c.y + r * 0.15f); close() }, face)
-}
-
-/**
- * Diwali: strings of fairy lights sagging under the status bar, bulbs twinkling in gold, pink and
- * blue, with an akash kandil (paper lantern) hanging at each hook.
- */
-private fun DrawScope.fairyLights(t: Float, inset: Float) {
-    val u = 1.dp.toPx()
-    val top = inset + 1f * u
-    val bulbs = listOf(FestiveColors.Gold, Color(0xFFFF6B9A), Color(0xFF7CD8FF), Color(0xFFB7F07A), FestiveColors.Saffron)
-    val hooks = listOf(0f, size.width / 3f, size.width * 2f / 3f, size.width)
-    for (k in 0 until hooks.size - 1) {
-        val a = hooks[k]; val b = hooks[k + 1]
-        val sag = 12f * u
-        val wire = Path()
-        for (i in 0..20) {
-            val f = i / 20f
-            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f)
-            if (i == 0) wire.moveTo(x, y) else wire.lineTo(x, y)
-        }
-        drawPath(wire, Color(0xFF5A4A3A).copy(alpha = 0.6f), style = Stroke(0.8f * u))
-        for (i in 1..8) {
-            val f = i / 9f
-            val x = a + (b - a) * f; val y = top + sag * 4f * f * (1f - f) + 2.5f * u
-            val on = 0.45f + 0.55f * ((sin(t * 2.3f + i * 1.7f + k * 2.9f) + 1f) / 2f)
-            val col = bulbs[(i + k * 3) % bulbs.size]
-            drawCircle(col.copy(alpha = 0.28f * on), 5f * u, Offset(x, y))
-            drawCircle(col.copy(alpha = 0.6f + 0.4f * on), 1.8f * u, Offset(x, y))
-        }
-    }
-    // Akash kandils swinging at the inner hooks.
-    hooks.drop(1).dropLast(1).forEachIndexed { i, hx ->
-        val sway = 6f * sin(t * 1.1f + i)
-        rotate(sway, Offset(hx, top)) {
-            drawLine(Color(0xFF5A4A3A).copy(alpha = 0.6f), Offset(hx, top), Offset(hx, top + 10f * u), 0.8f * u)
-            val body = Path().apply {
-                moveTo(hx, top + 10f * u); lineTo(hx + 8f * u, top + 18f * u); lineTo(hx, top + 28f * u); lineTo(hx - 8f * u, top + 18f * u); close()
-            }
-            val glow = 0.8f + 0.2f * sin(t * 5f + i)
-            drawCircle(FestiveColors.Gold.copy(alpha = 0.22f * glow), 13f * u, Offset(hx, top + 18f * u))
-            drawPath(body, (if (i == 0) Color(0xFFFF6B9A) else FestiveColors.Saffron).copy(alpha = 0.95f))
-            drawPath(body, FestiveColors.Gold, style = Stroke(1f * u))
-            for (tail in -1..1) drawLine(FestiveColors.Gold.copy(alpha = 0.8f), Offset(hx + tail * 2.5f * u, top + 28f * u), Offset(hx + tail * 3f * u, top + 36f * u), 0.8f * u)
-        }
-    }
 }
 
 /**

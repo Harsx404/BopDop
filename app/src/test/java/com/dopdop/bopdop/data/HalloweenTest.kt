@@ -12,13 +12,16 @@ class HalloweenTest {
         assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason))
         assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason, halloweenPreview = true))
         assertNull(Festivals.current(FestiveLevel.OFF, FestivePick.AUTO, "IN", outsideSeason, halloweenPreview = true))
+        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason, diwaliPreview = true))
+        assertNull(Festivals.current(FestiveLevel.OFF, FestivePick.AUTO, "IN", outsideSeason, diwaliPreview = true))
     }
 
     @Test fun seasonalCompanionFollowsTheFestivalWithoutChangingExplicitChoices() {
         assertEquals(Mascot.WISP, Mascot.SEASONAL.forFestival(Festival.HALLOWEEN))
         assertEquals(Mascot.BUNNY, Mascot.SEASONAL.forFestival(null))
-        assertEquals(Mascot.BUNNY, Mascot.SEASONAL.forFestival(Festival.DIWALI))
-        for (choice in listOf(Mascot.NONE, Mascot.BUNNY, Mascot.EMBER, Mascot.ECHO, Mascot.WISP)) {
+        assertEquals(Mascot.JYOTI, Mascot.SEASONAL.forFestival(Festival.DIWALI))
+        assertEquals(Mascot.BUNNY, Mascot.SEASONAL.forFestival(Festival.CHHATH))
+        for (choice in listOf(Mascot.NONE, Mascot.BUNNY, Mascot.EMBER, Mascot.ECHO, Mascot.WISP, Mascot.TARA)) {
             assertEquals(choice, choice.forFestival(Festival.HALLOWEEN))
             assertEquals(choice, choice.forFestival(null))
         }

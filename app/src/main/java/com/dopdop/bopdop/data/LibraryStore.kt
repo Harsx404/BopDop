@@ -126,6 +126,10 @@ data class Settings(
     val festivePick: FestivePick = FestivePick.AUTO,
     /** Preview the complete Halloween look outside its scheduled window. */
     val halloweenPreview: Boolean = false,
+    /** Preview the complete Diwali look outside its scheduled window. */
+    val diwaliPreview: Boolean = false,
+    /** Chapters of Diwali's "A Little Light" finished, one bit each; kept apart from the theme so progress survives it. */
+    val diwaliStory: Int = 0,
     /** An update the user waved away; the next newer one is offered again. */
     val skippedUpdate: String = "",
     /**
@@ -180,7 +184,7 @@ data class Settings(
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("mascot", mascot.name)
-        .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("halloweenPreview", halloweenPreview).put("skippedUpdate", skippedUpdate)
+        .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("halloweenPreview", halloweenPreview).put("diwaliPreview", diwaliPreview).put("diwaliStory", diwaliStory).put("skippedUpdate", skippedUpdate)
         .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).put("font", font.name).put("textSize", textSize.name).put("customFont", customFont).put("customFontName", customFontName)
         .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
         .put("lofi", lofi).put("lofiSpeed", lofiSpeed.toDouble()).put("lofiPitch", lofiPitch.toDouble()).put("lofiReverb", lofiReverb.toDouble())
@@ -261,6 +265,8 @@ data class Settings(
                 else runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
             festivePick = runCatching { FestivePick.valueOf(o.optString("festivePick")) }.getOrDefault(FestivePick.AUTO),
             halloweenPreview = o.optBoolean("halloweenPreview", false),
+            diwaliPreview = o.optBoolean("diwaliPreview", false),
+            diwaliStory = o.optInt("diwaliStory", 0),
             skippedUpdate = o.optString("skippedUpdate"),
             islandInApp = if (o.has("islandInApp")) o.optBoolean("islandInApp") else null,
             islandOverlay = o.optBoolean("islandOverlay", false),

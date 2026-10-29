@@ -170,21 +170,24 @@ fun HomeScreen() {
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = refreshing, onRefresh = { refreshing = true; home.retry() }, modifier = Modifier.fillMaxSize(), state = pull,
         indicator = {
-            if (Bop.halloween) Box(
-                // The cauldron is drawn down with the pull and bubbles while Home reloads.
+            if (Bop.pixel) Box(
+                // The cauldron (or Diwali's diya) is drawn down with the pull and bubbles while Home reloads.
                 // It settles in the open strip under the header buttons, clear of the lanterns and spider.
                 Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.statusBars).size(64.dp).graphicsLayer {
                     val f = if (refreshing) 1f else pull.distanceFraction.coerceIn(0f, 1.3f)
                     translationY = f * 128.dp.toPx() - 64.dp.toPx()
                     alpha = f.coerceIn(0f, 1f)
                 },
-            ) { com.dopdop.bopdop.ui.festive.HalloweenCauldron(Modifier.matchParentSize()) }
+            ) {
+                if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliLoader(Modifier.matchParentSize())
+                else com.dopdop.bopdop.ui.festive.HalloweenCauldron(Modifier.matchParentSize())
+            }
             else androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator(state = pull, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter))
         },
     ) {
         LazyColumn(state = list, modifier = Modifier.fillMaxSize().hazeSource(haze), contentPadding = LocalChromePadding.current) {
             item(key = "top") {
-                Box(if (Bop.halloween) Modifier.fillMaxWidth().height(138.dp) else Modifier) {
+                Box(if (Bop.pixel) Modifier.fillMaxWidth().height(138.dp) else Modifier) {
                 // The festival's touch hangs behind the header and scrolls away with it.
                 if (festive.decor) festive.festival?.let { com.dopdop.bopdop.ui.festive.FestiveHomeDecor(it, Modifier.matchParentSize()) }
                 Row(
@@ -210,13 +213,17 @@ fun HomeScreen() {
                             com.dopdop.bopdop.ui.festive.FestiveMark(f, Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                (if (festive.preview) "Halloween preview" else com.dopdop.bopdop.data.Festivals.greeting(f, festive.today)).uppercase(),
+                                (if (festive.preview) "${f.label} preview" else com.dopdop.bopdop.data.Festivals.greeting(f, festive.today)).uppercase(),
                                 style = BopType.Micro, color = com.dopdop.bopdop.ui.festive.FestiveColors.accent(f),
                             )
                         }
                     }
                     Text(greeting, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
                 }
+            }
+            if (Bop.diwali && festive.decor) item(key = "diwaliStory") {
+                com.dopdop.bopdop.ui.festive.DiwaliStoryCard(lib.settings.diwaliStory, { app.nav.navigate(Routes.DIWALI_STORY) { launchSingleTop = true } },
+                    Modifier.padding(start = 20.dp, end = 20.dp, bottom = 14.dp))
             }
             item(key = "update") { com.dopdop.bopdop.ui.components.UpdateBanner() }
             item(key = "grid") { if (mood == null) RecentsGrid(lib, current?.id) }
@@ -233,6 +240,7 @@ fun HomeScreen() {
                 when {
                     home.state is Load.Loading -> Box(Modifier.padding(horizontal = 36.dp).fillMaxWidth().height(HERO_HEIGHT).shimmer(40.dp), contentAlignment = Alignment.Center) {
                         if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenCauldron(Modifier.size(96.dp))
+                        else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliLoader(Modifier.size(96.dp))
                     }
                     featured.isNotEmpty() -> HeroCarousel(featured)
                 }
@@ -250,6 +258,7 @@ fun HomeScreen() {
                     if (shelves.isEmpty()) item {
                         Column {
                             if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenEmptyArt(Modifier.fillMaxWidth().padding(top = 24.dp).height(96.dp))
+                            else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliEmptyArt(com.dopdop.bopdop.ui.festive.DiwaliEmpty.SEARCH, Modifier.fillMaxWidth().padding(top = 24.dp).height(96.dp))
                             Text("Nothing here right now. Pull down to refresh.", style = BopType.Body, color = Bop.Text2, modifier = Modifier.padding(28.dp))
                         }
                     }
@@ -403,8 +412,8 @@ private fun CircleButton(onClick: () -> Unit, content: @Composable () -> Unit) {
 /** The reference's staggered three-line menu glyph. */
 @Composable
 private fun MenuGlyph() {
-    if (Bop.halloween) {
-        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(com.dopdop.bopdop.ui.festive.HalloweenGlyph.MENU, "Menu", Modifier.size(24.dp), Bop.Text)
+    if (Bop.pixel) {
+        com.dopdop.bopdop.ui.festive.FestiveGlyphIcon(com.dopdop.bopdop.ui.festive.FestiveGlyph.MENU, "Menu", Modifier.size(24.dp), Bop.Text)
         return
     }
     Box(Modifier.size(24.dp).drawBehind {

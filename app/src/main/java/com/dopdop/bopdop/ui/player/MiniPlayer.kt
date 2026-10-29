@@ -144,7 +144,7 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
         }
         // Progress hairline
         Box(Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(1.dp)).background(Color.Black.copy(alpha = 0.07f))) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(if (Bop.halloween) listOf(Bop.Accent, Bop.Accent) else listOf(palette.wash, palette.washDeep))))
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(Brush.horizontalGradient(if (Bop.pixel) listOf(Bop.Accent, Bop.Accent) else listOf(palette.wash, palette.washDeep))))
         }
         MiniPet(progress, playing, Modifier.align(Alignment.BottomStart).padding(horizontal = 18.dp), active = app.player.value < 0.02f)
     }
@@ -160,7 +160,7 @@ private fun MiniPet(progress: Float, playing: Boolean, modifier: Modifier, activ
     // Progress arrives in steps; glide between them so the mascot walks instead of teleporting.
     val x by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(if (reduce) 0 else 300, easing = androidx.compose.animation.core.LinearEasing), label = "miniPet")
     // Paused, the mini mascot is asleep on one frame: no clock at all.
-    val time by com.dopdop.bopdop.ui.festive.rememberHalloweenTime(active && playing, fps = 12)
+    val time by com.dopdop.bopdop.ui.festive.rememberFestiveTime(active && playing, fps = 12)
     androidx.compose.foundation.Canvas(modifier.fillMaxWidth().height(22.dp)) {
         val px = size.width * x
         val feet = size.height - 1.dp.toPx()

@@ -197,6 +197,7 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenBackground(Modifier.fillMaxSize())
+                else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliBackground(Modifier.fillMaxSize())
                 else LiquidMetalBackground(palette, Modifier.fillMaxSize())
                 // How far the (empty) tabs page in the navigation stack has slid, in px; TabsHost turns
                 // it into the tabs' fade, so they follow every page change, a back swipe included.
@@ -396,6 +397,7 @@ private fun AppNavHost(app: AppState, tabsX: androidx.compose.runtime.MutableFlo
         composable(Routes.UPDATE) { com.dopdop.bopdop.ui.screens.UpdateScreen() }
         composable(Routes.SPOTIFY_LOGIN) { com.dopdop.bopdop.ui.screens.SpotifyLoginScreen() }
         composable(Routes.PODCASTS) { com.dopdop.bopdop.ui.screens.PodcastsScreen() }
+        composable(Routes.DIWALI_STORY) { com.dopdop.bopdop.ui.festive.DiwaliStoryScreen() }
         composable(Routes.PODCAST, listOf(str("id"), str("title"), str("art"))) { e ->
             val a = e.arguments!!
             com.dopdop.bopdop.ui.screens.PodcastScreen(a.getString("id")!!, a.getString("title")!!, a.getString("art")!!)
@@ -412,7 +414,7 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
     // Full-screen tools (share code, scanner, sign-in) get the whole screen.
     val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
     val away by androidx.compose.animation.core.animateFloatAsState(
-        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.SPOTIFY_LOGIN || route == Routes.WRAPPED) 1f else 0f, tween(260), label = "chromeAway",
+        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.SPOTIFY_LOGIN || route == Routes.WRAPPED || route == Routes.DIWALI_STORY) 1f else 0f, tween(260), label = "chromeAway",
     )
     Column(
         Modifier
@@ -467,7 +469,7 @@ private fun TabBar(app: AppState) {
     val light by com.dopdop.bopdop.ui.glass.LocalGlassLight.current
     val lensShape = RoundedCornerShape(27.dp)
     // At rest the lens is a milky pill marking the tab; held, it clears into a magnifying lens.
-    val restTint = if (level == com.dopdop.bopdop.data.GlassLevel.CLEAR) Color.Transparent else if (Bop.halloween) Bop.Veil.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.78f)
+    val restTint = if (level == com.dopdop.bopdop.data.GlassLevel.CLEAR) Color.Transparent else if (Bop.pixel) Bop.Veil.copy(alpha = 0.88f) else Color.White.copy(alpha = 0.78f)
     val lensTint = androidx.compose.ui.graphics.lerp(restTint, Color.Transparent, held)
     val lensStyle = remember(level, light, lensTint) {
         com.dopdop.bopdop.ui.glass.liquidStyle(com.dopdop.bopdop.data.GlassLevel.CLEAR, light, lensShape, lensTint, strong = true)
@@ -541,12 +543,12 @@ private fun TabIcons(tabs: List<Tab>, selected: Int, modifier: Modifier, clickab
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(
-                    com.dopdop.bopdop.ui.festive.HalloweenGlyph.fromName(t.icon.name)!!, t.label, Modifier.size(24.dp),
+                if (Bop.pixel) com.dopdop.bopdop.ui.festive.FestiveGlyphIcon(
+                    com.dopdop.bopdop.ui.festive.FestiveGlyph.fromName(t.icon.name)!!, t.label, Modifier.size(24.dp),
                     if (on) Bop.Accent else Bop.Text2, active = on && clickable)
                 else Icon(t.icon, t.label, tint = if (on) Bop.Ink else Bop.Text2, modifier = Modifier.size(24.dp))
                 Spacer(Modifier.height(2.dp))
-                Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on && Bop.halloween) Bop.Accent else if (on) Bop.Ink else Bop.Text3)
+                Text(t.label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = if (on && Bop.pixel) Bop.Accent else if (on) Bop.Ink else Bop.Text3)
             }
         }
     }

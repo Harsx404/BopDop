@@ -91,6 +91,7 @@ import com.dopdop.bopdop.ui.components.bounceClick
 import com.dopdop.bopdop.ui.components.shimmer
 import com.dopdop.bopdop.ui.glass.ArtPalette
 import com.dopdop.bopdop.ui.glass.LocalReduceMotion
+import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -140,6 +141,10 @@ enum class LyricMode(val label: String) { ORIGINAL("Original"), ROMANIZED("Roman
  * How lyrics are shown; kept for the session so it carries across songs. The translation is its
  * own switch, so it can sit under the original or the romanized lines.
  */
+/** Lyrics ink: white over the cover; at a pixel festival its cream, with its accent for the glow. */
+private val LyricInk get() = if (Bop.pixel) Bop.OnMedia else Color.White
+private val LyricGlow get() = if (Bop.pixel) Bop.MediaAccent else Color.White
+
 object LyricPrefs {
     var mode by mutableStateOf(LyricMode.ORIGINAL)
     var translate by mutableStateOf(false)
@@ -166,11 +171,11 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier, imm
             }
             LyricState.None -> Column(Modifier.fillMaxSize().padding(30.dp), verticalArrangement = Arrangement.Center) {
                 BreathingDots(active = true, modifier = Modifier.padding(bottom = 18.dp))
-                Text("No lyrics for this one", style = LyricStyle.copy(fontSize = 26.sp), color = Color.White.copy(alpha = 0.9f))
-                Text("Just feel it.", style = BopType.Headline, color = Color.White.copy(alpha = 0.55f))
+                Text("No lyrics for this one", style = LyricStyle.copy(fontSize = 26.sp), color = LyricInk.copy(alpha = 0.9f))
+                Text("Just feel it.", style = BopType.Headline, color = LyricInk.copy(alpha = 0.55f))
                 Text(
                     "Search lyrics", style = BopType.BodyStrong, color = Color(0xFF15161B),
-                    modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(50)).background(Color.White)
+                    modifier = Modifier.padding(top = 18.dp).clip(RoundedCornerShape(50)).background(LyricInk)
                         .bounceClick { app.sheet = com.dopdop.bopdop.ui.Sheet.LyricsSearch(t) }.padding(horizontal = 18.dp, vertical = 10.dp),
                 )
             }
@@ -235,15 +240,15 @@ private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, tran
             androidx.compose.animation.AnimatedContent(timing, label = "lyricBar") { t ->
                 if (t) LyricTiming(trackId) else if (indic) Row(
                     Modifier.clip(RoundedCornerShape(50)).horizontalScroll(rememberScrollState())
-                        .background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
+                        .background(LyricInk.copy(alpha = 0.12f)).padding(3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     LyricMode.entries.forEach { m ->
                         val on = m == mode
                         Text(
-                            m.label, style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = if (on) Color(0xFF15161B) else Color.White.copy(alpha = 0.85f),
+                            m.label, style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = if (on) Color(0xFF15161B) else LyricInk.copy(alpha = 0.85f),
                             maxLines = 1, softWrap = false,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Color.White else Color.Transparent)
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) LyricInk else Color.Transparent)
                                 .bounceClick { LyricPrefs.mode = m }.padding(horizontal = 12.dp, vertical = 5.dp),
                         )
                     }
@@ -262,10 +267,10 @@ private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, tran
 
 @Composable
 private fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, on: Boolean, onClick: () -> Unit) = Box(
-    Modifier.size(40.dp).clip(CircleShape).background(if (on) Color.White else Color.White.copy(alpha = 0.12f))
-        .border(1.dp, Color.White.copy(alpha = if (on) 0f else 0.16f), CircleShape).bounceClick(onClick = onClick),
+    Modifier.size(40.dp).clip(CircleShape).background(if (on) LyricInk else LyricInk.copy(alpha = 0.12f))
+        .border(1.dp, LyricInk.copy(alpha = if (on) 0f else 0.16f), CircleShape).bounceClick(onClick = onClick),
     contentAlignment = Alignment.Center,
-) { Icon(icon, desc, tint = if (on) Color(0xFF15161B) else Color.White, modifier = Modifier.size(18.dp)) }
+) { Icon(icon, desc, tint = if (on) Color(0xFF15161B) else LyricInk, modifier = Modifier.size(18.dp)) }
 
 /**
  * Nudge this song's lyrics, in the toolbar: − when the words run ahead of the singing, + when
@@ -275,18 +280,18 @@ private fun BarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc:
 private fun LyricTiming(trackId: String) {
     val off = LyricOffsets.of(trackId)
     Row(
-        Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).padding(3.dp),
+        Modifier.clip(RoundedCornerShape(50)).background(LyricInk.copy(alpha = 0.12f)).padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         @Composable
         fun Step(label: String, desc: String, onClick: () -> Unit) = Box(
-            Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.14f)).bounceClick(onClick = onClick)
+            Modifier.size(28.dp).clip(CircleShape).background(LyricInk.copy(alpha = 0.14f)).bounceClick(onClick = onClick)
                 .semantics { contentDescription = desc },
             contentAlignment = Alignment.Center,
-        ) { Text(label, style = BopType.BodyStrong, color = Color.White) }
+        ) { Text(label, style = BopType.BodyStrong, color = LyricInk) }
         Step("−", "Lyrics later") { LyricOffsets.nudge(trackId, -LyricOffsets.STEP) }
         Text(
-            LyricOffsets.label(off), style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = Color.White,
+            LyricOffsets.label(off), style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = LyricInk,
             modifier = Modifier.width(78.dp).bounceClick { LyricOffsets.set(trackId, 0) }, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
         Step("+", "Lyrics sooner") { LyricOffsets.nudge(trackId, LyricOffsets.STEP) }
@@ -296,11 +301,11 @@ private fun LyricTiming(trackId: String) {
 @Composable
 private fun LyricShareBar(count: Int, onCancel: () -> Unit, onShare: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(if (count == 0) "Tap lines to share (up to 5)" else "$count selected", style = BopType.Body, color = Color.White.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
-        Text("Cancel", style = BopType.BodyStrong, color = Color.White.copy(alpha = 0.7f), modifier = Modifier.bounceClick(onClick = onCancel).padding(10.dp))
+        Text(if (count == 0) "Tap lines to share (up to 5)" else "$count selected", style = BopType.Body, color = LyricInk.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+        Text("Cancel", style = BopType.BodyStrong, color = LyricInk.copy(alpha = 0.7f), modifier = Modifier.bounceClick(onClick = onCancel).padding(10.dp))
         Text(
             "Share card", style = BopType.BodyStrong, color = Color(0xFF15161B),
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = if (count > 0) 1f else 0.4f))
+            modifier = Modifier.clip(RoundedCornerShape(50)).background(LyricInk.copy(alpha = if (count > 0) 1f else 0.4f))
                 .bounceClick { if (count > 0) onShare() }.padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }
@@ -325,20 +330,20 @@ private fun PlainLyrics(
         }
     }
     Column(Modifier.fillMaxSize().edgeFade().verticalScroll(scroll).padding(horizontal = 26.dp, vertical = 40.dp)) {
-        Text("LYRICS · $source", style = BopType.Micro, color = Color.White.copy(alpha = 0.5f))
+        Text("LYRICS · $source", style = BopType.Micro, color = LyricInk.copy(alpha = 0.5f))
         Spacer(Modifier.height(16.dp))
         lines.forEachIndexed { i, line ->
             if (line.isBlank()) { Spacer(Modifier.height(24.dp)); return@forEachIndexed }
             val picked = i in selected
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(if (picked) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                    .background(if (picked) LyricInk.copy(alpha = 0.18f) else Color.Transparent)
                     .then(if (selecting) Modifier.bounceClick(0.98f) { onToggle(i) } else Modifier)
                     .padding(vertical = 3.dp, horizontal = if (selecting) 8.dp else 0.dp),
             ) {
                 val rtl = isRtl(main(i))
-                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp).forScript(main(i)).aligned(rtl), color = Color.White.copy(alpha = 0.9f), modifier = Modifier.fillMaxWidth())
-                sub(i)?.let { Text(it, style = BopType.Headline.forScript(it).aligned(rtl), color = Color.White.copy(alpha = 0.55f), modifier = Modifier.fillMaxWidth()) }
+                Text(main(i), style = LyricStyle.copy(fontSize = 24.sp, lineHeight = 32.sp).forScript(main(i)).aligned(rtl), color = LyricInk.copy(alpha = 0.9f), modifier = Modifier.fillMaxWidth())
+                sub(i)?.let { Text(it, style = BopType.Headline.forScript(it).aligned(rtl), color = LyricInk.copy(alpha = 0.55f), modifier = Modifier.fillMaxWidth()) }
             }
         }
         Spacer(Modifier.height(160.dp))
@@ -438,7 +443,7 @@ private fun SyncedLyrics(
                         }
                         .then(if (blur > 0.dp) Modifier.blur(blur) else Modifier)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(if (row.src in selected) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                        .background(if (row.src in selected) LyricInk.copy(alpha = 0.18f) else Color.Transparent)
                         .bounceClick(0.98f) {
                             if (selecting) { if (!row.isGap) onToggle(row.src) }
                             else { scope.launch { user.snapTo(0f) }; PlayerConnection.seekTo((row.start - LyricOffsets.of(t.id)).coerceAtLeast(0)) }
@@ -458,13 +463,13 @@ private fun SyncedLyrics(
                                 words.isNotEmpty() && words.joinToString("") { it.text } == text -> karaokeWords(words, pos, row.end, lift = !reduce)
                                 else -> karaoke(text, ((pos - row.start).toFloat() / (row.end - row.start).coerceIn(600, 9000)).coerceIn(0f, 1f), lift = !reduce)
                             },
-                            style = LyricStyle.forScript(text).aligned(rtl).copy(shadow = if (on) Shadow(Color.White.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
-                            color = Color.White,
+                            style = LyricStyle.forScript(text).aligned(rtl).copy(shadow = if (on) Shadow(LyricGlow.copy(alpha = 0.45f), Offset.Zero, 22f) else null),
+                            color = LyricInk,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         sub(row.src)?.let {
                             Text(
-                                it, style = BopType.Headline.copy(fontWeight = FontWeight(560)).forScript(it).aligned(rtl), color = Color.White.copy(alpha = 0.6f),
+                                it, style = BopType.Headline.copy(fontWeight = FontWeight(560)).forScript(it).aligned(rtl), color = LyricInk.copy(alpha = 0.6f),
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                             )
                         }
@@ -473,7 +478,7 @@ private fun SyncedLyrics(
             }
             Spacer(Modifier.height(24.dp))
             val app = com.dopdop.bopdop.ui.LocalApp.current
-            Text((if (lines.any { it.words.isNotEmpty() }) "Word-synced lyrics" else "Synced lyrics") + " · Wrong lyrics? Search", style = BopType.Caption, color = Color.White.copy(alpha = 0.45f),
+            Text((if (lines.any { it.words.isNotEmpty() }) "Word-synced lyrics" else "Synced lyrics") + " · Wrong lyrics? Search", style = BopType.Caption, color = LyricInk.copy(alpha = 0.45f),
                 modifier = Modifier.graphicsLayer { translationY = target + user.value }.bounceClick { app.sheet = com.dopdop.bopdop.ui.Sheet.LyricsSearch(t) }.padding(vertical = 6.dp))
             Spacer(Modifier.height(420.dp))
         }
@@ -487,9 +492,11 @@ private fun SyncedLyrics(
 private fun sungWord(p: Float, lift: Boolean): SpanStyle {
     val singing = if (p <= 0f || p >= 1f) 0f else kotlin.math.sin(p * Math.PI.toFloat())
     return SpanStyle(
-        color = Color.White.copy(alpha = 0.42f + 0.58f * p),
+        // At a festival the word being sung glows in its gold (or pumpkin) and settles back to cream.
+        color = if (Bop.pixel) androidx.compose.ui.graphics.lerp(LyricInk.copy(alpha = 0.42f + 0.58f * p), Bop.MediaAccent, singing)
+            else LyricInk.copy(alpha = 0.42f + 0.58f * p),
         baselineShift = if (lift) androidx.compose.ui.text.style.BaselineShift(0.035f * p + 0.03f * singing) else null,
-        shadow = if (singing > 0.05f) Shadow(Color.White.copy(alpha = 0.55f * singing), Offset.Zero, 26f * singing) else null,
+        shadow = if (singing > 0.05f) Shadow(LyricGlow.copy(alpha = 0.55f * singing), Offset.Zero, 26f * singing) else null,
     )
 }
 
@@ -527,7 +534,7 @@ private fun BreathingDots(active: Boolean, modifier: Modifier = Modifier, progre
         // Right-to-left songs fill their dots from the right, like their words.
         (if (rtl) (2 downTo 0) else (0..2)).forEach { k ->
             val fill = ((progress * 3f) - k).coerceIn(0f, 1f)
-            Box(Modifier.size(13.dp).clip(CircleShape).background(Color.White.copy(alpha = if (active) 0.35f + 0.65f * fill else 0.3f)))
+            Box(Modifier.size(13.dp).clip(CircleShape).background(LyricInk.copy(alpha = if (active) 0.35f + 0.65f * fill else 0.3f)))
         }
     }
 }

@@ -55,15 +55,14 @@ private const val PAD = 6
  * embers, ground fog and the odd bat. The backdrop's art pixels set the grid everything snaps to.
  */
 @Composable
-fun HalloweenBackground(modifier: Modifier = Modifier) {
-    val dark = Bop.dark
+fun HalloweenBackground(modifier: Modifier = Modifier, dark: Boolean = Bop.dark) {
     val backdrop = ImageBitmap.imageResource(if (dark) R.drawable.halloween_backdrop_dark else R.drawable.halloween_backdrop_light)
     val grave = ImageBitmap.imageResource(R.drawable.halloween_graveyard)
     val props = ImageBitmap.imageResource(R.drawable.halloween_props)
     val bats = ImageBitmap.imageResource(R.drawable.halloween_bats)
     val fogFar = ImageBitmap.imageResource(R.drawable.halloween_fog_far)
     val fogNear = ImageBitmap.imageResource(R.drawable.halloween_fog_near)
-    val time = rememberHalloweenTime(fps = 15)
+    val time = rememberFestiveTime(fps = 15)
     val inset = WindowInsets.statusBars.getTop(LocalDensity.current).toFloat()
     Box(modifier) {
         // Still artwork in its own layer, so the animated one above never re-records it.
@@ -118,14 +117,14 @@ fun HalloweenBackground(modifier: Modifier = Modifier) {
 }
 
 /** Art-pixel grid of a backdrop covering the screen, anchored to the bottom so the village stays. */
-private class Grid(val s: Float, val left: Float, val top: Float)
+internal class Grid(val s: Float, val left: Float, val top: Float)
 
-private fun DrawScope.grid(img: ImageBitmap): Grid {
+internal fun DrawScope.grid(img: ImageBitmap): Grid {
     val s = max(size.width / img.width, size.height / img.height)
     return Grid(s, (size.width - img.width * s) / 2, size.height - img.height * s)
 }
 
-private fun snap(v: Float, step: Float) = floor(v / step) * step
+internal fun snap(v: Float, step: Float) = floor(v / step) * step
 
 /** Single art-pixel stars that twinkle out of step with each other, none in front of the moon. */
 private fun DrawScope.stars(t: Float, g: Grid, moon: Offset, moonR: Float) {
@@ -186,7 +185,7 @@ fun HalloweenHeaderScene(modifier: Modifier = Modifier) {
     val webs = ImageBitmap.imageResource(R.drawable.halloween_webs)
     val spider = ImageBitmap.imageResource(R.drawable.halloween_spider)
     val bats = ImageBitmap.imageResource(R.drawable.halloween_bats)
-    val time = rememberHalloweenTime()
+    val time = rememberFestiveTime()
     val dark = Bop.dark
     val inset = WindowInsets.statusBars.getTop(LocalDensity.current).toFloat()
     Canvas(modifier) {
@@ -237,7 +236,7 @@ fun HalloweenHeaderScene(modifier: Modifier = Modifier) {
 fun HalloweenCardWeb(variant: Int, spider: Boolean, corner: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
     val webs = ImageBitmap.imageResource(R.drawable.halloween_webs)
     val sheet = ImageBitmap.imageResource(R.drawable.halloween_spider)
-    val time = rememberHalloweenTime(spider, fps = 12)
+    val time = rememberFestiveTime(spider, fps = 12)
     val right = variant % 2 == 0
     Canvas(modifier) {
         roundedWeb(webs, right, torn = variant % 4 >= 2, corner.toPx(), 0.95f)
@@ -281,7 +280,7 @@ private fun DrawScope.danglingSpider(sheet: ImageBitmap, x: Float, anchorY: Floa
 @Composable
 fun HalloweenPlayerHorizon(modifier: Modifier = Modifier) {
     val roofs = ImageBitmap.imageResource(R.drawable.halloween_rooftops)
-    val time = rememberHalloweenTime(fps = 12)
+    val time = rememberFestiveTime(fps = 12)
     Canvas(modifier) {
         val s = size.width / roofs.width
         val h = roofs.height * s
@@ -319,7 +318,7 @@ fun HalloweenDecorIcon(decor: HalloweenDecor, description: String?, modifier: Mo
 @Composable
 fun HalloweenPlayMotes(playing: Boolean, modifier: Modifier = Modifier) {
     if (!playing) return
-    val time = rememberHalloweenTime(fps = 15)
+    val time = rememberFestiveTime(fps = 15)
     Canvas(modifier) {
         val u = 1.dp.toPx().roundToInt().coerceAtLeast(1).toFloat()
         for (i in 0..5) {
@@ -357,7 +356,7 @@ fun HalloweenLikeBurst(bursts: Int, modifier: Modifier = Modifier) {
 @Composable
 fun HalloweenCauldron(modifier: Modifier = Modifier) {
     val sheet = ImageBitmap.imageResource(R.drawable.halloween_cauldron)
-    val time = rememberHalloweenTime(fps = 12)
+    val time = rememberFestiveTime(fps = 12)
     Canvas(modifier.then(Modifier.semantics { contentDescription = "Loading" })) {
         val px = floor(size.minDimension / 64f).coerceAtLeast(1f).toInt()
         val frame = (time.value * 1000 / 140).toInt() % 6
@@ -381,7 +380,7 @@ fun HalloweenEmptyArt(modifier: Modifier = Modifier) {
 }
 
 /** One square atlas cell at a whole-pixel [scale], optionally recoloured to a flat [tint]. */
-private fun DrawScope.sprite(atlas: ImageBitmap, frame: Int, x: Float, y: Float, scale: Int,
+internal fun DrawScope.sprite(atlas: ImageBitmap, frame: Int, x: Float, y: Float, scale: Int,
                              alpha: Float = 1f, tint: Color? = null, cell: Int = 64, cols: Int = 4) {
     drawImage(atlas, srcOffset = IntOffset(frame % cols * cell, frame / cols * cell),
         srcSize = IntSize(cell, cell), dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),

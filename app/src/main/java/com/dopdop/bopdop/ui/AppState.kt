@@ -67,6 +67,8 @@ object Routes {
     const val SPOTIFY_PLAYLIST = "spotify/playlist?id={id}&name={name}&art={art}"
     const val PODCASTS = "podcasts"
     const val PODCAST = "podcast?id={id}&title={title}&art={art}"
+    /** Diwali's "A Little Light" story, full screen. */
+    const val DIWALI_STORY = "diwali-story"
     val tabs = listOf(HOME, EXPLORE, LIBRARY)
 }
 

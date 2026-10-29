@@ -63,7 +63,7 @@ internal fun rememberMascotFrames(mascot: Mascot = Mascot.BUNNY): MascotFrames {
         fun load(ids: List<Int>) = ids.map { ImageBitmap.imageResource(res, it) }
         fun sheet(id: Int): MascotFrames {
             val bitmap = android.graphics.BitmapFactory.decodeResource(res, id, android.graphics.BitmapFactory.Options().apply { inScaled = false })
-            require(bitmap.width == 256 && bitmap.height == 256) { "Halloween sprites require a 4x4 grid of 64px cells" }
+            require(bitmap.width == 256 && bitmap.height == 256) { "Festival sprites require a 4x4 grid of 64px cells" }
             val cells = (0..15).map { android.graphics.Bitmap.createBitmap(bitmap, it % 4 * 64, it / 4 * 64, 64, 64).asImageBitmap() }
             return MascotFrames(cells.take(8), cells.drop(8), 0.1f, 4, 0.16f, 0.4f, pixel = true, gridCell = 64)
         }
@@ -71,6 +71,10 @@ internal fun rememberMascotFrames(mascot: Mascot = Mascot.BUNNY): MascotFrames {
             Mascot.WISP -> sheet(R.drawable.halloween_wisp)
             Mascot.EMBER -> sheet(R.drawable.halloween_ember)
             Mascot.ECHO -> sheet(R.drawable.halloween_echo)
+            // Diwali's companions: Jyoti the diya, Tara the kandil, Gajju the baby elephant.
+            Mascot.JYOTI -> sheet(R.drawable.diwali_jyoti)
+            Mascot.TARA -> sheet(R.drawable.diwali_tara)
+            Mascot.GAJJU -> sheet(R.drawable.diwali_gajju)
             // Pixel-art packs: no sleep animation, so paused they stand and idle.
             Mascot.HANA -> MascotFrames(load(GIRL1_WALK), load(GIRL1_SLEEP), step = 0.08f, settle = 0, settleStep = 0f, doze = 0.16f, pixel = true)
             Mascot.MEI -> MascotFrames(load(GIRL2_WALK), load(GIRL2_SLEEP), step = 0.08f, settle = 0, settleStep = 0f, doze = 0.18f, pixel = true)

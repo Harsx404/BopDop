@@ -9,7 +9,8 @@ enum class AppIcon(val alias: String, val label: String, val background: Int, va
     CLASSIC(".IconClassic", "Classic", R.drawable.ic_launcher_bg, R.drawable.ic_launcher_fg),
     DARK(".IconDark", "Orange glass", R.drawable.ic_launcher_bg_dark, R.drawable.ic_launcher_fg_dark),
     LIGHT(".IconLight", "Light glass", R.drawable.ic_launcher_bg_light, R.drawable.ic_launcher_fg_light),
-    HALLOWEEN(".IconHalloween", "Halloween", R.drawable.ic_launcher_bg_halloween, R.drawable.halloween_launcher);
+    HALLOWEEN(".IconHalloween", "Halloween", R.drawable.ic_launcher_bg_halloween, R.drawable.halloween_launcher),
+    DIWALI(".IconDiwali", "Diwali", R.drawable.diwali_launcher_bg, R.drawable.diwali_launcher);
 
     private fun component(context: Context) = ComponentName(context.packageName, "com.dopdop.bopdop" + alias)
 

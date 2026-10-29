@@ -1,5 +1,6 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.RecordVoiceOver
@@ -378,24 +379,37 @@ fun SettingsScreen(section: String? = null) {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Festive") {
                     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
-                    val now = if (festive.preview && festive.decor) "Halloween preview is on. " else festive.festival?.let { f ->
+                    val now = if (festive.preview && festive.decor) "${festive.festival?.label} preview is on. " else festive.festival?.let { f ->
                         val end = com.dopdop.bopdop.data.Festivals.window(f, festive.today.year)?.endInclusive
                         "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
                     }.orEmpty()
                     RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends; festivals that are over for the year drop off the list.") {
                         ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l ->
-                            LibraryStore.updateSettings { it.copy(festiveLevel = l, halloweenPreview = it.halloweenPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF) }
+                            LibraryStore.updateSettings { it.copy(festiveLevel = l, halloweenPreview = it.halloweenPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF,
+                                diwaliPreview = it.diwaliPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF) }
                         }
                     }
                     ToggleRow(Icons.Rounded.Celebration, "Preview Halloween", "Try the full palette, pixel icons and animated night sky any time. Seasonal uses Wisp; other mascot choices stay yours.", s.halloweenPreview, keywords = "halloween ghost pumpkin bat theme preview") {
-                        LibraryStore.updateSettings { it.copy(halloweenPreview = !it.halloweenPreview,
+                        LibraryStore.updateSettings { it.copy(halloweenPreview = !it.halloweenPreview, diwaliPreview = false,
                             festiveLevel = if (!it.halloweenPreview) com.dopdop.bopdop.data.FestiveLevel.FULL else it.festiveLevel) }
                     }
+                    ToggleRow(Icons.Rounded.Celebration, "Preview Diwali", "Try the diya-lit palette, pixel icons, lamplit night and the story A Little Light any time. Seasonal uses Jyoti; other mascot choices stay yours.", s.diwaliPreview, keywords = "diwali deepavali diya lantern rangoli fireworks theme preview story") {
+                        LibraryStore.updateSettings { it.copy(diwaliPreview = !it.diwaliPreview, halloweenPreview = false,
+                            festiveLevel = if (!it.diwaliPreview) com.dopdop.bopdop.data.FestiveLevel.FULL else it.festiveLevel) }
+                    }
+                    if (festive.festival == com.dopdop.bopdop.data.Festival.DIWALI && festive.decor) {
+                        val chapters = Integer.bitCount(s.diwaliStory and 0b111111)
+                        RowHead(Icons.Rounded.AutoStories, "A Little Light", if (chapters == 6) "All six chapters lit. Replay the story any time." else "Diwali's six-chapter story with Jyoti, Tara and Gajju · $chapters of 6 done.") {
+                            com.dopdop.bopdop.ui.components.PillButton(if (chapters == 0) "Begin the story" else if (chapters == 6) "Replay" else "Continue", null, filled = false) {
+                                app.nav.navigate(com.dopdop.bopdop.ui.Routes.DIWALI_STORY) { launchSingleTop = true }
+                            }
+                        }
+                    }
                     if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
-                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows your phone's country. Choose a festival while the season is on, or use Preview Halloween above.") {
+                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows your phone's country. Choose a festival while the season is on, or use a preview above.") {
                             val picks = com.dopdop.bopdop.data.Festivals.picks(festive.today)
                             val choices = if (s.festivePick in picks) picks else picks + s.festivePick
-                            ChipRow(choices, s.festivePick, { it.label + if (it !in picks) " · ended" else "" }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f, halloweenPreview = false) } }
+                            ChipRow(choices, s.festivePick, { it.label + if (it !in picks) " · ended" else "" }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f, halloweenPreview = false, diwaliPreview = false) } }
                         }
                     }
                 }

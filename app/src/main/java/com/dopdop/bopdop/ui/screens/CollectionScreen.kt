@@ -198,6 +198,7 @@ fun CollectionLayout(
                 tracks.isEmpty() -> item {
                     androidx.compose.foundation.layout.Column {
                         if (Bop.halloween) com.dopdop.bopdop.ui.festive.HalloweenEmptyArt(Modifier.fillMaxWidth().padding(top = 28.dp).height(96.dp))
+                        else if (Bop.diwali) com.dopdop.bopdop.ui.festive.DiwaliEmptyArt(com.dopdop.bopdop.ui.festive.DiwaliEmpty.LIBRARY, Modifier.fillMaxWidth().padding(top = 28.dp).height(96.dp))
                         Text(empty, style = BopType.Body, color = Bop.Text2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(36.dp))
                     }
                 }

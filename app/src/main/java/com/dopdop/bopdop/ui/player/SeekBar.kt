@@ -80,7 +80,7 @@ fun SeekBar(
     val amp by animateFloatAsState(if (playing && drag == null && !reduce) 1f else 0f, tween(420), label = "amp")
     val thumbH by animateFloatAsState(if (drag != null) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = 700f), label = "thumb")
     val moving = (playing || drag != null) && !reduce
-    val time by com.dopdop.bopdop.ui.festive.rememberHalloweenTime(playing || drag != null || frames != null, fps = if (moving) 24 else 8)
+    val time by com.dopdop.bopdop.ui.festive.rememberFestiveTime(playing || drag != null || frames != null, fps = if (moving) 24 else 8)
     // When playback paused, so the mascot lies down once and then dozes.
     var pausedAt by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(playing, friend) { if (!playing) pausedAt = time }
@@ -122,8 +122,8 @@ fun SeekBar(
                 SeekStyle.COIL -> drawCoil(pad, w, cy, x, amp, phase, thumbH)
                 SeekStyle.PULSE -> drawPulse(pad, w, cy, x, amp, time, thumbH)
             }
-            if (Bop.halloween && moving) {
-                // Candle embers follow the playhead; they never cover an unplayed segment.
+            if (Bop.pixel && moving) {
+                // Candle embers (diya sparks at Diwali) follow the playhead; they never cover an unplayed segment.
                 for (i in 0..3) {
                     val age = (time * 0.9f + i * 0.25f) % 1f
                     val px = x - (10f + age * 24f).dp.toPx()
@@ -154,7 +154,7 @@ fun SeekBar(
     }
 }
 
-private val Rest get() = if (Bop.halloween) Color(0xFF9D80B5).copy(alpha = 0.48f) else Color.White.copy(alpha = 0.26f)
+private val Rest get() = if (Bop.halloween) Color(0xFF9D80B5).copy(alpha = 0.48f) else if (Bop.diwali) Color(0xFFB7678C).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.26f)
 private val Played get() = Bop.MediaAccent
 
 /** The upright pill that marks the playhead; returns the y of its top. */

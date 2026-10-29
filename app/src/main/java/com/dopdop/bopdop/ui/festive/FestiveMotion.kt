@@ -39,7 +39,7 @@ fun rememberReducedMotion(preference: Boolean): Boolean {
 
 /** A draw-phase clock, bounded to 24 fps and stopped off-screen, in background, or with motion reduced. */
 @Composable
-fun rememberHalloweenTime(enabled: Boolean = true, fps: Int = 24): State<Float> {
+fun rememberFestiveTime(enabled: Boolean = true, fps: Int = 24): State<Float> {
     if (!enabled) return remember { mutableFloatStateOf(0f) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val state by lifecycle.currentStateFlow.collectAsState()

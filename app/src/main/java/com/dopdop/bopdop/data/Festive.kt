@@ -127,11 +127,12 @@ object Festivals {
      * The festival to show now, if any. Auto shows your region's festival in its window; picking
      * one shows that theme whenever a festival is on (so you can swap Navaratri for Halloween or
      * the other way round); All shows each festival in its own window. Nothing shows outside the
-     * festive windows, and Off shows nothing at all.
+     * festive windows, and Off shows nothing at all. A preview shows its festival any day.
      */
-    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate, halloweenPreview: Boolean = false): Festival? {
+    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate, halloweenPreview: Boolean = false, diwaliPreview: Boolean = false): Festival? {
         if (level == FestiveLevel.OFF) return null
         if (halloweenPreview) return Festival.HALLOWEEN
+        if (diwaliPreview) return Festival.DIWALI
         val open = open(today)
         if (open.isEmpty()) return null
         return when (pick) {

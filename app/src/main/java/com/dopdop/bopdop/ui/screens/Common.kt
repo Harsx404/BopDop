@@ -161,7 +161,8 @@ fun BackButton(haze: dev.chrisbanes.haze.HazeState? = null, onBack: () -> Unit) 
     val surface = if (haze != null) Modifier.glass(CircleShape, state = haze, emphasis = 1.5f, shadow = 10.dp, interactionSource = press, strong = true)
     else Modifier.glassLite(CircleShape, alpha = 0.7f, shadow = 10.dp)
     Box(Modifier.size(42.dp).bounceClick(0.88f, interactionSource = press, onClick = onBack).then(surface), contentAlignment = Alignment.Center) {
-        Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "Back", tint = Bop.Text, modifier = Modifier.size(18.dp).padding(start = 4.dp))
+        // The pixel festivals' thin back arrow gets a bigger box, so it draws a whole step larger.
+        Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, "Back", tint = Bop.Text, modifier = if (Bop.pixel) Modifier.size(32.dp) else Modifier.size(18.dp).padding(start = 4.dp))
     }
 }
 

@@ -391,9 +391,9 @@ fun EqualizerBars(modifier: Modifier = Modifier, color: Color = Color.White, ani
 /** Play ▸ ⇄ pause ❚❚ morph: the triangle splits into two bars. */
 @Composable
 fun PlayPauseGlyph(playing: Boolean, modifier: Modifier = Modifier, color: Color = Color.White) {
-    if (Bop.halloween) {
-        com.dopdop.bopdop.ui.festive.HalloweenGlyphIcon(
-            if (playing) com.dopdop.bopdop.ui.festive.HalloweenGlyph.PAUSE else com.dopdop.bopdop.ui.festive.HalloweenGlyph.PLAY,
+    if (Bop.pixel) {
+        com.dopdop.bopdop.ui.festive.FestiveGlyphIcon(
+            if (playing) com.dopdop.bopdop.ui.festive.FestiveGlyph.PAUSE else com.dopdop.bopdop.ui.festive.FestiveGlyph.PLAY,
             if (playing) "Pause" else "Play", modifier, color)
         return
     }
@@ -530,6 +530,9 @@ fun ErrorState(message: String, modifier: Modifier = Modifier, onRetry: () -> Un
     Column(modifier.fillMaxWidth().padding(40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         if (Bop.halloween) {
             com.dopdop.bopdop.ui.festive.HalloweenEmptyArt(Modifier.fillMaxWidth().height(96.dp))
+            Spacer(Modifier.height(14.dp))
+        } else if (Bop.diwali) {
+            com.dopdop.bopdop.ui.festive.DiwaliEmptyArt(com.dopdop.bopdop.ui.festive.DiwaliEmpty.ERROR, Modifier.fillMaxWidth().height(96.dp))
             Spacer(Modifier.height(14.dp))
         }
         Text("Couldn’t load this", style = BopType.Headline, color = Bop.Text)
