@@ -136,7 +136,8 @@ fun MiniPlayer(app: AppState, modifier: Modifier = Modifier) {
                 }
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.toggle() }, contentAlignment = Alignment.Center) {
-                PlayPauseGlyph(playing, Modifier.size(22.dp), color = Bop.Ink)
+                // Pixel glyphs scale in whole steps: the same box as Next keeps them the same size.
+                PlayPauseGlyph(playing, Modifier.size(if (Bop.pixel) 28.dp else 22.dp), color = Bop.Ink)
             }
             Box(Modifier.size(46.dp).clip(CircleShape).bounceClick(0.85f) { PlayerConnection.next() }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Rounded.FastForward, "Next", tint = Bop.Text, modifier = Modifier.size(28.dp))

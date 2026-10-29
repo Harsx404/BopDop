@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -358,16 +359,16 @@ internal fun ShortsViewer(seed: Track, first: List<ShortClip>, onClose: (Track) 
             }.padding(16.dp))
         Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(44.dp).bounceClick(0.9f, onClick = leaveHere).mediaGlass(CircleShape, null), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Icon(Icons.Rounded.Close, "Close Shorts", tint = Color.White, modifier = Modifier.size(22.dp))
+                Icon(Icons.Rounded.Close, "Close Shorts", tint = Color.White, modifier = Modifier.size(22.dp))
             }
             Text("Shorts", style = BopType.Headline, color = Color.White, modifier = Modifier.weight(1f).padding(start = 4.dp))
             Box(Modifier.size(44.dp).bounceClick { showSaved = true }.mediaGlass(CircleShape, null), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Icon(Icons.Rounded.VideoLibrary, "Liked Shorts (${history.liked.size})", tint = Color.White, modifier = Modifier.size(21.dp))
+                Icon(Icons.Rounded.VideoLibrary, "Liked Shorts (${history.liked.size})", tint = Color.White, modifier = Modifier.size(21.dp))
             }
         }
         // How far into this Short.
         Box(Modifier.align(Alignment.BottomStart).navigationBarsPadding().fillMaxWidth().height(2.dp).background(Color.White.copy(alpha = 0.22f))) {
-            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(Color.White))
+            Box(Modifier.fillMaxWidth(progress).height(2.dp).background(if (Bop.pixel) Bop.Accent else Color.White))
         }
     }
     menuFor?.let { item ->
@@ -458,7 +459,7 @@ private fun ShortCaption(
         ) {
             Artwork(song.artwork, Modifier.size(24.dp), corner = 6.dp, size = 120)
             Spacer(Modifier.width(8.dp))
-            androidx.compose.material3.Icon(Icons.Rounded.MusicNote, null, tint = Color.White, modifier = Modifier.size(14.dp))
+            Icon(Icons.Rounded.MusicNote, null, tint = if (Bop.pixel) Bop.Accent else Color.White, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
             val label = when {
                 !found -> "Finding the song…"
@@ -507,7 +508,8 @@ private fun ShortRail(
             .animateFloat(0f, 360f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing)), label = "turn")
         Box(
             Modifier.size(44.dp).graphicsLayer { if (spinning && !reduce) rotationZ = turn.value }.clip(CircleShape)
-                .background(Color(0xFF222226)).bounceClick(0.9f, onClick = onSong).padding(7.dp),
+                .background(Color(0xFF222226)).border(2.dp, if (Bop.pixel) Bop.Accent else Color.White.copy(alpha = .25f), CircleShape)
+                .bounceClick(0.9f, onClick = onSong).padding(7.dp),
             contentAlignment = Alignment.Center,
         ) { Artwork(song.artwork, Modifier.fillMaxSize(), circle = true, size = 160) }
     }
@@ -519,9 +521,8 @@ private fun RailButton(icon: androidx.compose.ui.graphics.vector.ImageVector, la
     // The app's media glass, with plain icons: crisp over any video, in every festive theme.
     Column(Modifier.bounceClick(0.86f, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(50.dp).mediaGlass(CircleShape, null, emphasis = .9f), contentAlignment = Alignment.Center) {
-            // The heart follows the festival look (its pixel heart and colour); the rest stay plain.
-            val m = Modifier.size(26.dp).graphicsLayer { scaleX = scale; scaleY = scale }
-            if (themed) Icon(icon, label, tint = tint, modifier = m) else androidx.compose.material3.Icon(icon, label, tint = tint, modifier = m)
+            // The theme's own icons (a festival's pixel set, or the usual ones), on the app's glass.
+            Icon(icon, label, tint = tint, modifier = Modifier.size(26.dp).graphicsLayer { scaleX = scale; scaleY = scale })
         }
         Spacer(Modifier.height(4.dp))
         Text(label, style = BopType.Micro.copy(letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified), color = Color.White, maxLines = 1)
