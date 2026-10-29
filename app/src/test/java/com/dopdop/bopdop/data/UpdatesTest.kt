@@ -26,6 +26,7 @@ class UpdatesTest {
         assertTrue(Updates.isNewer("1.3.0-beta.6.7.6", "1.3.0-beta.6.7.5"))
         assertTrue(Updates.isNewer("1.3.0-beta.6.7.7", "1.3.0-beta.6.7.6"))
         assertTrue(Updates.isNewer("1.3.0-beta.6.7.7.1", "1.3.0-beta.6.7.7"))
+        assertTrue(Updates.isNewer("1.3.0-beta.6.7.8", "1.3.0-beta.6.7.7.1"))
     }
 
     @Test fun picksThePhonesOwnBuildElseUniversal() {
