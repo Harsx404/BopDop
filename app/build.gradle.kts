@@ -13,8 +13,8 @@ android {
         applicationId = "com.dopdop.bopdop"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.3.0-beta.6.7.1"
+        versionCode = 18
+        versionName = "1.3.0-beta.6.7.5"
 
     }
 
