@@ -48,6 +48,7 @@ object Routes {
     const val TOGETHER = "together?code={code}"
     const val WRAPPED = "wrapped"
     const val LIBRARY = "library"
+    const val LIKED_SHORTS = "liked-shorts"
     const val SETTINGS = "settings"
     /** One section of Settings ("sound", "look"…), opened from the overview. */
     const val SETTINGS_SECTION = "settings/{section}"

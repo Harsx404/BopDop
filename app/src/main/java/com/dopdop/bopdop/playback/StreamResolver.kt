@@ -101,6 +101,7 @@ object StreamResolver {
         .apply { if (addon) appendQueryParameter("src", "addon") }
         // YouTube episodes play only their own audio; JioSaavn ones carry their own file like its songs.
         .apply { if (t.isPodcast && t.source == com.dopdop.bopdop.data.model.Source.YTM) appendQueryParameter("k", "pod") }
+        .apply { if (t.isShortAudio) appendQueryParameter("k", "short") }
         .build()
 
     /** Some add-on is switched on, and the connection's quality is High (add-ons are only for that). */
@@ -125,7 +126,7 @@ object StreamResolver {
      * Songs start on their built-in source and move to what this finds, so it may take its time.
      */
     suspend fun lookUpAddon(t: Track, above: String = Settings.YOUTUBE): ResolvedStream? {
-        if (t.source == com.dopdop.bopdop.data.model.Source.LOCAL || t.isPodcast || VideoQualityPolicy.audio() != AudioQuality.HIGH) return null
+        if (t.source == com.dopdop.bopdop.data.model.Source.LOCAL || t.isPodcast || t.isShortAudio || VideoQualityPolicy.audio() != AudioQuality.HIGH) return null
         val bases = LibraryStore.settings.addonsAbove(above).ifEmpty {
             note(t.id, if (above == Settings.SAAVN) "Playing from JioSaavn, which ranks above your add-ons" else "No add-on ranks above YouTube")
             return null
@@ -190,13 +191,14 @@ object StreamResolver {
         // Wi-Fi and mobile data each have their own quality (downloads ask for one with ?q=);
         // a resolved url is reused only at the same quality.
         val quality = uri.getQueryParameter("q")?.let { runCatching { AudioQuality.valueOf(it) }.getOrNull() } ?: VideoQualityPolicy.audio()
-        val key = "$id@${quality.name}"
+        val kind = uri.getQueryParameter("k")
+        val key = "$id@${quality.name}@${kind.orEmpty()}"
         cache[key]?.let { if (it.expiresAtMs - System.currentTimeMillis() > 5 * 60_000) return it }
         val settings = LibraryStore.settings
         val order = settings.sources().filter(settings::sourceOn)
         val download = uri.getQueryParameter("q") != null
         var fromAddon = false
-        val s: ResolvedStream = if (uri.getQueryParameter("k") == "pod") {
+        val s: ResolvedStream = if (kind == "pod" || kind == "short") {
             // A podcast episode: only its own YouTube audio. A song search on JioSaavn or the add-ons
             // would find some other recording with the same title.
             YtStreams.resolve(id.removePrefix("yt:"), quality.maxKbps)

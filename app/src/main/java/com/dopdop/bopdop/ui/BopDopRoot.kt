@@ -375,6 +375,7 @@ private fun AppNavHost(app: AppState, tabsX: androidx.compose.runtime.MutableFlo
         composable(Routes.SEARCH) { SearchScreen() }
         composable(Routes.TOGETHER, listOf(str("code"))) { e -> com.dopdop.bopdop.ui.screens.TogetherScreen(e.arguments!!.getString("code")!!) }
         composable(Routes.WRAPPED) { com.dopdop.bopdop.ui.screens.WrappedScreen() }
+        composable(Routes.LIKED_SHORTS) { com.dopdop.bopdop.ui.screens.LikedShortsScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
         composable(Routes.SETTINGS_SECTION, listOf(str("section"))) { e -> SettingsScreen(e.arguments!!.getString("section")) }
         composable(Routes.EQ) { com.dopdop.bopdop.ui.screens.EqualizerScreen() }
@@ -416,7 +417,7 @@ private fun BottomChrome(app: AppState, hasTrack: Boolean, navBottom: Dp) {
     // Full-screen tools (share code, scanner, sign-in) get the whole screen.
     val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
     val away by androidx.compose.animation.core.animateFloatAsState(
-        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.SPOTIFY_LOGIN || route == Routes.WRAPPED || route == Routes.DIWALI_STORY) 1f else 0f, tween(260), label = "chromeAway",
+        if (route == Routes.SHARE_QR || route == Routes.SCAN || route == Routes.SIGN_IN || route == Routes.SPOTIFY_LOGIN || route == Routes.WRAPPED || route == Routes.DIWALI_STORY || route == Routes.LIKED_SHORTS) 1f else 0f, tween(260), label = "chromeAway",
     )
     Column(
         Modifier

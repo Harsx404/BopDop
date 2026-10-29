@@ -31,6 +31,8 @@ data class Track(
     val rawId: String get() = id.substringAfter(':')
     /** A podcast episode: its "album" is the show's page (YouTube's MPSP…, or a JioSaavn show). Plays as speech, never swapped for a song. */
     val isPodcast: Boolean get() = albumId?.let { it.startsWith("yt:$PODCAST_PREFIX") || it.startsWith(SAAVN_SHOW) } == true
+    /** Exact audio of a discovered Short: never substitute a catalogue recording with a similar title. */
+    val isShortAudio: Boolean get() = albumId?.startsWith("yt:short:") == true
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id); put("title", title); put("artist", artist)

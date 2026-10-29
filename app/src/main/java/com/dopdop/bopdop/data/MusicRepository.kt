@@ -164,7 +164,7 @@ object MusicRepository {
      * release of the same song when Hi-Res is on and one exists, else [t] itself.
      */
     suspend fun bestCopy(t: Track): Track = withContext(Dispatchers.IO) {
-        if (t.source != Source.YTM || !LibraryStore.settings.hiRes || t.isPodcast) return@withContext t
+        if (t.source != Source.YTM || !LibraryStore.settings.hiRes || t.isPodcast || t.isShortAudio) return@withContext t
         withTimeoutOrNull(4_000) { runCatching { SaavnApi.fullCopy(t) }.getOrNull() } ?: t
     }
 

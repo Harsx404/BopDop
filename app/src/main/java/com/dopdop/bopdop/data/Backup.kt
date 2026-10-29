@@ -31,6 +31,7 @@ object Backup {
             .put("format", FORMAT).put("version", VERSION).put("createdAt", now)
             .put("library", library)
             .put("plays", PlayStats.toJson())
+            .put("shorts", ShortsStore.toJson())
             .put("lyricOffsets", JSONObject().also { o -> LyricOffsets.all().forEach { (k, v) -> o.put(k, v) } })
     }
 
@@ -58,6 +59,7 @@ object Backup {
     fun restore(o: JSONObject) {
         LibraryStore.restore(o.getJSONObject("library"))
         o.optJSONObject("plays")?.let(PlayStats::restore)
+        o.optJSONObject("shorts")?.let(ShortsStore::restore)
         o.optJSONObject("lyricOffsets")?.let { m -> LyricOffsets.replaceAll(m.keys().asSequence().associateWith { m.optLong(it) }) }
     }
 }

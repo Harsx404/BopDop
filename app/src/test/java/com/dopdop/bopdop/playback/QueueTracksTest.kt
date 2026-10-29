@@ -7,6 +7,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class QueueTracksTest {
+    @Test fun shortHandoffFindsTheSelectedSongRegardlessOfNextOrShuffleOrder() {
+        val queue = listOf(track("yt:old", "Old song"), track("yt:wrong", "Wrong next"), track("yt:selected", "Selected song"))
+        assertEquals(2, shortsQueueIndex(queue, queue.last()))
+        assertEquals(-1, shortsQueueIndex(queue, track("yt:new", "New song")))
+    }
+
+    @Test fun shortOriginalAudioMustMatchItsExactClipRatherThanItsTitle() {
+        val a = track("yt:clip-a", "Dance", "Original audio").copy(albumId = "yt:short:clip-a")
+        val b = a.copy(id = "yt:clip-b", albumId = "yt:short:clip-b")
+        assertEquals(-1, shortsQueueIndex(listOf(a), b))
+        assertEquals(1, shortsQueueIndex(listOf(a, b), b))
+    }
     private fun track(id: String, title: String = "Song", artist: String = "Artist", seconds: Int = 180) =
         Track(id = id, title = title, artist = artist, durationSec = seconds)
 

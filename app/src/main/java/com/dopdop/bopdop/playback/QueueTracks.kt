@@ -11,6 +11,11 @@ import com.dopdop.bopdop.data.model.Track
  */
 internal fun sameQueueSong(a: Track, b: Track): Boolean = SongVersion.sameRecording(a, b)
 
+/** Direct selection ignores shuffle order; a clip's original audio must never match a different clip. */
+internal fun shortsQueueIndex(queue: List<Track>, selected: Track): Int = queue.indexOfFirst { queued ->
+    queued.id == selected.id || !selected.isShortAudio && !queued.isShortAudio && sameQueueSong(queued, selected)
+}
+
 internal fun uniqueQueueTracks(tracks: List<Track>, existing: List<Track> = emptyList(), anyVersion: Boolean = false): List<Track> {
     val seen = existing.toMutableList()
     val same: (Track, Track) -> Boolean = if (anyVersion) SongVersion::sameSong else ::sameQueueSong

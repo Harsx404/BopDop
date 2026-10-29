@@ -294,6 +294,27 @@ object PlayerConnection {
     /** Back from Shorts: the song carries on where it was. */
     fun resumeAfterShorts() = withController { it.play() }
 
+    /** Select the exact on-screen Short's audio, even when shuffle is enabled; keep the queue. */
+    fun continueFromShorts(t: Track) {
+        cancelVideoRequest()
+        playGeneration++
+        withController { c ->
+            val current = c.currentMediaItem?.toTrack()
+            if (current?.id != t.id) {
+                val existing = shortsQueueIndex(c.queueTracks(), t)
+                if (existing >= 0) c.seekTo(existing, 0L)
+                else if (c.mediaItemCount == 0) c.setMediaItem(t.toMediaItem())
+                else {
+                    val at = c.currentMediaItemIndex + 1
+                    c.addMediaItem(at, t.toMediaItem())
+                    c.seekTo(at, 0L)
+                }
+            }
+            if (c.playbackState == Player.STATE_IDLE || c.playbackState == Player.STATE_ENDED) c.prepare()
+            c.play()
+        }
+    }
+
     fun toggle() = withController { c ->
         if (c.isPlaying) c.pause() else {
             if (c.playbackState == Player.STATE_IDLE) c.prepare()

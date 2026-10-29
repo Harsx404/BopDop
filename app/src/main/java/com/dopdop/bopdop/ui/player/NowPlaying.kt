@@ -167,13 +167,9 @@ fun NowPlaying(app: AppState) {
     }
     val openShorts: () -> Unit = { scope.launch { shortsReveal.animateTo(1f, spring(dampingRatio = 1f, stiffness = 380f)); shortsOpen = true } }
     val closeShorts: () -> Unit = { shortsOpen = false; scope.launch { shortsReveal.animateTo(0f, spring(dampingRatio = 1f, stiffness = 380f)) } }
-    // Back from the feed on another song's Short: that song plays next, right away, keeping the queue,
-    // in its Hi-Res JioSaavn release when there is one (YouTube Music often has a shorter, lower-quality edit).
+    // Hand back the selected clip's audio immediately. Don't race a network match or shuffled next().
     val leaveShorts: (Track) -> Unit = { song ->
-        if (song.id != t.id) scope.launch {
-            val best = com.dopdop.bopdop.data.MusicRepository.bestCopy(song)
-            PlayerConnection.playNext(best); PlayerConnection.next(); PlayerConnection.resumeAfterShorts()
-        }
+        PlayerConnection.continueFromShorts(song)
         closeShorts()
     }
     val video by PlayerConnection.video.collectAsState()

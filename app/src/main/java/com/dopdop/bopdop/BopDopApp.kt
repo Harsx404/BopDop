@@ -16,6 +16,7 @@ class BopDopApp : Application(), SingletonImageLoader.Factory {
         super.onCreate()
         LibraryStore.init(this)
         com.dopdop.bopdop.data.PlayStats.init(this)
+        com.dopdop.bopdop.data.ShortsStore.init(this)
         com.dopdop.bopdop.data.account.AccountStore.init(this)
         com.dopdop.bopdop.playback.StreamResolver.init(this)
         com.dopdop.bopdop.data.lyrics.LyricOffsets.init(this)

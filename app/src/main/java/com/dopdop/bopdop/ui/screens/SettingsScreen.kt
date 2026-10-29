@@ -314,7 +314,7 @@ fun SettingsScreen(section: String? = null) {
         if (show("Music video")) item(key = "group:Music video") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Music video") {
-                    ToggleRow(Icons.Rounded.VideoLibrary, "Shorts with this song", "Popular YouTube Shorts that use the song. Swipe up on the player to see them; the one in front plays silently on Wi-Fi.", s.shortsOnSong, keywords = "shorts reels clips youtube videos song") {
+                    ToggleRow(Icons.Rounded.VideoLibrary, "Shorts with this song", "Start with this song, then discover Shorts based on what you watch and like. Preferences and liked Shorts stay on this device.", s.shortsOnSong, keywords = "shorts reels clips youtube videos song recommendation tags likes") {
                         LibraryStore.updateSettings { it.copy(shortsOnSong = !it.shortsOnSong) }
                     }
                     RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.") {

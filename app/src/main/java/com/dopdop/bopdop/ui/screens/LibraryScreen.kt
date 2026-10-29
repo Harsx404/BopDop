@@ -92,6 +92,7 @@ import androidx.compose.material.icons.rounded.PlaylistAdd
 fun LibraryScreen() {
     val app = LocalApp.current
     val lib by LibraryStore.state.collectAsState()
+    val shorts by com.dopdop.bopdop.data.ShortsStore.state.collectAsState()
     val savedCollections = lib.saved.filter { it.kind == CardKind.ALBUM || it.kind == CardKind.PLAYLIST }
     val following = lib.saved.filter { it.kind == CardKind.ARTIST }
 
@@ -119,6 +120,10 @@ fun LibraryScreen() {
                     ReplayShortcut(Modifier.weight(1f)) { app.nav.navigate(com.dopdop.bopdop.ui.Routes.WRAPPED) }
                 }
                 DeviceShortcuts()
+                Shortcut("Liked Shorts", "${shorts.liked.size} saved on this device", Icons.Rounded.Favorite, Modifier.fillMaxWidth(),
+                    art = { m -> MiniCollage(shorts.liked.take(4).map { it.item.clip.thumbnail }, m) }) {
+                    app.nav.navigate(com.dopdop.bopdop.ui.Routes.LIKED_SHORTS)
+                }
             }
         }
 
