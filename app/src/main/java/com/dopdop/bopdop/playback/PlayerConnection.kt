@@ -288,6 +288,12 @@ object PlayerConnection {
         c.appendUnique(tracks)
     }
 
+    /** Watching Shorts with sound: the song steps aside. */
+    fun pauseForShorts() = withController { it.pause() }
+
+    /** Back from Shorts: the song carries on where it was. */
+    fun resumeAfterShorts() = withController { it.play() }
+
     fun toggle() = withController { c ->
         if (c.isPlaying) c.pause() else {
             if (c.playbackState == Player.STATE_IDLE) c.prepare()

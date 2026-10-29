@@ -69,12 +69,18 @@ object DailyMixes {
     private suspend fun build(day: Long): List<DailyMix> = coroutineScope {
         val known = knownTracks()
         val seeds = seedArtists(known).take(MAX_MIXES)
+        val lib = LibraryStore.state.value
+        val taste = Taste.from(PlayStats.state.value, lib.liked)
+        val likedIds = lib.liked.map { it.id }.toHashSet()
         seeds.mapIndexed { i, artist ->
             async {
                 val rnd = Random(day * 31 + i)
-                val own = known.values.filter { primaryArtist(it) == artist && !LibraryStore.isDisliked(it) }.shuffled(rnd)
+                // Your songs by this artist, minus ones you've been skipping.
+                val own = known.values.filter { primaryArtist(it) == artist && !LibraryStore.isDisliked(it) &&
+                    (it.id in likedIds || taste.skips(it) < Taste.SKIPS_TO_DROP) }.shuffled(rnd)
                 val seed = own.firstOrNull() ?: return@async null
-                val related = runCatching { MusicRepository.related(seed) }.getOrDefault(emptyList())
+                // Radio from up to three of them, so a mix isn't just one song's neighbours.
+                val related = runCatching { MusicRepository.related(seed, own.drop(1).take(2)) }.getOrDefault(emptyList())
                     .filter { it.source != Source.LOCAL }
                 // Two new songs for every one you know, so it feels familiar but still finds things.
                 val mixed = ArrayList<Track>()
@@ -88,7 +94,14 @@ object DailyMixes {
                 val others = tracks.map(::primaryArtist).filter { it.isNotBlank() && it != artist }.distinct().take(2)
                 DailyMix("d${i + 1}", "Daily Mix ${i + 1}", (listOf(artist) + others).joinToString(", ") + " and more", tracks)
             }
-        }.awaitAll().filterNotNull().mapIndexed { i, m -> m.copy(id = "d${i + 1}", title = "Daily Mix ${i + 1}") }
+        }.awaitAll().filterNotNull()
+            // A new find belongs to one mix only: later mixes drop songs an earlier one already has.
+            .let { mixes ->
+                val used = HashSet<String>()
+                mixes.map { m -> m.copy(tracks = m.tracks.filter { t -> t.id in known || used.add(t.id) }) }
+            }
+            .filter { it.tracks.size >= 8 }
+            .mapIndexed { i, m -> m.copy(id = "d${i + 1}", title = "Daily Mix ${i + 1}") }
     }
 
     /** Every song the app has seen you play or like, by id. */

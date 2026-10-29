@@ -34,7 +34,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /** The festival on now and how much of it to show. */
-data class FestiveNow(val festival: Festival?, val level: FestiveLevel, val today: LocalDate = LocalDate.now(), val preview: Boolean = false) {
+data class FestiveNow(val festival: Festival?, val level: FestiveLevel, val today: LocalDate = LocalDate.now()) {
     /** Home gets its decoration. */
     val decor: Boolean get() = festival != null && level == FestiveLevel.FULL
 }
@@ -43,7 +43,7 @@ val LocalFestive = staticCompositionLocalOf { FestiveNow(null, FestiveLevel.OFF)
 
 /** Refresh at date/time changes and on resume, including an app left open across midnight. */
 @Composable
-fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Boolean = false, diwaliPreview: Boolean = false): FestiveNow {
+fun rememberFestive(level: FestiveLevel, pick: FestivePick): FestiveNow {
     val ctx = LocalContext.current
     var country by remember { mutableStateOf(Festivals.country(ctx)) }
     var today by remember { mutableStateOf(LocalDate.now()) }
@@ -63,8 +63,8 @@ fun rememberFestive(level: FestiveLevel, pick: FestivePick, halloweenPreview: Bo
         lifecycle.addObserver(observer)
         onDispose { ctx.unregisterReceiver(receiver); lifecycle.removeObserver(observer) }
     }
-    return remember(level, pick, country, today, halloweenPreview, diwaliPreview) {
-        FestiveNow(Festivals.current(level, pick, country, today, halloweenPreview, diwaliPreview), level, today, halloweenPreview || diwaliPreview)
+    return remember(level, pick, country, today) {
+        FestiveNow(Festivals.current(level, pick, country, today), level, today)
     }
 }
 

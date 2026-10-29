@@ -127,12 +127,10 @@ object Festivals {
      * The festival to show now, if any. Auto shows your region's festival in its window; picking
      * one shows that theme whenever a festival is on (so you can swap Navaratri for Halloween or
      * the other way round); All shows each festival in its own window. Nothing shows outside the
-     * festive windows, and Off shows nothing at all. A preview shows its festival any day.
+     * festive windows, and Off shows nothing at all.
      */
-    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate, halloweenPreview: Boolean = false, diwaliPreview: Boolean = false): Festival? {
+    fun current(level: FestiveLevel, pick: FestivePick, country: String, today: LocalDate): Festival? {
         if (level == FestiveLevel.OFF) return null
-        if (halloweenPreview) return Festival.HALLOWEEN
-        if (diwaliPreview) return Festival.DIWALI
         val open = open(today)
         if (open.isEmpty()) return null
         return when (pick) {
@@ -143,13 +141,25 @@ object Festivals {
         }
     }
 
-    /** Where the phone is: the mobile network's country, then the SIM's, then the language setting. */
+    /**
+     * Where the phone is: an Indian or Nepali time zone first (the network and SIM can report another
+     * country: an emulator, a travel or foreign SIM, Wi-Fi only), then the mobile network's country,
+     * the SIM's and the language setting.
+     */
     fun country(ctx: Context): String {
+        zoneCountry(java.util.TimeZone.getDefault().id)?.let { return it }
         val tm = ctx.getSystemService(TelephonyManager::class.java)
         return listOfNotNull(
             runCatching { tm?.networkCountryIso }.getOrNull(),
             runCatching { tm?.simCountryIso }.getOrNull(),
             Locale.getDefault().country,
         ).firstOrNull { it.length == 2 }.orEmpty()
+    }
+
+    /** The country of the time zones whose festivals [forRegion] treats specially. */
+    fun zoneCountry(zone: String): String? = when (zone) {
+        "Asia/Kolkata", "Asia/Calcutta" -> "IN"
+        "Asia/Kathmandu", "Asia/Katmandu" -> "NP"
+        else -> null
     }
 }

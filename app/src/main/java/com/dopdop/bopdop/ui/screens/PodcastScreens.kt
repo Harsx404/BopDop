@@ -53,11 +53,11 @@ import com.dopdop.bopdop.ui.festive.ThemedIcon as Icon
 import com.dopdop.bopdop.ui.theme.Bop
 import com.dopdop.bopdop.ui.theme.BopType
 
-/** YouTube Music's podcasts: popular shows and episodes, then shelves by topic. */
+/** Podcasts from YouTube Music and JioSaavn: popular shows and episodes, trending Indian shows, then shelves by topic. */
 @Composable
 fun PodcastsScreen() {
     val feed = rememberLoad("podcasts", 3 * 3600_000L) { MusicRepository.podcasts() }
-    LargeTitleScaffold(title = "Podcasts", eyebrow = "From YouTube Music", showBack = true) {
+    LargeTitleScaffold(title = "Podcasts", eyebrow = "YouTube Music · JioSaavn", showBack = true) {
         when (val s = feed.state) {
             is Load.Loading -> items(3) { ShelfSkeleton() }
             is Load.Failed -> item { ErrorState(s.message, onRetry = feed.retry) }

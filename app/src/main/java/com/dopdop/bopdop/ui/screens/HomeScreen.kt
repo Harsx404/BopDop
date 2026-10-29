@@ -95,7 +95,6 @@ import com.dopdop.bopdop.ui.theme.BopType
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 import kotlinx.coroutines.flow.onCompletion
-import java.util.Calendar
 import kotlin.math.absoluteValue
 
 /** One page of the hero carousel: a track (plays its radio) or a collection (opens / plays). */
@@ -146,14 +145,6 @@ fun HomeScreen() {
     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
     val list = rememberLazyListState()
     val collapsed by remember { derivedStateOf { list.firstVisibleItemIndex > 1 } }
-    val greeting = remember {
-        when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-            in 5..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            in 17..21 -> "Good evening"
-            else -> "Late night listening"
-        }
-    }
     val feed = (home.state as? Load.Ready<HomeFeed>)?.value
     val matching = feed?.shelves.orEmpty()
     val hero = remember(matching) { featuredFrom(matching) }
@@ -213,12 +204,12 @@ fun HomeScreen() {
                             com.dopdop.bopdop.ui.festive.FestiveMark(f, Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                (if (festive.preview) "${f.label} preview" else com.dopdop.bopdop.data.Festivals.greeting(f, festive.today)).uppercase(),
+                                com.dopdop.bopdop.data.Festivals.greeting(f, festive.today).uppercase(),
                                 style = BopType.Micro, color = com.dopdop.bopdop.ui.festive.FestiveColors.accent(f),
                             )
                         }
                     }
-                    Text(greeting, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
+                    Greeting()
                 }
             }
             if (Bop.diwali && festive.decor) item(key = "diwaliStory") {
@@ -272,6 +263,32 @@ fun HomeScreen() {
 }
 
 private val HERO_HEIGHT = 380.dp
+
+/** The greeting last shown, so opening the app again never repeats it. */
+private var lastGreeting: String? = null
+
+/**
+ * Home's big greeting: a fresh line each time the app is opened (and when Home first appears),
+ * kept while you browse. See [com.dopdop.bopdop.data.Greetings].
+ */
+@Composable
+private fun Greeting() {
+    val account by com.dopdop.bopdop.data.account.AccountStore.account.collectAsState()
+    val first = account?.name?.trim()?.substringBefore(' ')?.takeIf { it.isNotBlank() }
+    fun next() = com.dopdop.bopdop.data.Greetings.pick(java.time.LocalDateTime.now(), lastGreeting, first).also { lastGreeting = it }
+    var text by remember { mutableStateOf(next()) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        var started = false
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            // The first start is this very opening; every later one is the app being opened again.
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_START) { if (started) text = next(); started = true }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    Text(text, style = BopType.Hero.copy(fontWeight = FontWeight(560)), color = Bop.Text)
+}
 
 private fun featuredFrom(shelves: List<Shelf>): HeroPick {
     val trackShelf = shelves.firstOrNull { it.tracks.size >= 3 }

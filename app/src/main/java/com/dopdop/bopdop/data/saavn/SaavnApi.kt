@@ -4,6 +4,9 @@ import com.dopdop.bopdop.data.model.ArtistPage
 import com.dopdop.bopdop.data.model.Card
 import com.dopdop.bopdop.data.model.CardKind
 import com.dopdop.bopdop.data.model.Collection
+import com.dopdop.bopdop.data.model.Episode
+import com.dopdop.bopdop.data.model.PodcastShow
+import com.dopdop.bopdop.data.model.SAAVN_SHOW
 import com.dopdop.bopdop.data.model.SearchResults
 import com.dopdop.bopdop.data.model.Shelf
 import com.dopdop.bopdop.data.model.ShelfStyle
@@ -12,6 +15,7 @@ import com.dopdop.bopdop.data.model.Track
 import com.dopdop.bopdop.data.net.Http
 import com.dopdop.bopdop.data.net.TtlCache
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import org.json.JSONArray
 import org.json.JSONObject
@@ -250,4 +254,93 @@ object SaavnApi {
     }
 
     private const val HI_RES_DRIFT = 8
+
+    /**
+     * JioSaavn's own release of a song, to play in its place: the same name, the same version and an
+     * artist in common, but any length. YouTube Music often carries a shorter edit of a film song
+     * (Gehra Hua is 3:51 there, 6:02 on JioSaavn), so this is a different file, played as itself with its
+     * own length and lyrics, never swapped in under the YouTube track. 320 kbps first, then the closest length.
+     */
+    suspend fun fullCopy(t: Track): Track? {
+        if (SongVersion.parse(t.title).core.isEmpty()) return null
+        val q = (t.title + " " + t.artist.split(",").first()).trim()
+        return searchSongs(q).filter { SongVersion.sameRecording(t, it, toleranceSec = Int.MAX_VALUE) }
+            .minWithOrNull(compareBy<Track>({ -it.bitrate }, { if (t.durationSec > 0 && it.durationSec > 0) abs(it.durationSec - t.durationSec) else 0 }))
+    }
+
+    // --- Podcasts ---
+
+    /** A show tile as a podcast card ("sv:show:" + its id), on its square art. */
+    private fun showCard(x: JSONObject): Card? {
+        if (x.optString("type") != "show") return null
+        val id = x.optString("id").ifEmpty { return null }
+        val title = unescape(x.optString("title")).ifEmpty { return null }
+        val square = x.optJSONObject("more_info")?.optString("square_image").orEmpty()
+        val sub = unescape(x.optString("subtitle").ifEmpty { x.optString("secondary_subtitle") }).ifEmpty { "Podcast" }
+        return Card(SAAVN_SHOW + id, CardKind.PLAYLIST, title, sub, img(square.ifEmpty { x.optString("image") }))
+    }
+
+    /** JioSaavn's podcasts: its trending shelves ("Most heard in India"), then its top shows. */
+    suspend fun podcasts(): List<Shelf> {
+        val d = obj("content.getTopShows", mapOf("n" to "30", "p" to "1"))
+        val trending = d.optJSONArray("trendingPodcasts").objects().map { sec ->
+            val module = sec.optJSONObject("module")
+            Shelf(unescape(module?.optString("title")).ifEmpty { "Trending podcasts" },
+                unescape(module?.optString("subtitle")).ifEmpty { "On JioSaavn" } + " · JioSaavn",
+                cards = sec.optJSONArray("items").objects().mapNotNull(::showCard))
+        }
+        return (trending + Shelf("Top shows", "JioSaavn", cards = d.optJSONArray("data").objects().mapNotNull(::showCard)))
+            .filter { it.cards.size >= 2 }
+    }
+
+    /**
+     * One show with its episodes: the newest season first, a few seasons deep, each newest first.
+     * Episodes play from JioSaavn's own files, like its songs.
+     */
+    suspend fun podcastShow(showId: String): PodcastShow = coroutineScope {
+        val d = obj("show.getHomePage", mapOf("show_id" to showId))
+        val s = d.optJSONObject("show_details") ?: JSONObject()
+        val m = s.optJSONObject("more_info") ?: JSONObject()
+        val title = unescape(s.optString("title")).ifEmpty { "Podcast" }
+        val seasons = d.optJSONArray("seasons").objects()
+            .mapNotNull { it.optJSONObject("more_info")?.optString("season_number")?.toIntOrNull() }.distinct().sortedDescending()
+        val bySeason = seasons.take(4).map { n ->
+            async {
+                runCatching {
+                    (call("show.getAllEpisodes", mapOf("show_id" to showId, "season_number" to "$n", "sort_order" to "desc", "n" to "50", "p" to "1")) as? JSONArray).objects()
+                }.getOrDefault(emptyList())
+            }
+        }.awaitAll().flatten()
+        val list = bySeason.ifEmpty { d.optJSONArray("episodes").objects() }
+        val host = m.optJSONObject("artistMap")?.optJSONArray("primary_artists").objects().firstOrNull()
+        PodcastShow(
+            id = SAAVN_SHOW + showId,
+            title = title,
+            author = unescape(s.optString("subtitle")).ifEmpty { unescape(host?.optString("name")) },
+            authorId = host?.optString("id")?.takeIf { it.isNotEmpty() }?.let { "sv:$it" },
+            artwork = img(m.optString("square_image").ifEmpty { s.optString("image") }),
+            description = unescape(m.optString("description").ifEmpty { s.optString("header_desc") }),
+            episodes = list.mapNotNull { episode(it, showId, title) }.distinctBy { it.track.id },
+        )
+    }
+
+    private fun episode(x: JSONObject, showId: String, show: String): Episode? {
+        val m = x.optJSONObject("more_info") ?: return null
+        val url = Des.decryptSaavn(m.optString("encrypted_media_url"))?.replace("_96.", "_160.") ?: return null
+        val track = Track(
+            id = "sv:${x.optString("id")}",
+            title = unescape(x.optString("title")),
+            artist = unescape(x.optString("subtitle")).ifEmpty { show },
+            album = show,
+            albumId = SAAVN_SHOW + showId,
+            durationSec = m.optString("duration").toIntOrNull() ?: 0,
+            artwork = img(m.optString("square_image_url").ifEmpty { x.optString("image") }),
+            streamUrl = url,
+            bitrate = 160,
+        )
+        val date = m.optString("release_date").let { d ->
+            runCatching { java.time.LocalDate.parse(d).format(java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy")) }.getOrDefault(d)
+        }
+        return Episode(track, date, unescape(m.optString("description")))
+    }
 }

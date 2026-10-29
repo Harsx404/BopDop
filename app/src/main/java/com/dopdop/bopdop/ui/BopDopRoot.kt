@@ -218,6 +218,8 @@ fun BopDopRoot(openPlayer: StateFlow<Int>, sharedLink: kotlinx.coroutines.flow.M
             val route = app.nav.currentBackStackEntryAsState().value?.destination?.route
             com.dopdop.bopdop.ui.together.TogetherOverlay(app, onRoomScreen = route == Routes.TOGETHER && app.player.targetValue < 0.5f)
             ToastHost(app)
+            // The launch screen, over everything, once per start of the app.
+            FirstBeatSplash()
         }
     }
 

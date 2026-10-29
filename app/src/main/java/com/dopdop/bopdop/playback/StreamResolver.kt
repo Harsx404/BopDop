@@ -99,7 +99,8 @@ object StreamResolver {
         .appendQueryParameter("d", t.durationSec.toString())
         .apply { t.streamUrl?.let { appendQueryParameter("u", it) } }
         .apply { if (addon) appendQueryParameter("src", "addon") }
-        .apply { if (t.isPodcast) appendQueryParameter("k", "pod") }
+        // YouTube episodes play only their own audio; JioSaavn ones carry their own file like its songs.
+        .apply { if (t.isPodcast && t.source == com.dopdop.bopdop.data.model.Source.YTM) appendQueryParameter("k", "pod") }
         .build()
 
     /** Some add-on is switched on, and the connection's quality is High (add-ons are only for that). */

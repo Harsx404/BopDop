@@ -83,7 +83,7 @@ fun ExploreScreen() {
         }
         item(key = "podcasts") {
             ActionTile(
-                "Podcasts", "Shows and episodes from YouTube Music", Icons.Rounded.Podcasts,
+                "Podcasts", "Shows and episodes from YouTube Music and JioSaavn", Icons.Rounded.Podcasts,
                 listOf(Color(0xFFFFB86B), Color(0xFFE0592B)), Modifier.padding(horizontal = 20.dp).padding(bottom = 14.dp).fillMaxWidth(),
             ) { app.nav.navigate(com.dopdop.bopdop.ui.Routes.PODCASTS) }
         }

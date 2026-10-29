@@ -1,0 +1,15 @@
+<!-- The bopdop wordmark (docs/brand), for the launch screen. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="678dp" android:height="182dp"
+    android:viewportWidth="678" android:viewportHeight="182">
+    <group android:translateX="-262" android:translateY="-92">
+        <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M299 95C308.389 95 316 102.611 316 112V133.204C321.609 131.132 327.673 130 334 130C362.719 130 386 153.281 386 182C386 210.719 362.719 234 334 234C305.281 234 282 210.719 282 182V112C282 102.611 289.611 95 299 95Z M355 182A21 21 0 1 0 313 182A21 21 0 1 0 355 182Z" />
+        <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M496 182A52 52 0 1 0 392 182A52 52 0 1 0 496 182Z M465 182A21 21 0 1 0 423 182A21 21 0 1 0 465 182Z" />
+        <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M502 182C502 153.281 525.281 130 554 130C582.719 130 606 153.281 606 182C606 210.719 582.719 234 554 234C547.673 234 541.609 232.868 536 230.796V253C536 262.389 528.389 270 519 270C509.611 270 502 262.389 502 253Z M575 182A21 21 0 1 0 533 182A21 21 0 1 0 575 182Z" />
+        <group android:translateX="1328" android:scaleX="-1">
+            <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M629 95C638.389 95 646 102.611 646 112V133.204C651.609 131.132 657.673 130 664 130C692.719 130 716 153.281 716 182C716 210.719 692.719 234 664 234C635.281 234 612 210.719 612 182V112C612 102.611 619.611 95 629 95Z M685 182A21 21 0 1 0 643 182A21 21 0 1 0 685 182Z" />
+        </group>
+        <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M826 182A52 52 0 1 0 722 182A52 52 0 1 0 826 182Z M795 182A21 21 0 1 0 753 182A21 21 0 1 0 795 182Z" />
+        <path android:fillColor="#F3EFE7" android:fillType="evenOdd" android:pathData="M832 182C832 153.281 855.281 130 884 130C912.719 130 936 153.281 936 182C936 210.719 912.719 234 884 234C877.673 234 871.609 232.868 866 230.796V253C866 262.389 858.389 270 849 270C839.611 270 832 262.389 832 253Z M905 182A21 21 0 1 0 863 182A21 21 0 1 0 905 182Z" />
+    </group>
+</vector>

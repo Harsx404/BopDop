@@ -529,10 +529,13 @@ class PlaybackService : MediaLibraryService() {
         if (player.repeatMode != Player.REPEAT_MODE_OFF) return
         if (!needsMoreMusic()) return
         val seed = player.currentMediaItem?.toTrack() ?: return
+        // The two songs before this one, unless they were skipped: autoplay follows the session.
+        val before = (player.currentMediaItemIndex - 1 downTo maxOf(0, player.currentMediaItemIndex - 4))
+            .mapNotNull { player.getMediaItemAt(it).toTrack() }.filter { !it.isPodcast && !com.dopdop.bopdop.data.PlayStats.skippedLately(it.id) }.take(2)
         extending = true
         scope.launch {
             try {
-                val more = MusicRepository.related(seed)
+                val more = MusicRepository.related(seed, before)
                 val sameQueue = player.queueTracks().any { it.id == seed.id }
                 if (LibraryStore.settings.autoplay && player.repeatMode == Player.REPEAT_MODE_OFF &&
                     needsMoreMusic() && sameQueue) {

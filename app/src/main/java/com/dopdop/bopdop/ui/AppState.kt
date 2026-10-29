@@ -134,7 +134,7 @@ class AppState(val nav: NavHostController, val scope: CoroutineScope) {
         nav.navigate("podcast?id=${enc(id)}&title=${enc(title)}&art=${enc(art)}")
 
     fun openAlbum(id: String, title: String = "", art: String = "") =
-        if (id.startsWith("yt:" + com.dopdop.bopdop.data.model.PODCAST_PREFIX)) openPodcast(id, title, art) else nav.navigate("collection?id=${enc(id)}&kind=ALBUM&title=${enc(title)}&sub=&art=${enc(art)}")
+        if (id.startsWith("yt:" + com.dopdop.bopdop.data.model.PODCAST_PREFIX) || id.startsWith(com.dopdop.bopdop.data.model.SAAVN_SHOW)) openPodcast(id, title, art) else nav.navigate("collection?id=${enc(id)}&kind=ALBUM&title=${enc(title)}&sub=&art=${enc(art)}")
 
     fun openLocal(id: String) = nav.navigate("local?id=${enc(id)}")
     fun openMood(title: String, params: String) = nav.navigate("mood?title=${enc(title)}&params=${enc(params)}")

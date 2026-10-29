@@ -8,12 +8,16 @@ import java.time.LocalDate
 class HalloweenTest {
     private val outsideSeason = LocalDate.of(2026, 3, 15)
 
-    @Test fun previewWorksOutsideTheFestivalWindowAndOffStillWins() {
+    @Test fun nothingShowsOutsideTheFestivalWindows() {
         assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason))
-        assertEquals(Festival.HALLOWEEN, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason, halloweenPreview = true))
-        assertNull(Festivals.current(FestiveLevel.OFF, FestivePick.AUTO, "IN", outsideSeason, halloweenPreview = true))
-        assertEquals(Festival.DIWALI, Festivals.current(FestiveLevel.FULL, FestivePick.AUTO, "IN", outsideSeason, diwaliPreview = true))
-        assertNull(Festivals.current(FestiveLevel.OFF, FestivePick.AUTO, "IN", outsideSeason, diwaliPreview = true))
+        assertNull(Festivals.current(FestiveLevel.FULL, FestivePick.ALL, "US", outsideSeason))
+    }
+
+    @Test fun indianAndNepaliTimeZonesDecideTheRegion() {
+        assertEquals("IN", Festivals.zoneCountry("Asia/Kolkata"))
+        assertEquals("IN", Festivals.zoneCountry("Asia/Calcutta"))
+        assertEquals("NP", Festivals.zoneCountry("Asia/Kathmandu"))
+        assertNull(Festivals.zoneCountry("America/New_York"))
     }
 
     @Test fun seasonalCompanionFollowsTheFestivalWithoutChangingExplicitChoices() {
@@ -27,10 +31,10 @@ class HalloweenTest {
         }
     }
 
-    @Test fun previewAndCompanionSurviveSettingsRoundTrip() {
-        val original = Settings(halloweenPreview = true, mascot = Mascot.ECHO, seekStyle = SeekStyle.DOTS, reduceMotion = true)
+    @Test fun companionAndStorySurviveSettingsRoundTrip() {
+        val original = Settings(diwaliStory = 0b101, mascot = Mascot.ECHO, seekStyle = SeekStyle.DOTS, reduceMotion = true)
         val restored = Settings.fromJson(JSONObject(original.toJson().toString()))
-        assertTrue(restored.halloweenPreview)
+        assertEquals(0b101, restored.diwaliStory)
         assertEquals(Mascot.ECHO, restored.mascot)
         assertEquals(SeekStyle.DOTS, restored.seekStyle)
         assertTrue(restored.reduceMotion)
@@ -44,6 +48,6 @@ class HalloweenTest {
         assertEquals(Mascot.NONE, Settings.fromJson(JSONObject().put("seekPet", "NONE")).mascot)
         assertEquals(Mascot.SEASONAL, Settings.fromJson(JSONObject().put("seekPet", "OLD_PET")).mascot)
         assertEquals(Mascot.SEASONAL, Settings.fromJson(JSONObject()).mascot)
-        assertFalse(Settings.fromJson(JSONObject()).halloweenPreview)
+        assertEquals(0, Settings.fromJson(JSONObject()).diwaliStory)
     }
 }

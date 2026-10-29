@@ -76,7 +76,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -152,6 +151,31 @@ fun NowPlaying(app: AppState) {
     val washDeep by animateColorAsState(if (Bop.halloween) Color(0xFF140E1D) else if (Bop.diwali) Color(0xFF17152D) else palette.washDeep, tween(900), label = "washDeep")
     val haze = rememberHazeState()
     val scope = rememberCoroutineScope()
+    // Shorts with this song: pulled up from under the cover, and watched full screen.
+    val shortsOn = LibraryStore.state.collectAsState().value.settings.shortsOnSong
+    val shortClips by produceState(emptyList<com.dopdop.bopdop.data.ytm.ShortClip>(), t.id, shortsOn) {
+        value = emptyList()
+        if (shortsOn && !t.isPodcast && t.source != com.dopdop.bopdop.data.model.Source.LOCAL)
+            value = runCatching { com.dopdop.bopdop.data.ytm.YtShorts.forSong(t) }.getOrDefault(emptyList())
+    }
+    // Like swiping into Reels: sliding the player up carries it off the top while the first Short
+    // comes up full screen; [shortsOpen] once it's there, playing with sound in the Shorts feed.
+    val shortsReveal = remember { Animatable(0f) }
+    var shortsOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(shortClips.isEmpty(), app.nowPlayingPage) {
+        if (shortClips.isEmpty() || app.nowPlayingPage != NowPlayingPage.ART) { shortsReveal.snapTo(0f); shortsOpen = false }
+    }
+    val openShorts: () -> Unit = { scope.launch { shortsReveal.animateTo(1f, spring(dampingRatio = 1f, stiffness = 380f)); shortsOpen = true } }
+    val closeShorts: () -> Unit = { shortsOpen = false; scope.launch { shortsReveal.animateTo(0f, spring(dampingRatio = 1f, stiffness = 380f)) } }
+    // Back from the feed on another song's Short: that song plays next, right away, keeping the queue,
+    // in its Hi-Res JioSaavn release when there is one (YouTube Music often has a shorter, lower-quality edit).
+    val leaveShorts: (Track) -> Unit = { song ->
+        if (song.id != t.id) scope.launch {
+            val best = com.dopdop.bopdop.data.MusicRepository.bestCopy(song)
+            PlayerConnection.playNext(best); PlayerConnection.next(); PlayerConnection.resumeAfterShorts()
+        }
+        closeShorts()
+    }
     val video by PlayerConnection.video.collectAsState()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -213,15 +237,24 @@ fun NowPlaying(app: AppState) {
                 }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
-                        onDragEnd = { if (app.player.value < 0.82f) app.collapsePlayer() else app.expandPlayer(app.nowPlayingPage) },
+                        onDragEnd = {
+                            // Part way into Shorts: past a short pull it carries on into them, else back to the player.
+                            if (shortsReveal.value > 0f) { if (shortsReveal.value > 0.15f) openShorts() else closeShorts() }
+                            else if (app.player.value < 0.82f) app.collapsePlayer() else app.expandPlayer(app.nowPlayingPage)
+                        },
                     ) { change, d ->
                         change.consume()
-                        scope.launch { app.player.snapTo((app.player.value - d / h).coerceIn(0f, 1f)) }
+                        // Fully open on the cover: pulling up brings in the song's Shorts; pulling down puts them away first.
+                        val canShorts = shortClips.isNotEmpty() && app.nowPlayingPage == NowPlayingPage.ART && app.player.value >= 1f
+                        if (canShorts && !shortsOpen && (d < 0f || shortsReveal.value > 0f)) scope.launch { shortsReveal.snapTo((shortsReveal.value - d / h).coerceIn(0f, 1f)) }
+                        else scope.launch { app.player.snapTo((app.player.value - d / h).coerceIn(0f, 1f)) }
                     }
                 },
         ) {
             // --- Backdrop: artwork full-bleed on top, melting into its own colour ---
-            Box(Modifier.fillMaxSize().hazeSource(haze)) {
+            // Sliding into Shorts carries the whole player up and off the top.
+            val slide = Modifier.graphicsLayer { translationY = -shortsReveal.value * size.height }
+            Box(Modifier.fillMaxSize().then(slide).hazeSource(haze)) {
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to wash, 0.64f to wash, 1f to washDeep)))
                 Box(
                     Modifier.fillMaxWidth().aspectRatio(0.86f).clipToBounds()
@@ -280,7 +313,9 @@ fun NowPlaying(app: AppState) {
                     ),
                 )
                 // Lyrics: the cover swirls slowly behind the words instead of sitting still.
-                val motion = app.nowPlayingPage == NowPlayingPage.LYRICS && LibraryStore.settings.lyricsMotion &&
+                // Not at a pixel festival: its own night covers the words' background, and the blurred,
+                // turning covers underneath would keep the GPU busy for nothing.
+                val motion = app.nowPlayingPage == NowPlayingPage.LYRICS && LibraryStore.settings.lyricsMotion && !Bop.pixel &&
                     !LocalReduceMotion.current && android.os.Build.VERSION.SDK_INT >= 31
                 val motionA by animateFloatAsState(if (motion) 1f else 0f, tween(900), label = "motionBg")
                 if (motionA > 0.01f) LyricsMotionBackground(t.artwork, Modifier.fillMaxSize().graphicsLayer { alpha = motionA })
@@ -315,7 +350,7 @@ fun NowPlaying(app: AppState) {
             val shown = !immersive
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             Column(
-                Modifier.fillMaxSize()
+                Modifier.fillMaxSize().then(slide)
                     // Bars may be hidden; keep their room so nothing jumps.
                     .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).windowInsetsPadding(WindowInsets.navigationBarsIgnoringVisibility)
                     .pointerInput(Unit) {
@@ -345,6 +380,10 @@ fun NowPlaying(app: AppState) {
                     }
                 }
                 AnimatedVisibility(shown, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) { BottomPanel(app, t, palette, haze) }
+                AnimatedVisibility(shown && shortClips.isNotEmpty() && app.nowPlayingPage == NowPlayingPage.ART && shortsReveal.value < 0.05f,
+                    enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                    ShortsHint(shortClips.size, openShorts)
+                }
             }
             // While full screen, a touch anywhere just brings the controls back (it doesn't seek or scroll).
             if (immersive) Box(
@@ -356,6 +395,15 @@ fun NowPlaying(app: AppState) {
                     }
                 },
             )
+            // The Shorts feed, coming up from below as the player goes: the first Short's picture while
+            // sliding, then the feed itself, full screen. Back, the close button or a pull down on the
+            // first Short slides the player back.
+            if (shortClips.isNotEmpty() && (shortsOpen || shortsReveal.value > 0.001f)) Box(
+                Modifier.fillMaxSize().graphicsLayer { translationY = (1f - shortsReveal.value) * size.height }.background(Color.Black),
+            ) {
+                if (shortsOpen) ShortsViewer(t, shortClips, onClose = leaveShorts)
+                else Artwork(shortClips.first().thumbnail, Modifier.fillMaxSize(), corner = 0.dp, size = 720)
+            }
         }
     }
 }

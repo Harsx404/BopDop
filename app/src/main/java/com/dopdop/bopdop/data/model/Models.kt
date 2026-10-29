@@ -29,8 +29,8 @@ data class Track(
         else -> Source.YTM
     }
     val rawId: String get() = id.substringAfter(':')
-    /** A podcast episode: its "album" is the show's page (MPSP…). Plays as speech, never swapped for a song. */
-    val isPodcast: Boolean get() = albumId?.startsWith("yt:$PODCAST_PREFIX") == true
+    /** A podcast episode: its "album" is the show's page (YouTube's MPSP…, or a JioSaavn show). Plays as speech, never swapped for a song. */
+    val isPodcast: Boolean get() = albumId?.let { it.startsWith("yt:$PODCAST_PREFIX") || it.startsWith(SAAVN_SHOW) } == true
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id); put("title", title); put("artist", artist)
@@ -64,8 +64,11 @@ enum class CardKind { ALBUM, PLAYLIST, ARTIST, STATION, MOOD }
 /** YouTube Music's podcast show pages are "MPSP" + the show's playlist id. */
 const val PODCAST_PREFIX = "MPSP"
 
+/** JioSaavn podcast shows: "sv:show:" + the show's id. */
+const val SAAVN_SHOW = "sv:show:"
+
 /** A podcast show card: a playlist-like card whose id is the show page. */
-val Card.isPodcast: Boolean get() = id.startsWith("yt:$PODCAST_PREFIX")
+val Card.isPodcast: Boolean get() = id.startsWith("yt:$PODCAST_PREFIX") || id.startsWith(SAAVN_SHOW)
 
 /** Something browsable: album, playlist, artist, radio station. */
 data class Card(

@@ -143,7 +143,7 @@ private val casual = FontFamily(Font(androidx.compose.ui.text.font.DeviceFontFam
 fun BopDopTheme(content: @Composable () -> Unit) {
     val library by com.dopdop.bopdop.data.LibraryStore.state.collectAsState()
     val settings = library.settings
-    val festive = com.dopdop.bopdop.ui.festive.rememberFestive(settings.festiveLevel, settings.festivePick, settings.halloweenPreview, settings.diwaliPreview)
+    val festive = com.dopdop.bopdop.ui.festive.rememberFestive(settings.festiveLevel, settings.festivePick)
     Bop.halloween = festive.festival == com.dopdop.bopdop.data.Festival.HALLOWEEN
     Bop.diwali = festive.festival == com.dopdop.bopdop.data.Festival.DIWALI
     androidx.compose.runtime.CompositionLocalProvider(com.dopdop.bopdop.ui.festive.LocalFestive provides festive) {

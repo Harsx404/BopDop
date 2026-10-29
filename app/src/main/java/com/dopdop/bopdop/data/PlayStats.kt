@@ -26,6 +26,8 @@ data class PlayEvent(val id: String, val at: Long)
 
 data class StatsState(
     val events: List<PlayEvent> = emptyList(),
+    /** Songs moved on from before they counted as a play (under 30 s, or half a short song). */
+    val skips: List<PlayEvent> = emptyList(),
     val tracks: Map<String, Track> = emptyMap(),
     /** Seconds listened per local day (epoch day). */
     val daily: Map<Long, Int> = emptyMap(),
@@ -38,12 +40,14 @@ data class StatsState(
  */
 object PlayStats {
     private const val MAX_EVENTS = 50_000
+    private const val MAX_SKIPS = 5_000
     private lateinit var file: File
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _state = MutableStateFlow(StatsState())
     val state: StateFlow<StatsState> = _state.asStateFlow()
 
     private var sessionId: String? = null
+    private var sessionTrack: Track? = null
     private var sessionSec = 0
     private var counted = false
 
@@ -60,7 +64,7 @@ object PlayStats {
     @Synchronized
     fun tick(t: Track, seconds: Int = 1) {
         if (!::file.isInitialized) return
-        if (t.id != sessionId) { sessionId = t.id; sessionSec = 0; counted = false }
+        if (t.id != sessionId) { sessionId = t.id; sessionTrack = t; sessionSec = 0; counted = false }
         sessionSec += seconds
         val threshold = if (t.durationSec in 1..59) (t.durationSec / 2).coerceAtLeast(5) else 30
         val day = LocalDate.now().toEpochDay()
@@ -75,9 +79,22 @@ object PlayStats {
         }
     }
 
-    /** A new song (or the same one again from the top) starts a fresh listening session. */
+    /**
+     * A new song (or the same one again from the top) starts a fresh listening session. Leaving the
+     * last one after hearing some of it but before it counted is a skip, which recommendations learn from.
+     */
     @Synchronized
-    fun newSession() { sessionId = null }
+    fun newSession() {
+        val left = sessionTrack
+        if (::file.isInitialized && left != null && !counted && sessionSec >= 1) _state.update { s ->
+            s.copy(skips = (s.skips + PlayEvent(left.id, System.currentTimeMillis())).takeLast(MAX_SKIPS),
+                tracks = s.tracks + (left.id to left.copy(streamUrl = null)))
+        }
+        sessionId = null; sessionTrack = null; sessionSec = 0; counted = false
+    }
+
+    /** Skipped in the last day: a poor seed for more of the same. */
+    fun skippedLately(id: String, now: Long = System.currentTimeMillis()) = _state.value.skips.any { it.id == id && it.at >= now - 86_400_000L }
 
     fun clear() = _state.update { StatsState() }
 
@@ -89,9 +106,14 @@ object PlayStats {
             val a = ev!!.optJSONArray(i) ?: return@mapNotNull null
             PlayEvent(a.optString(0), a.optLong(1)).takeIf { it.id.isNotEmpty() }
         }
+        val sk = o.optJSONArray("skips")
+        val skips = (0 until (sk?.length() ?: 0)).mapNotNull { i ->
+            val a = sk!!.optJSONArray(i) ?: return@mapNotNull null
+            PlayEvent(a.optString(0), a.optLong(1)).takeIf { it.id.isNotEmpty() }
+        }
         val daily = HashMap<Long, Int>()
         o.optJSONObject("daily")?.let { m -> m.keys().forEach { k -> k.toLongOrNull()?.let { daily[it] = m.optInt(k) } } }
-        return StatsState(events, tracks, daily)
+        return StatsState(events, skips, tracks, daily)
     }
 
     /** Listening history as stored, for backups. */
@@ -106,10 +128,11 @@ object PlayStats {
     }
 
     private fun toJson(s: StatsState): JSONObject {
-        val used = s.events.mapTo(HashSet()) { it.id }
+        val used = s.events.mapTo(HashSet()) { it.id }.also { u -> s.skips.forEach { u += it.id } }
         return JSONObject()
             .put("tracks", JSONObject().also { m -> s.tracks.forEach { (k, t) -> if (k in used) m.put(k, t.toJson()) } })
             .put("events", JSONArray().also { a -> s.events.forEach { e -> a.put(JSONArray().put(e.id).put(e.at)) } })
+            .put("skips", JSONArray().also { a -> s.skips.forEach { e -> a.put(JSONArray().put(e.id).put(e.at)) } })
             .put("daily", JSONObject().also { m -> s.daily.forEach { (d, v) -> m.put(d.toString(), v) } })
     }
 }

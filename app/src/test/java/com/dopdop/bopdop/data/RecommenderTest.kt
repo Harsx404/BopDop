@@ -42,4 +42,34 @@ class RecommenderTest {
         assertTrue(out.indexOfFirst { it.title == "Channa Mereya" } in 4..6)
         assertFalse(out.any { it.title == "Unrelated Fav" })
     }
+
+    @Test fun dropsSongsSkippedTwiceUnlessLiked() {
+        val now = 1_000_000_000_000L
+        val skipped = t("k", "Skipped Twice", "Artist K")
+        val likedSkip = t("lk", "Liked But Skipped", "Artist L")
+        val stats = StatsState(
+            skips = listOf(PlayEvent(skipped.id, now - 1000), PlayEvent(skipped.id, now - 2000), PlayEvent(likedSkip.id, now - 1000), PlayEvent(likedSkip.id, now - 2000)),
+            tracks = mapOf(skipped.id to skipped, likedSkip.id to likedSkip),
+        )
+        val pool = listOf(skipped, likedSkip, t("ok", "Fine Song", "Artist M"))
+        val out = Recommender.rank(seed, pool, listOf(likedSkip), emptyList(), Taste.from(stats, listOf(likedSkip), now)) { false }.map { it.title }
+        assertFalse("Skipped Twice" in out)
+        assertTrue("Liked But Skipped" in out && "Fine Song" in out)
+    }
+
+    @Test fun favouriteArtistsMoveUpAndSkippedArtistsSink() {
+        val now = 1_000_000_000_000L
+        val fav = t("f0", "Old Fav", "Fav Artist")
+        val meh = t("m0", "Meh", "Skipped Artist")
+        val stats = StatsState(
+            events = (1..12).map { PlayEvent(fav.id, now - it * 3_600_000L) },
+            skips = (1..4).map { PlayEvent(meh.id, now - it * 3_600_000L) },
+            tracks = mapOf(fav.id to fav, meh.id to meh),
+        )
+        val pool = listOf(t("x1", "Skipped Artist Song", "Skipped Artist")) + (1..8).map { t("n$it", "Neutral $it", "Neutral $it") } +
+            listOf(t("x2", "Fav Artist New", "Fav Artist"))
+        val out = Recommender.rank(seed, pool, emptyList(), emptyList(), Taste.from(stats, emptyList(), now)) { false }.map { it.title }
+        assertTrue(out.indexOf("Fav Artist New") < 9)
+        assertTrue(out.indexOf("Skipped Artist Song") > 2)
+    }
 }

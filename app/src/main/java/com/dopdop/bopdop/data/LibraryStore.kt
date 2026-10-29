@@ -73,6 +73,8 @@ data class Settings(
     val keepCache: Boolean = false,
     /** Lyrics page: the cover slowly swirls behind the words. */
     val lyricsMotion: Boolean = true,
+    /** Popular YouTube Shorts that use the playing song, swiped up from under Now Playing. */
+    val shortsOnSong: Boolean = true,
     /** Lyrics page: after a few seconds without a touch, everything but the words fades away. */
     val lyricsFullScreen: Boolean = true,
     /** Spotify Canvas loops behind the cover (signed in to Spotify); on mobile data only when allowed. */
@@ -124,10 +126,6 @@ data class Settings(
     val mascot: Mascot = Mascot.SEASONAL,
     val festiveLevel: FestiveLevel = FestiveLevel.FULL,
     val festivePick: FestivePick = FestivePick.AUTO,
-    /** Preview the complete Halloween look outside its scheduled window. */
-    val halloweenPreview: Boolean = false,
-    /** Preview the complete Diwali look outside its scheduled window. */
-    val diwaliPreview: Boolean = false,
     /** Chapters of Diwali's "A Little Light" finished, one bit each; kept apart from the theme so progress survives it. */
     val diwaliStory: Int = 0,
     /** An update the user waved away; the next newer one is offered again. */
@@ -178,13 +176,13 @@ data class Settings(
     val eq: com.dopdop.bopdop.playback.EqState = com.dopdop.bopdop.playback.EqState(),
 ) {
     fun toJson() = JSONObject().put("hiRes", hiRes).put("autoplay", autoplay).put("glass", glass.name)
-        .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("lyricsFullScreen", lyricsFullScreen).put("canvas", canvas).put("canvasOnData", canvasOnData)
+        .put("languages", languages).put("cacheMb", cacheMb).put("keepCache", keepCache).put("lyricsMotion", lyricsMotion).put("shortsOnSong", shortsOnSong).put("lyricsFullScreen", lyricsFullScreen).put("canvas", canvas).put("canvasOnData", canvasOnData)
             .put("addons", JSONArray(addons)).put("lossless", lossless).put("addonsOff", JSONArray(addonsOff)).put("sourceOrder", JSONArray(sourceOrder)).put("atmos", atmos).put("bitPerfect", bitPerfect).put("spotifyAutoImport", spotifyAutoImport).put("ytHistory", ytHistory).put("resumeOnConnect", resumeOnConnect).put("reduceMotion", reduceMotion).put("showSaavnHome", showSaavnHome)
         .put("videoQuality", videoQuality.name).put("skipSilence", skipSilence).put("vocalMode", vocalMode.name).put("normalize", normalize)
         .put("refreshRate", refreshRate).put("localFolder", localFolder ?: "").put("filterNonMusic", filterNonMusic)
         .put("floatOutput", floatOutput).put("crossfadeSec", crossfadeSec).put("lockScreenLyrics", lockScreenLyrics)
         .put("seekStyle", seekStyle.name).put("mascot", mascot.name)
-        .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("halloweenPreview", halloweenPreview).put("diwaliPreview", diwaliPreview).put("diwaliStory", diwaliStory).put("skippedUpdate", skippedUpdate)
+        .put("festiveLevel", festiveLevel.name).put("festivePick", festivePick.name).put("diwaliStory", diwaliStory).put("skippedUpdate", skippedUpdate)
         .put("islandOverlay", islandOverlay).put("liveUpdate", liveUpdate).put("themeMode", themeMode.name).put("font", font.name).put("textSize", textSize.name).put("customFont", customFont).put("customFontName", customFontName)
         .put("audioWifi", audioWifi.name).put("audioMobile", audioMobile.name).put("playbackSpeed", playbackSpeed.toDouble())
         .put("lofi", lofi).put("lofiSpeed", lofiSpeed.toDouble()).put("lofiPitch", lofiPitch.toDouble()).put("lofiReverb", lofiReverb.toDouble())
@@ -228,6 +226,7 @@ data class Settings(
             cacheMb = o.optInt("cacheMb", 1024),
             keepCache = o.optBoolean("keepCache", false),
             lyricsMotion = o.optBoolean("lyricsMotion", true),
+            shortsOnSong = o.optBoolean("shortsOnSong", true),
             lyricsFullScreen = o.optBoolean("lyricsFullScreen", true),
             canvas = o.optBoolean("canvas", true),
             canvasOnData = o.optBoolean("canvasOnData", false),
@@ -264,8 +263,6 @@ data class Settings(
             festiveLevel = if (o.optString("festiveLevel") == "LIMITED") FestiveLevel.OFF
                 else runCatching { FestiveLevel.valueOf(o.optString("festiveLevel")) }.getOrDefault(FestiveLevel.FULL),
             festivePick = runCatching { FestivePick.valueOf(o.optString("festivePick")) }.getOrDefault(FestivePick.AUTO),
-            halloweenPreview = o.optBoolean("halloweenPreview", false),
-            diwaliPreview = o.optBoolean("diwaliPreview", false),
             diwaliStory = o.optInt("diwaliStory", 0),
             skippedUpdate = o.optString("skippedUpdate"),
             islandInApp = if (o.has("islandInApp")) o.optBoolean("islandInApp") else null,

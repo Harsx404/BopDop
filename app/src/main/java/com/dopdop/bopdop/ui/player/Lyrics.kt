@@ -3,6 +3,7 @@ package com.dopdop.bopdop.ui.player
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.ManageSearch
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.text.style.TextAlign
@@ -210,7 +211,8 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier, imm
                         enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
                         exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
                     ) {
-                        LyricControls(t.id, indic, mode, translating, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing }) { selecting = !selecting; selected.clear() }
+                        LyricControls(t.id, indic, mode, translating, selecting, timing && s.l.isSynced, s.l.isSynced, onTiming = { timing = !timing },
+                            onSearch = { app.sheet = com.dopdop.bopdop.ui.Sheet.LyricsSearch(t) }) { selecting = !selecting; selected.clear() }
                     }
                     Box(Modifier.weight(1f)) {
                         if (s.l.isSynced) SyncedLyrics(s.l.synced, t, main, sub, selecting, selected, toggle)
@@ -231,9 +233,15 @@ fun LyricsView(t: Track, palette: ArtPalette, modifier: Modifier = Modifier, imm
  * there is something to romanize) with translate, timing and share buttons on the right. Labels
  * never wrap: at large font sizes the switch scrolls sideways instead. Opening timing swaps the
  * switch for a stepper in the same row (− value +), so the lyrics never get pushed down.
+ * "Wrong lyrics?" sits here too, not only after the last line: for each song it shows as a labelled
+ * pill for a few seconds, then folds into a search button. With the Original / Romanized switch in
+ * the row it is the button from the start, so the switch keeps its room.
  */
 @Composable
-private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, translating: Boolean, selecting: Boolean, timing: Boolean, synced: Boolean, onTiming: () -> Unit, onShare: () -> Unit) {
+private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, translating: Boolean, selecting: Boolean, timing: Boolean, synced: Boolean,
+                          onTiming: () -> Unit, onSearch: () -> Unit, onShare: () -> Unit) {
+    var hint by remember(trackId) { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(trackId) { kotlinx.coroutines.delay(6_000); hint = false }
     // Lined up under the song header: starts at its cover; the last button sits right under its heart.
     Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 22.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f).padding(end = 10.dp)) {
@@ -256,6 +264,19 @@ private fun LyricControls(trackId: String, indic: Boolean, mode: LyricMode, tran
             }
         }
         if (!timing) {
+            androidx.compose.animation.AnimatedContent(hint && !indic, label = "wrongLyrics") { labelled ->
+                if (labelled) Row(
+                    Modifier.height(40.dp).clip(RoundedCornerShape(50)).background(LyricInk.copy(alpha = 0.12f))
+                        .border(1.dp, LyricInk.copy(alpha = 0.16f), RoundedCornerShape(50)).bounceClick(onClick = onSearch).padding(start = 11.dp, end = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.ManageSearch, null, tint = LyricInk, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Wrong lyrics?", style = BopType.Caption.copy(fontWeight = FontWeight(600)), color = LyricInk, maxLines = 1, softWrap = false)
+                }
+                else BarIcon(Icons.Rounded.ManageSearch, "Wrong lyrics? Search", false, onSearch)
+            }
+            Spacer(Modifier.width(10.dp))
             BarIcon(Icons.Rounded.Translate, if (translating) "Hide translation" else "Translate lyrics", translating) { LyricPrefs.translate = !translating }
             Spacer(Modifier.width(10.dp))
         }

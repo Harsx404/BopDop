@@ -1,0 +1,10 @@
+<resources>
+    <!-- Android 12+: the system launch screen is the splash's own charcoal, so it hands over without a flash. -->
+    <style name="Theme.BopDop" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowSplashScreenBackground">@color/splash</item>
+    </style>
+</resources>

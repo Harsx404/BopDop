@@ -6,4 +6,5 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
     <color name="ink">#FFDCDFE4</color>
+    <color name="splash">#FF101112</color>
 </resources>

@@ -1,6 +1,9 @@
 package com.dopdop.bopdop.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material.icons.rounded.RecordVoiceOver
@@ -311,6 +314,9 @@ fun SettingsScreen(section: String? = null) {
         if (show("Music video")) item(key = "group:Music video") {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Music video") {
+                    ToggleRow(Icons.Rounded.VideoLibrary, "Shorts with this song", "Popular YouTube Shorts that use the song. Swipe up on the player to see them; the one in front plays silently on Wi-Fi.", s.shortsOnSong, keywords = "shorts reels clips youtube videos song") {
+                        LibraryStore.updateSettings { it.copy(shortsOnSong = !it.shortsOnSong) }
+                    }
                     RowHead(Icons.Rounded.Videocam, "Video quality", "Auto streams 1080p on Wi‑Fi and 480p on mobile data. 4K plays only where your phone can decode it smoothly; applies to the next video.") {
                         FlowRow(Modifier.padding(start = 56.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             VideoQuality.entries.forEach { q ->
@@ -379,23 +385,14 @@ fun SettingsScreen(section: String? = null) {
             CompositionLocalProvider(LocalQuery provides query, LocalTotal provides total) {
                 Group("Festive") {
                     val festive = com.dopdop.bopdop.ui.festive.LocalFestive.current
-                    val now = if (festive.preview && festive.decor) "${festive.festival?.label} preview is on. " else festive.festival?.let { f ->
+                    val now = festive.festival?.let { f ->
                         val end = com.dopdop.bopdop.data.Festivals.window(f, festive.today.year)?.endInclusive
                         "${f.label} is on" + (end?.let { " until " + it.format(java.time.format.DateTimeFormatter.ofPattern("MMM d")) } ?: "") + ". "
                     }.orEmpty()
                     RowHead(Icons.Rounded.Celebration, "Festive themes", now + "Themes arrive 5 days before a festival and leave when it ends; festivals that are over for the year drop off the list.") {
                         ChipRow(com.dopdop.bopdop.data.FestiveLevel.entries, s.festiveLevel, { it.label }) { l ->
-                            LibraryStore.updateSettings { it.copy(festiveLevel = l, halloweenPreview = it.halloweenPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF,
-                                diwaliPreview = it.diwaliPreview && l != com.dopdop.bopdop.data.FestiveLevel.OFF) }
+                            LibraryStore.updateSettings { it.copy(festiveLevel = l) }
                         }
-                    }
-                    ToggleRow(Icons.Rounded.Celebration, "Preview Halloween", "Try the full palette, pixel icons and animated night sky any time. Seasonal uses Wisp; other mascot choices stay yours.", s.halloweenPreview, keywords = "halloween ghost pumpkin bat theme preview") {
-                        LibraryStore.updateSettings { it.copy(halloweenPreview = !it.halloweenPreview, diwaliPreview = false,
-                            festiveLevel = if (!it.halloweenPreview) com.dopdop.bopdop.data.FestiveLevel.FULL else it.festiveLevel) }
-                    }
-                    ToggleRow(Icons.Rounded.Celebration, "Preview Diwali", "Try the diya-lit palette, pixel icons, lamplit night and the story A Little Light any time. Seasonal uses Jyoti; other mascot choices stay yours.", s.diwaliPreview, keywords = "diwali deepavali diya lantern rangoli fireworks theme preview story") {
-                        LibraryStore.updateSettings { it.copy(diwaliPreview = !it.diwaliPreview, halloweenPreview = false,
-                            festiveLevel = if (!it.diwaliPreview) com.dopdop.bopdop.data.FestiveLevel.FULL else it.festiveLevel) }
                     }
                     if (festive.festival == com.dopdop.bopdop.data.Festival.DIWALI && festive.decor) {
                         val chapters = Integer.bitCount(s.diwaliStory and 0b111111)
@@ -406,10 +403,14 @@ fun SettingsScreen(section: String? = null) {
                         }
                     }
                     if (s.festiveLevel != com.dopdop.bopdop.data.FestiveLevel.OFF) {
-                        RowHead(Icons.Rounded.Public, "Celebrate", "My region follows your phone's country. Choose a festival while the season is on, or use a preview above.") {
+                        // Says which country My region found, so a wrong guess is easy to spot.
+                        val ctx = LocalContext.current
+                        val region = remember { com.dopdop.bopdop.data.Festivals.country(ctx) }
+                        val regionName = region.takeIf { it.isNotBlank() }?.let { java.util.Locale("", it).displayCountry }
+                        RowHead(Icons.Rounded.Public, "Celebrate", "My region" + (regionName?.let { " ($it)" } ?: "") + " follows where your phone is. Choose a festival while the season is on.") {
                             val picks = com.dopdop.bopdop.data.Festivals.picks(festive.today)
                             val choices = if (s.festivePick in picks) picks else picks + s.festivePick
-                            ChipRow(choices, s.festivePick, { it.label + if (it !in picks) " · ended" else "" }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f, halloweenPreview = false, diwaliPreview = false) } }
+                            ChipRow(choices, s.festivePick, { it.label + if (it !in picks) " · ended" else "" }) { f -> LibraryStore.updateSettings { it.copy(festivePick = f) } }
                         }
                     }
                 }
@@ -1092,9 +1093,9 @@ private fun SourcesList(s: com.dopdop.bopdop.data.Settings, names: Map<String, S
     }
 }
 
-/** Home-screen icon: three looks, previewed as they'll appear. */
+/** Home-screen icon: each look, previewed as it'll appear; the row scrolls sideways when they don't all fit. */
 @Composable
-private fun AppIconRow() = Searchable("App icon", "Classic, orange glass or light glass", "launcher home screen logo dark") {
+private fun AppIconRow() = Searchable("App icon", "Classic, orange glass, light glass or a festival look", "launcher home screen logo dark halloween diwali") {
     val ctx = LocalContext.current
     var current by remember { mutableStateOf<com.dopdop.bopdop.AppIcon?>(null) }
     LaunchedEffect(Unit) { current = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.dopdop.bopdop.AppIcon.chosen(ctx) } }
@@ -1108,7 +1109,8 @@ private fun AppIconRow() = Searchable("App icon", "Classic, orange glass or ligh
                 Text("Changes when you leave BopDop; your launcher may take a moment.", style = BopType.Caption, color = Bop.Text2)
             }
         }
-        Row(Modifier.padding(start = 56.dp, top = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp).horizontalScroll(rememberScrollState()).padding(start = 56.dp, end = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             com.dopdop.bopdop.AppIcon.entries.forEach { icon ->
                 val on = icon == current
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.bounceClick {
@@ -1126,7 +1128,7 @@ private fun AppIconRow() = Searchable("App icon", "Classic, orange glass or ligh
                         androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(icon.foreground), null, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.5f; scaleY = 1.5f })
                     }
                     Spacer(Modifier.height(6.dp))
-                    Text(icon.label, style = BopType.Caption, color = if (on) Bop.Text else Bop.Text2)
+                    Text(icon.label, style = BopType.Caption, color = if (on) Bop.Text else Bop.Text2, maxLines = 1, softWrap = false)
                 }
             }
         }

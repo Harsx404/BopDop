@@ -137,16 +137,44 @@ object MusicRepository {
         }
     }
 
-    /** "Up next" continuation for a track — feeds autoplay and Start Radio. */
-    suspend fun related(t: Track): List<Track> = withContext(Dispatchers.IO) {
-        // YouTube Music's radio for the song; JioSaavn and on-phone songs use their YouTube Music copy.
+    /**
+     * "Up next" continuation for a track — feeds autoplay, Start Radio, Daily Mixes and Discover.
+     * [alsoLike] are a few more songs from the same session: their radios are woven in (two from the
+     * main song's for each of theirs), so autoplay follows where the listening has gone without
+     * drifting off. The result is ranked to your taste (see [Recommender] and [Taste]).
+     */
+    suspend fun related(t: Track, alsoLike: List<Track> = emptyList()): List<Track> = withContext(Dispatchers.IO) {
+        val extras = alsoLike.filter { a -> a.id != t.id && !com.dopdop.bopdop.data.model.SongVersion.sameSong(a, t) }.take(2)
+        val pools = coroutineScope { (listOf(t) + extras).map { async { radioPool(it) } }.awaitAll() }
+        val main = pools.first()
+        val others = pools.drop(1)
+        val woven = buildList {
+            val m = main.iterator(); val o = others.map { it.iterator() }
+            while (m.hasNext() || o.any { it.hasNext() }) {
+                repeat(2) { if (m.hasNext()) add(m.next()) }
+                o.forEach { if (it.hasNext()) add(it.next()) }
+            }
+        }.filter { c -> extras.none { com.dopdop.bopdop.data.model.SongVersion.sameSong(it, c) } }
+        val lib = LibraryStore.state.value
+        Recommender.rank(t, woven, lib.liked, lib.history, Taste.from(PlayStats.state.value, lib.liked), LibraryStore::isDisliked)
+    }
+
+    /**
+     * The best copy of [t] to play when you pick it from elsewhere (a Short's song): JioSaavn's 320 kbps
+     * release of the same song when Hi-Res is on and one exists, else [t] itself.
+     */
+    suspend fun bestCopy(t: Track): Track = withContext(Dispatchers.IO) {
+        if (t.source != Source.YTM || !LibraryStore.settings.hiRes || t.isPodcast) return@withContext t
+        withTimeoutOrNull(4_000) { runCatching { SaavnApi.fullCopy(t) }.getOrNull() } ?: t
+    }
+
+    /** YouTube Music's radio for a song; JioSaavn and on-phone songs use their YouTube Music copy, else the artist's songs. */
+    private suspend fun radioPool(t: Track): List<Track> {
         val seedId = if (t.source == Source.YTM) t.rawId else runCatching {
             YtMusic.searchSongs("${t.title} ${t.artist.split(",").first()}").firstOrNull { com.dopdop.bopdop.data.model.SongVersion.sameRecording(t, it) }?.rawId
         }.getOrNull()
-        val pool = seedId?.let { runCatching { YtMusic.next(it) }.getOrDefault(emptyList()) }.orEmpty()
+        return seedId?.let { runCatching { YtMusic.next(it) }.getOrDefault(emptyList()) }.orEmpty()
             .ifEmpty { runCatching { YtMusic.searchSongs("${t.artist.split(",").first()} songs") }.getOrDefault(emptyList()) }
-        val lib = LibraryStore.state.value
-        Recommender.rank(t, pool, lib.liked, lib.history, LibraryStore::isDisliked)
     }
 
     /** Tracks for shared ids ("yt:…" / "sv:…"), in the order given; unknown ids are dropped. */
@@ -175,7 +203,20 @@ object MusicRepository {
     suspend fun moods(): List<Pair<String, String>> = withContext(Dispatchers.IO) { YtMusic.moods() }
     suspend fun moodCategory(params: String): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.moodCategory(params) }
     suspend fun explore(): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.explore() }
-    suspend fun podcasts(): List<Shelf> = withContext(Dispatchers.IO) { YtMusic.podcasts() }
-    suspend fun podcastShow(id: String): com.dopdop.bopdop.data.model.PodcastShow = withContext(Dispatchers.IO) { YtMusic.podcastShow(id.removePrefix("yt:")) }
+    /** The podcast catalogue: YouTube Music's shelves and JioSaavn's trending and top shows, whichever answer. */
+    suspend fun podcasts(): List<Shelf> = withContext(Dispatchers.IO) {
+        val yt = async { runCatching { YtMusic.podcasts() } }
+        val sv = async { runCatching { com.dopdop.bopdop.data.saavn.SaavnApi.podcasts() } }
+        val (a, b) = yt.await() to sv.await()
+        // YouTube's popular shows lead; JioSaavn's Indian shows come right after.
+        val ytShelves = a.getOrDefault(emptyList())
+        val all = ytShelves.take(1) + b.getOrDefault(emptyList()) + ytShelves.drop(1)
+        if (all.isEmpty()) throw (a.exceptionOrNull() ?: b.exceptionOrNull() ?: java.io.IOException("No podcasts right now"))
+        all
+    }
+    suspend fun podcastShow(id: String): com.dopdop.bopdop.data.model.PodcastShow = withContext(Dispatchers.IO) {
+        if (id.startsWith(com.dopdop.bopdop.data.model.SAAVN_SHOW)) com.dopdop.bopdop.data.saavn.SaavnApi.podcastShow(id.removePrefix(com.dopdop.bopdop.data.model.SAAVN_SHOW))
+        else YtMusic.podcastShow(id.removePrefix("yt:"))
+    }
     suspend fun lyrics(t: Track): Lyrics? = withContext(Dispatchers.IO) { LyricsApi.get(t) }
 }
